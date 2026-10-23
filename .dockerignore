@@ -10,5 +10,7 @@ server/storage/framework/views/*
 server/.env
 server/public/storage
 desktop/src-tauri/target
+data/
+data-dev/
 *.log
 .DS_Store

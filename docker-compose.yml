@@ -20,7 +20,7 @@ x-app-env: &app-env
   SEED_ADMIN: "true"
 
 x-app-volumes: &app-volumes
-  - screenshots:/var/www/html/storage/app/public
+  - ./data/screenshots:/var/www/html/storage/app/public
 
 services:
   app:
@@ -56,7 +56,7 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
       MYSQL_RANDOM_ROOT_PASSWORD: "yes"
     volumes:
-      - dbdata:/var/lib/mysql
+      - ./data/db:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "$$MYSQL_USER", "-p$$MYSQL_PASSWORD"]
       interval: 5s
@@ -73,7 +73,3 @@ services:
     depends_on:
       - app
     restart: unless-stopped
-
-volumes:
-  dbdata:
-  screenshots:

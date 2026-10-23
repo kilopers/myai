@@ -39,7 +39,9 @@ docker compose up --build
 # http://localhost:8080
 ```
 
-Dev-вариант с маунтом кода и Vite dev-сервером:
+Данные лежат в bind-монтах внутри проекта, а не в docker volumes: `./data/db` — база MySQL, `./data/screenshots` — загруженные картинки (`/var/www/html/storage/app/public`). Перенос на другой сервер — остановить стек и скопировать папку `data/` вместе с репозиторием и `.env`; бэкап — `tar czf backup.tgz data/ .env` (при остановленном `db`). Права на `./data/screenshots` чинит entrypoint контейнера `app` (он стартует от root и отдаёт каталог `www-data`).
+
+Dev-вариант с маунтом кода и Vite dev-сервером (данные — отдельно в `./data-dev/`):
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build

@@ -14,3 +14,7 @@ server/vendor/
 # Rust
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
+
+# Docker bind-монты (БД и скриншоты живут в проекте)
+/data/
+/data-dev/

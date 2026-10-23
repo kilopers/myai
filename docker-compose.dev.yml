@@ -10,13 +10,20 @@ services:
       APP_DEBUG: "true"
     volumes:
       - ./server:/var/www/html:cached
-      - screenshots:/var/www/html/storage/app/public
+      - ./data-dev/screenshots:/var/www/html/storage/app/public
     entrypoint: >
-      sh -c "composer install --no-interaction &&
+      sh -c "chown -R www-data:www-data storage bootstrap/cache;
+             composer install --no-interaction &&
              php artisan migrate --force &&
              php artisan db:seed --force &&
              php artisan storage:link 2>/dev/null || true;
+             chown -R www-data:www-data storage bootstrap/cache;
              php-fpm"
+
+  queue:
+    volumes:
+      - ./server:/var/www/html:cached
+      - ./data-dev/screenshots:/var/www/html/storage/app/public
 
   web:
     build:
@@ -29,5 +36,7 @@ services:
       - /app/node_modules
 
   db:
+    volumes:
+      - ./data-dev/db:/var/lib/mysql
     ports:
       - "3306:3306"

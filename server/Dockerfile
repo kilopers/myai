@@ -38,6 +38,6 @@ COPY server/docker/entrypoint.sh /usr/local/bin/app-entrypoint
 RUN chmod +x /usr/local/bin/app-entrypoint \
     && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
-USER www-data
-
+# Entrypoint запускается от root: чинит права на bind-монты из ./data,
+# artisan выполняет от www-data, php-fpm мастер от root (воркеры — www-data).
 ENTRYPOINT ["app-entrypoint"]
