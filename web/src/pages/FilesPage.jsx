@@ -103,7 +103,7 @@ export default function FilesPage() {
 
   const uploadFiles = async (list) => {
     for (const f of list) {
-      const entry = { name: f.name, progress: 0 };
+      const entry = { name: f.name, progress: 0, done: false, leaving: false };
       setUploads((u) => [...u, entry]);
       const fd = new FormData();
       fd.append('file', f);
@@ -118,7 +118,13 @@ export default function FilesPage() {
       } catch {
         setMessage(`Не удалось загрузить ${f.name}`);
       }
-      setUploads((u) => u.filter((x) => x !== entry));
+      setUploads((u) => u.map((x) => (x === entry ? { ...x, progress: 100, done: true } : x)));
+      setTimeout(() => {
+        setUploads((u) => u.map((x) => (x === entry ? { ...x, leaving: true } : x)));
+      }, 4500);
+      setTimeout(() => {
+        setUploads((u) => u.filter((x) => x !== entry));
+      }, 5000);
     }
     load();
   };
@@ -254,9 +260,24 @@ export default function FilesPage() {
       </Box>
 
       {uploads.map((u) => (
-        <Box key={u.name} sx={{ mb: 1, maxWidth: 680, mx: 'auto' }}>
-          <Typography variant="caption">{u.name} — {u.progress}%</Typography>
-          <LinearProgress variant="determinate" value={u.progress} />
+        <Box
+          key={u.name}
+          sx={{
+            mb: 1,
+            maxWidth: 680,
+            mx: 'auto',
+            opacity: u.leaving ? 0 : 1,
+            transition: 'opacity .5s ease',
+          }}
+        >
+          <Typography variant="caption" color={u.done ? 'success.main' : 'text.secondary'}>
+            {u.name} — {u.done ? 'загружен' : `${u.progress}%`}
+          </Typography>
+          <LinearProgress
+            variant="determinate"
+            value={u.progress}
+            color={u.done ? 'success' : 'primary'}
+          />
         </Box>
       ))}
 
