@@ -55,7 +55,7 @@ export default function GalleryPage() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
         <Typography variant="h5">Мои скриншоты</Typography>
         <Button variant="contained" component="label" startIcon={<UploadIcon />}>
           Загрузить
@@ -68,7 +68,7 @@ export default function GalleryPage() {
       ) : (
         <ImageList
           cols={8}
-          gap={12}
+          gap={10}
           sx={{
             gridTemplateColumns: {
               xs: 'repeat(2, 1fr) !important',
@@ -84,7 +84,7 @@ export default function GalleryPage() {
                 <CardMedia
                   component="img"
                   image={s.url}
-                  height="160"
+                  height="130"
                   sx={{ objectFit: 'cover', cursor: 'pointer' }}
                   onClick={() => setPreview(s.url)}
                   loading="lazy"

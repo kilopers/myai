@@ -22,8 +22,8 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import { Outlet, Link as RouterLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const DRAWER_WIDTH = 232;
-const COLLAPSED_WIDTH = 64;
+const DRAWER_WIDTH = 200;
+const COLLAPSED_WIDTH = 56;
 const OPEN_KEY = 'drawer_open';
 
 export default function Layout() {
@@ -49,7 +49,7 @@ export default function Layout() {
   ];
 
   const nav = (
-    <List sx={{ px: 1, pt: 1 }}>
+    <List sx={{ px: 0.75, pt: 0.75 }}>
       {items.map((item) => {
         const selected = item.to === '/'
           ? location.pathname === '/'
@@ -63,10 +63,10 @@ export default function Layout() {
             onClick={isMobile ? toggle : undefined}
             sx={{
               borderRadius: 1.5,
-              mb: 0.5,
+              mb: 0.25, py: 0.5,
               justifyContent: open || isMobile ? 'initial' : 'center',
               '&.Mui-selected': {
-                bgcolor: 'rgba(119,89,194,.12)',
+                bgcolor: 'rgba(16,104,191,.1)',
                 color: 'primary.main',
                 '& .MuiListItemIcon-root': { color: 'primary.main' },
               },

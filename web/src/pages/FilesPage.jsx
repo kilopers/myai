@@ -209,18 +209,28 @@ export default function FilesPage() {
         onDragLeave={() => setDragOver(false)}
         onDrop={onDrop}
         sx={{
-          mb: 3,
-          border: '2px dashed',
+          mb: 2,
+          border: '1.5px dashed',
           borderColor: dragOver ? 'primary.main' : 'divider',
-          bgcolor: dragOver ? 'rgba(119,89,194,.06)' : 'background.paper',
+          bgcolor: dragOver ? 'rgba(16,104,191,.07)' : 'background.paper',
           cursor: 'pointer',
           textAlign: 'center',
+          transform: dragOver ? 'scale(1.01)' : 'none',
+          boxShadow: dragOver ? 4 : 'none',
+          transition: 'all .18s ease-in-out',
         }}
       >
-        <CardContent>
-          <CloudUploadIcon sx={{ fontSize: 40, color: 'primary.main' }} />
-          <Typography color="text.secondary">
-            Перетащи файлы сюда или нажми, чтобы выбрать
+        <CardContent sx={{ py: 2.5 }}>
+          <CloudUploadIcon
+            sx={{
+              fontSize: 34,
+              color: 'primary.main',
+              transition: 'transform .18s ease-in-out',
+              transform: dragOver ? 'scale(1.25) translateY(-2px)' : 'none',
+            }}
+          />
+          <Typography variant="body2" color={dragOver ? 'primary' : 'text.secondary'}>
+            {dragOver ? 'Отпусти — файлы загрузятся' : 'Перетащи файлы сюда или нажми, чтобы выбрать'}
           </Typography>
           <input
             ref={inputRef}
@@ -278,8 +288,8 @@ export default function FilesPage() {
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? 150 : 170}px, 1fr))`,
-          gap: 1.5,
+          gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? 130 : 150}px, 1fr))`,
+          gap: 1,
         }}
       >
         {files.map((f) => (
@@ -287,18 +297,18 @@ export default function FilesPage() {
             <Box
               onClick={() => openFile(f)}
               sx={{
-                height: 110,
+                height: 84,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
                 bgcolor: 'action.hover',
-                '& svg': { fontSize: 56 },
+                '& svg': { fontSize: 40 },
               }}
             >
               {fileIcon(f.mime_type)}
             </Box>
-            <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 }, flexGrow: 1 }}>
+            <CardContent sx={{ p: 1, '&:last-child': { pb: 1 }, flexGrow: 1 }}>
               <Tooltip title={f.name}>
                 <Typography
                   variant="body2"

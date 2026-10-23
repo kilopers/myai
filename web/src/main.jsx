@@ -5,27 +5,55 @@ import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
 import { AuthProvider } from './context/AuthContext';
 import App from './App';
 
-// GitLab-inspired palette: фиолетовый primary, оранжевый accent, светлый фон.
+// Палитра актуального GitLab: синий primary, оранжевый — только акцент бренда,
+// тёмная шапка, нейтральные серые фоны. Компактная плотность.
 const theme = createTheme({
   palette: {
     mode: 'light',
-    primary: { main: '#7759c2', contrastText: '#fff' },
+    primary: { main: '#1068bf', contrastText: '#fff' },
     secondary: { main: '#fc6d26' },
     background: { default: '#fbfafd', paper: '#ffffff' },
     text: { primary: '#303030', secondary: '#626168' },
-    divider: '#dbdbdb',
+    divider: '#dcdcde',
     success: { main: '#217645' },
     error: { main: '#dd2b0e' },
   },
-  shape: { borderRadius: 8 },
+  shape: { borderRadius: 4 },
   typography: {
-    fontFamily: '"GitLab Sans", -apple-system, "Segoe UI", Roboto, sans-serif',
+    fontFamily: '-apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
+    h5: { fontSize: '1.1rem', fontWeight: 600 },
+    h6: { fontSize: '1rem', fontWeight: 600 },
+    body2: { fontSize: '0.8125rem' },
   },
   components: {
     MuiAppBar: {
       styleOverrides: {
-        root: { backgroundColor: '#292961', color: '#fff' },
+        root: { backgroundColor: '#171321', color: '#fff' },
       },
+    },
+    MuiCard: {
+      defaultProps: { elevation: 0 },
+      styleOverrides: {
+        root: { border: '1px solid #dcdcde' },
+      },
+    },
+    MuiCardContent: {
+      styleOverrides: {
+        root: { padding: 12, '&:last-child': { paddingBottom: 12 } },
+      },
+    },
+    MuiButton: {
+      defaultProps: { size: 'small' },
+      styleOverrides: { root: { textTransform: 'none' } },
+    },
+    MuiListItemButton: {
+      styleOverrides: { root: { paddingTop: 4, paddingBottom: 4 } },
+    },
+    MuiTableCell: {
+      styleOverrides: { root: { padding: '6px 12px' } },
+    },
+    MuiTextField: {
+      defaultProps: { variant: 'outlined', size: 'small' },
     },
   },
 });
