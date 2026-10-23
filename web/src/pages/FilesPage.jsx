@@ -222,16 +222,19 @@ export default function FilesPage() {
         sx={{
           mb: 2,
           p: 1,
+          maxWidth: 680,
+          width: '100%',
+          mx: 'auto',
           border: '2px dashed',
           borderRadius: '18px',
-          borderColor: dragOver ? 'primary.main' : '#cfcfda',
-          bgcolor: dragOver ? 'rgba(16,104,191,.08)' : '#f4f4f7',
+          borderColor: dragOver ? 'primary.main' : '#b7b7c4',
+          bgcolor: dragOver ? 'rgba(16,104,191,.10)' : '#eaeaef',
           cursor: 'pointer',
           textAlign: 'center',
           boxShadow: dragOver ? '0 10px 30px rgba(16,104,191,.22)' : 'none',
           transform: dragOver ? 'translateY(-2px)' : 'none',
           transition: 'all .22s ease',
-          '&:hover': { borderColor: '#a8a8bc', bgcolor: '#efeff3' },
+          '&:hover': { borderColor: '#9a9aac', bgcolor: '#e2e2ea' },
         }}
       >
         <CardContent sx={{ py: 4, px: 2 }}>
@@ -275,14 +278,14 @@ export default function FilesPage() {
       </Card>
 
       {uploads.map((u) => (
-        <Box key={u.name} sx={{ mb: 1 }}>
+        <Box key={u.name} sx={{ mb: 1, maxWidth: 680, mx: 'auto' }}>
           <Typography variant="caption">{u.name} — {u.progress}%</Typography>
           <LinearProgress variant="determinate" value={u.progress} />
         </Box>
       ))}
 
       {!folder && folders.length > 0 && (
-        <List dense sx={{ mb: 2 }}>
+        <List dense sx={{ mb: 2, maxWidth: 680, mx: 'auto', width: '100%' }}>
           {folders.map((fo) => (
             <ListItem
               key={fo.id}
