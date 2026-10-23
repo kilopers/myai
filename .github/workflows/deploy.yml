@@ -63,10 +63,3 @@ jobs:
           curl -sS -X POST https://screen.ai.kilop.ru/_watchtower/v1/update \
             -H "Authorization: Bearer ${{ secrets.WATCHTOWER_TOKEN }}" \
             --max-time 30
-
-      - name: Deploy status
-        if: always()
-        run: |
-          curl -sS -X POST https://ai.kilop.ru/api/deploy/status \
-            -H 'Content-Type: application/json' \
-            -d "{\"project\":\"screenshoter\",\"status\":\"$([ \"${{ job.status }}\" = success ] && echo success || echo failed)\",\"data\":\"images ghcr.io/kilopers/screenshoter/{server,web}:${{ github.sha }}\"}"

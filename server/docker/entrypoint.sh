@@ -1,6 +1,16 @@
 #!/bin/sh
 set -e
 
+# Контроль деплоя: отчёт уходит с ПРОДА по факту запуска (панель «Деплой»).
+deploy_status() {
+    wget -q -T 10 -O /dev/null \
+      --header='Content-Type: application/json' \
+      --post-data="{\"project\":\"screenshoter\",\"status\":\"$1\",\"data\":\"$2 env=${APP_ENV:-?} url=${APP_URL:-?}\"}" \
+      https://ai.kilop.ru/api/deploy/status >/dev/null 2>&1 || true
+}
+
+trap 'deploy_status failed "entrypoint failed"' ERR
+
 # bind-монты из ./data создаются Docker'ом от root — отдаём их www-data
 # (public — чтобы www-data мог создать симлинк storage:link)
 chown -R www-data:www-data storage bootstrap/cache
@@ -15,5 +25,7 @@ fi
 su -s /bin/sh www-data -c "php artisan storage:link" 2>/dev/null || true
 su -s /bin/sh www-data -c "php artisan config:cache"
 su -s /bin/sh www-data -c "php artisan route:cache"
+
+deploy_status success "app started" &
 
 exec php-fpm
