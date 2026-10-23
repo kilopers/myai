@@ -221,26 +221,34 @@ export default function FilesPage() {
         onDrop={onDrop}
         sx={{
           mb: 2,
-          border: '1.5px dashed',
-          borderColor: dragOver ? 'primary.main' : 'divider',
-          bgcolor: dragOver ? 'rgba(16,104,191,.07)' : 'background.paper',
+          border: '2px dashed',
+          borderRadius: 3,
+          borderColor: dragOver ? 'primary.main' : '#c7c7d1',
+          bgcolor: dragOver ? '#d4e4f7' : '#ececf1',
           cursor: 'pointer',
           textAlign: 'center',
-          transform: dragOver ? 'scale(1.01)' : 'none',
-          boxShadow: dragOver ? 4 : 'none',
-          transition: 'all .18s ease-in-out',
+          transform: dragOver ? 'scale(1.015)' : 'none',
+          boxShadow: dragOver
+            ? '0 8px 24px rgba(16,104,191,.25)'
+            : 'inset 0 1px 3px rgba(0,0,0,.06)',
+          transition: 'all .2s ease-in-out',
+          '&:hover': { borderColor: 'primary.main' },
         }}
       >
-        <CardContent sx={{ py: 2.5 }}>
+        <CardContent sx={{ py: 3 }}>
           <CloudUploadIcon
             sx={{
-              fontSize: 34,
-              color: 'primary.main',
-              transition: 'transform .18s ease-in-out',
-              transform: dragOver ? 'scale(1.25) translateY(-2px)' : 'none',
+              fontSize: 36,
+              color: dragOver ? 'primary.main' : '#8b8b98',
+              transition: 'all .2s ease-in-out',
+              transform: dragOver ? 'scale(1.3) translateY(-3px)' : 'none',
             }}
           />
-          <Typography variant="body2" color={dragOver ? 'primary' : 'text.secondary'}>
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: dragOver ? 600 : 400 }}
+            color={dragOver ? 'primary.main' : 'text.secondary'}
+          >
             {dragOver ? 'Отпусти — файлы загрузятся' : 'Перетащи файлы сюда или нажми, чтобы выбрать'}
           </Typography>
           <input
