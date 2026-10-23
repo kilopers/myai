@@ -139,11 +139,26 @@ export default function Layout() {
             overflowX: 'hidden',
             bgcolor: '#eceef4',
             borderRight: '1px solid #d5d5e0',
+            display: 'flex',
+            flexDirection: 'column',
           },
         }}
       >
         <Toolbar variant="dense" />
         {nav}
+        <Box sx={{ flexGrow: 1 }} />
+        <Typography
+          variant="caption"
+          sx={{
+            textAlign: 'center',
+            color: '#8e8e9c',
+            pb: 1,
+            fontSize: '0.7rem',
+            userSelect: 'none',
+          }}
+        >
+          v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'}
+        </Typography>
       </Drawer>
 
       <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, md: 3 } }}>
