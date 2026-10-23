@@ -37,6 +37,7 @@ import VideoFileIcon from '@mui/icons-material/VideoFile';
 import ArchiveIcon from '@mui/icons-material/Archive';
 import LinkIcon from '@mui/icons-material/Link';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DownloadIcon from '@mui/icons-material/Download';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -168,6 +169,16 @@ export default function FilesPage() {
     const { data } = await client.get(`/api/files/${f.id}/download`, { responseType: 'blob' });
     const url = URL.createObjectURL(new Blob([data], { type: f.mime_type }));
     window.open(url, '_blank');
+  };
+
+  const downloadFile = async (f) => {
+    const { data } = await client.get(`/api/files/${f.id}/download`, { responseType: 'blob' });
+    const url = URL.createObjectURL(new Blob([data], { type: f.mime_type }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = f.name;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const removeFile = async (id) => {
@@ -326,6 +337,9 @@ export default function FilesPage() {
             <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 0.5, pb: 0.5 }}>
               <IconButton size="small" title="Ссылка" onClick={() => { setShareDialog({ type: 'file', id: f.id, name: f.name }); setShareResult(''); }}>
                 <LinkIcon fontSize="small" />
+              </IconButton>
+              <IconButton size="small" title="Скачать" onClick={() => downloadFile(f)}>
+                <DownloadIcon fontSize="small" />
               </IconButton>
               <IconButton size="small" title="Срок хранения" onClick={() => { setEditFile(f); setEditFileTtl(''); }}>
                 <SettingsIcon fontSize="small" />
