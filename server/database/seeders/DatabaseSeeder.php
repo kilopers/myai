@@ -15,7 +15,7 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        User::updateOrCreate(
+        User::firstOrCreate(
             ['email' => env('ADMIN_EMAIL', 'admin@screenshoter.local')],
             [
                 'name' => 'Admin',
