@@ -221,35 +221,48 @@ export default function FilesPage() {
         onDrop={onDrop}
         sx={{
           mb: 2,
+          p: 1,
           border: '2px dashed',
-          borderRadius: 3,
-          borderColor: dragOver ? 'primary.main' : '#c7c7d1',
-          bgcolor: dragOver ? '#d4e4f7' : '#ececf1',
+          borderRadius: '18px',
+          borderColor: dragOver ? 'primary.main' : '#cfcfda',
+          bgcolor: dragOver ? 'rgba(16,104,191,.08)' : '#f4f4f7',
           cursor: 'pointer',
           textAlign: 'center',
-          transform: dragOver ? 'scale(1.015)' : 'none',
-          boxShadow: dragOver
-            ? '0 8px 24px rgba(16,104,191,.25)'
-            : 'inset 0 1px 3px rgba(0,0,0,.06)',
-          transition: 'all .2s ease-in-out',
-          '&:hover': { borderColor: 'primary.main' },
+          boxShadow: dragOver ? '0 10px 30px rgba(16,104,191,.22)' : 'none',
+          transform: dragOver ? 'translateY(-2px)' : 'none',
+          transition: 'all .22s ease',
+          '&:hover': { borderColor: '#a8a8bc', bgcolor: '#efeff3' },
         }}
       >
-        <CardContent sx={{ py: 3 }}>
-          <CloudUploadIcon
+        <CardContent sx={{ py: 4, px: 2 }}>
+          <Box
             sx={{
-              fontSize: 36,
-              color: dragOver ? 'primary.main' : '#8b8b98',
-              transition: 'all .2s ease-in-out',
-              transform: dragOver ? 'scale(1.3) translateY(-3px)' : 'none',
+              width: 64,
+              height: 64,
+              mx: 'auto',
+              mb: 1.5,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              bgcolor: dragOver ? 'primary.main' : '#e3e7f2',
+              boxShadow: dragOver ? '0 6px 16px rgba(16,104,191,.35)' : 'none',
+              transition: 'all .22s ease',
+              transform: dragOver ? 'scale(1.1)' : 'none',
             }}
-          />
-          <Typography
-            variant="body2"
-            sx={{ fontWeight: dragOver ? 600 : 400 }}
-            color={dragOver ? 'primary.main' : 'text.secondary'}
           >
-            {dragOver ? 'Отпусти — файлы загрузятся' : 'Перетащи файлы сюда или нажми, чтобы выбрать'}
+            <CloudUploadIcon
+              sx={{ fontSize: 32, color: dragOver ? '#fff' : 'primary.main' }}
+            />
+          </Box>
+          <Typography
+            sx={{ fontWeight: 600, fontSize: '0.95rem' }}
+            color={dragOver ? 'primary.main' : 'text.primary'}
+          >
+            {dragOver ? 'Отпусти — файлы загрузятся' : 'Перетащи файлы сюда'}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            или нажми, чтобы выбрать на компьютере
           </Typography>
           <input
             ref={inputRef}
