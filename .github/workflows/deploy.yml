@@ -56,7 +56,7 @@ jobs:
         if: success()
         continue-on-error: true
         run: |
-          curl -sS -X POST https://watchtower.ai.kilop.ru/v1/update \
+          curl -sS -X POST https://screen.ai.kilop.ru/_watchtower/v1/update \
             -H "Authorization: Bearer ${{ secrets.WATCHTOWER_TOKEN }}" \
             --max-time 30
 

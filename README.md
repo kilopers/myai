@@ -43,10 +43,10 @@ docker compose up --build
 
 Автодеплой: пуш в `main` → GitHub Actions (`deploy.yml`) собирает образы
 `ghcr.io/kilopers/screenshoter-{server,web}` → дёргает HTTP API
-Watchtower (`POST https://watchtower.ai.kilop.ru/v1/update`, Bearer =
-секрет `WATCHTOWER_TOKEN`) → Watchtower тянет образы и пересоздаёт
-контейнеры (скоуп `screenshoter`, отдельный стек
-`docker-compose.watchtower.yml`, порт 8283; polling 3 мин — страховка).
+Watchtower (`POST https://screen.ai.kilop.ru/_watchtower/v1/update`,
+Bearer = секрет `WATCHTOWER_TOKEN`) → Watchtower тянет образы и
+пересоздаёт контейнеры (скоуп `screenshoter`, сервис в том же
+docker-compose, порт 8283; polling 3 мин — страховка).
 
 Dev-вариант с маунтом кода и Vite dev-сервером (данные — отдельно в `./data-dev/`):
 

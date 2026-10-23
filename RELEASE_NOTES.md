@@ -75,3 +75,15 @@ Watchtower в отдельный стек + мгновенный триггер 
 - GitHub webhook напрямую несовместим с Watchtower API (GitHub шлёт
   `X-Hub-Signature`, а не `Authorization: Bearer`) — триггер идёт из
   Actions curl'ом.
+
+## v0.1.4 — 2026-10-23
+
+Watchtower возвращён в основной `docker-compose.yml`; доступ к API —
+через путь на домене проекта вместо отдельного поддомена.
+
+- Сервис `watchtower` снова в `docker-compose.yml` (HTTP API + Bearer,
+  порт 8283), `docker-compose.watchtower.yml` удалён.
+- Traefik: убран роутер `watchtower.ai.kilop.ru`; добавлен
+  `PathPrefix("/_watchtower")` на `screen.ai.kilop.ru` + middleware
+  `stripPrefix` → `POST https://screen.ai.kilop.ru/_watchtower/v1/update`.
+- `deploy.yml`: триггер-URL обновлён на `/_watchtower/v1/update`.
