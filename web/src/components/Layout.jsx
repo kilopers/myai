@@ -63,19 +63,32 @@ export default function Layout() {
             onClick={isMobile ? toggle : undefined}
             sx={{
               borderRadius: 1.5,
-              mb: 0.25, py: 0.5,
+              mb: 0.25,
+              py: 0.6,
+              px: 1.5,
+              color: '#303030',
               justifyContent: open || isMobile ? 'initial' : 'center',
+              '& .MuiListItemIcon-root': { color: '#626168', minWidth: 32 },
+              '&:hover': { bgcolor: '#ebebf0' },
               '&.Mui-selected': {
-                bgcolor: 'rgba(16,104,191,.1)',
-                color: 'primary.main',
+                bgcolor: '#e9e9ee',
+                color: '#1f1e24',
+                fontWeight: 600,
+                '&:hover': { bgcolor: '#e3e3e9' },
                 '& .MuiListItemIcon-root': { color: 'primary.main' },
+                '& .MuiListItemText-primary': { fontWeight: 600 },
               },
             }}
           >
-            <ListItemIcon sx={{ minWidth: open || isMobile ? 40 : 0, justifyContent: 'center' }}>
+            <ListItemIcon sx={{ minWidth: open || isMobile ? 36 : 0, justifyContent: 'center' }}>
               {item.icon}
             </ListItemIcon>
-            {(open || isMobile) && <ListItemText primary={item.label} />}
+            {(open || isMobile) && (
+              <ListItemText
+                primary={item.label}
+                primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: selected ? 600 : 400 }}
+              />
+            )}
           </ListItemButton>
         );
         return open || isMobile
@@ -124,6 +137,8 @@ export default function Layout() {
             boxSizing: 'border-box',
             transition: (theme) => theme.transitions.create('width'),
             overflowX: 'hidden',
+            bgcolor: '#f6f6f8',
+            borderRight: '1px solid #dcdcde',
           },
         }}
       >
