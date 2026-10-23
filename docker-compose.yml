@@ -88,17 +88,3 @@ services:
     depends_on:
       - app
     restart: unless-stopped
-
-  # Наблюдатель за обновлениями: каждые 3 минуты проверяет GHCR,
-  # при новом образе — pull и пересоздание контейнеров скоупа screenshoter
-  watchtower:
-    image: nickfedor/watchtower
-    restart: unless-stopped
-    environment:
-      WATCHTOWER_POLL_INTERVAL: 180
-      WATCHTOWER_CLEANUP: "true"
-      WATCHTOWER_SCOPE: screenshoter
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      # auth для приватного GHCR — после docker login ghcr.io на сервере
-      - ${DOCKER_CONFIG:-~/.docker}/config.json:/config.json:ro

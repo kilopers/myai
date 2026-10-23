@@ -56,3 +56,22 @@ https://screen.ai.kilop.ru
   привязывается к репозиторию.
 - Старые плоские пакеты-сироты в GHCR можно удалить вручную
   (нужен scope `delete:packages` или веб-интерфейс).
+
+## v0.1.3 — 2026-10-23
+
+Watchtower в отдельный стек + мгновенный триггер деплоя из Actions.
+
+- Watchtower вынесен из `docker-compose.yml` в отдельный стек
+  `docker-compose.watchtower.yml` (проект `screenshoter-watchtower`,
+  контейнер `screenshoter-watchtower`) — не зависит от `compose down`
+  основного стека.
+- Включён HTTP API Watchtower (`WATCHTOWER_HTTP_API_MODE`): порт
+  `${WATCHTOWER_PORT:-8283}:8080`, Bearer-токен `WATCHTOWER_TOKEN` из
+  `.env`, polling каждые 3 мин оставлен страховкой.
+- `deploy.yml`: после пуша образов шаг «Trigger watchtower» дёргает
+  `POST https://watchtower.ai.kilop.ru/v1/update` (секрет репо
+  `WATCHTOWER_TOKEN`) — деплой почти мгновенный, не ждёт опроса.
+- Traefik: роутер `watchtower.ai.kilop.ru` → `host.docker.internal:8283`.
+- GitHub webhook напрямую несовместим с Watchtower API (GitHub шлёт
+  `X-Hub-Signature`, а не `Authorization: Bearer`) — триггер идёт из
+  Actions curl'ом.

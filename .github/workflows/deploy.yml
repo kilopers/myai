@@ -50,6 +50,16 @@ jobs:
             ghcr.io/kilopers/screenshoter/web:latest
             ghcr.io/kilopers/screenshoter/web:${{ github.sha }}
 
+      # Мгновенный триггер автодеплоя: дёргаем HTTP API Watchtower на
+      # сервере (polling остаётся страховкой). Секрет: WATCHTOWER_TOKEN.
+      - name: Trigger watchtower
+        if: success()
+        continue-on-error: true
+        run: |
+          curl -sS -X POST https://watchtower.ai.kilop.ru/v1/update \
+            -H "Authorization: Bearer ${{ secrets.WATCHTOWER_TOKEN }}" \
+            --max-time 30
+
       - name: Deploy status
         if: always()
         run: |
