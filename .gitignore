@@ -1,0 +1,16 @@
+# Root monorepo
+.env
+*.log
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+dist/
+
+# PHP (см. также server/.gitignore)
+server/vendor/
+
+# Rust
+desktop/src-tauri/target/
+desktop/src-tauri/gen/

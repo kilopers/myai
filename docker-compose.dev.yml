@@ -1,0 +1,33 @@
+name: screenshoter-dev
+
+# Dev-вариант: живой код примонтирован, debug включён, Vite dev-сервер для фронта.
+# Запуск: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  app:
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+    volumes:
+      - ./server:/var/www/html:cached
+      - screenshots:/var/www/html/storage/app/public
+    entrypoint: >
+      sh -c "composer install --no-interaction &&
+             php artisan migrate --force &&
+             php artisan db:seed --force &&
+             php artisan storage:link 2>/dev/null || true;
+             php-fpm"
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile.dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./web:/app:cached
+      - /app/node_modules
+
+  db:
+    ports:
+      - "3306:3306"

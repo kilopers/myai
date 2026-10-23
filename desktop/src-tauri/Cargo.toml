@@ -1,0 +1,28 @@
+[package]
+name = "screenshoter"
+version = "0.1.0"
+description = "Screenshot tool with region capture, editing and server upload"
+edition = "2021"
+rust-version = "1.80"
+
+[lib]
+name = "screenshoter_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-store = "2"
+tauri-plugin-autostart = "2"
+screenshots = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+image = "0.25"
+reqwest = { version = "0.12", default-features = false, features = ["multipart", "json", "rustls-tls"] }
+tokio = { version = "1", features = ["rt-multi-thread"] }

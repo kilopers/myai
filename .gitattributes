@@ -1,0 +1,9 @@
+* text=auto
+
+# Shell-скрипты должны иметь LF — иначе сломаются в Docker/Linux
+*.sh text eol=lf
+
+# Бинарники
+*.png binary
+*.ico binary
+*.icns binary

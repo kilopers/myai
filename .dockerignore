@@ -1,0 +1,14 @@
+.git
+.github
+**/node_modules
+**/dist
+server/vendor
+server/storage/logs/*
+server/storage/framework/cache/*
+server/storage/framework/sessions/*
+server/storage/framework/views/*
+server/.env
+server/public/storage
+desktop/src-tauri/target
+*.log
+.DS_Store

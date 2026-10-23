@@ -1,0 +1,5 @@
+FROM node:24-alpine
+WORKDIR /app
+COPY web/package.json web/package-lock.json* ./
+RUN npm install --no-audit --no-fund
+CMD ["npm", "run", "dev", "--", "--host"]
