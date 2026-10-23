@@ -14,6 +14,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Прод живёт за reverse-proxy (Traefik) — доверяем X-Forwarded-*,
+        // чтобы HTTPS-запросы распознавались корректно
+        $middleware->trustProxies(at: '*');
         $middleware->alias([
             'admin' => EnsureUserIsAdmin::class,
         ]);

@@ -3,9 +3,9 @@
 # ---------- vendor stage ----------
 FROM composer:2 AS vendor
 WORKDIR /app
-COPY composer.json composer.lock ./
+COPY server/composer.json server/composer.lock ./
 RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-interaction
-COPY . .
+COPY server/ .
 RUN composer dump-autoload --optimize
 
 # ---------- runtime ----------
@@ -19,13 +19,9 @@ RUN apk add --no-cache \
         libzip-dev \
         oniguruma-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j"$(nproc)" \
-        bcmath \
-        gd \
-        intl \
-        opcache \
-        pdo_mysql \
-        zip \
+    && for ext in bcmath gd intl opcache pdo_mysql zip; do \
+         docker-php-ext-install -j"$(nproc)" "$ext"; \
+       done \
     && rm -rf /var/cache/apk/*
 
 COPY server/docker/php/uploads.ini /usr/local/etc/php/conf.d/uploads.ini

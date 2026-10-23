@@ -1,5 +1,10 @@
 name: screenshoter
 
+# Автодеплой: GitHub Actions (deploy.yml) собирает образы в GHCR при пуше
+# в main, Watchtower на сервере подтягивает их и пересоздаёт контейнеры.
+# Прод на хосте: docker compose pull && docker compose up -d
+# Локальная сборка без registry: docker compose up --build (build: оставлен).
+
 x-app-env: &app-env
   APP_ENV: production
   APP_DEBUG: "false"
@@ -22,12 +27,18 @@ x-app-env: &app-env
 x-app-volumes: &app-volumes
   - ./data/screenshots:/var/www/html/storage/app/public
 
+# Метка скоупа Watchtower — автообновляются только контейнеры этого проекта
+x-watchtower-label: &watchtower-label
+  com.centurylinklabs.watchtower.scope: screenshoter
+
 services:
   app:
+    image: ${SERVER_IMAGE:-ghcr.io/kilopers/screenshoter-server}:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: server/Dockerfile
     environment: *app-env
+    labels: *watchtower-label
     volumes: *app-volumes
     depends_on:
       db:
@@ -35,6 +46,7 @@ services:
     restart: unless-stopped
 
   queue:
+    image: ${SERVER_IMAGE:-ghcr.io/kilopers/screenshoter-server}:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: server/Dockerfile
@@ -42,6 +54,7 @@ services:
     entrypoint: []
     user: www-data
     environment: *app-env
+    labels: *watchtower-label
     volumes: *app-volumes
     depends_on:
       app:
@@ -65,11 +78,27 @@ services:
     restart: unless-stopped
 
   web:
+    image: ${WEB_IMAGE:-ghcr.io/kilopers/screenshoter-web}:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: web/Dockerfile
+    labels: *watchtower-label
     ports:
       - "${HTTP_PORT:-8080}:80"
     depends_on:
       - app
     restart: unless-stopped
+
+  # Наблюдатель за обновлениями: каждые 3 минуты проверяет GHCR,
+  # при новом образе — pull и пересоздание контейнеров скоупа screenshoter
+  watchtower:
+    image: nickfedor/watchtower
+    restart: unless-stopped
+    environment:
+      WATCHTOWER_POLL_INTERVAL: 180
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_SCOPE: screenshoter
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # auth для приватного GHCR — после docker login ghcr.io на сервере
+      - ${DOCKER_CONFIG:-~/.docker}/config.json:/config.json:ro

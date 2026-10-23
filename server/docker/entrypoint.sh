@@ -2,7 +2,9 @@
 set -e
 
 # bind-монты из ./data создаются Docker'ом от root — отдаём их www-data
+# (public — чтобы www-data мог создать симлинк storage:link)
 chown -R www-data:www-data storage bootstrap/cache
+chown www-data:www-data public
 
 su -s /bin/sh www-data -c "php artisan migrate --force"
 
