@@ -30,6 +30,7 @@ COPY server/docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
 WORKDIR /var/www/html
 
 COPY --from=vendor /app /var/www/html
+COPY VERSION /var/www/html/VERSION
 COPY server/docker/entrypoint.sh /usr/local/bin/app-entrypoint
 RUN chmod +x /usr/local/bin/app-entrypoint \
     && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
