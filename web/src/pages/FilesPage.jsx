@@ -214,68 +214,44 @@ export default function FilesPage() {
         </Button>
       </Box>
 
-      <Card
-        component="label"
+      <Box
+        onClick={() => inputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={onDrop}
         sx={{
           mb: 2,
-          p: 1,
+          py: 5,
+          px: 2,
           maxWidth: 680,
-          width: '100%',
           mx: 'auto',
           border: '2px dashed',
-          borderRadius: '18px',
-          borderColor: dragOver ? 'primary.main' : '#b7b7c4',
-          bgcolor: dragOver ? 'rgba(16,104,191,.10)' : '#eaeaef',
+          borderRadius: 2,
+          borderColor: dragOver ? 'primary.main' : 'divider',
+          bgcolor: dragOver ? 'action.hover' : 'background.paper',
           cursor: 'pointer',
           textAlign: 'center',
-          boxShadow: dragOver ? '0 10px 30px rgba(16,104,191,.22)' : 'none',
-          transform: dragOver ? 'translateY(-2px)' : 'none',
-          transition: 'all .22s ease',
-          '&:hover': { borderColor: '#9a9aac', bgcolor: '#e2e2ea' },
+          transition: 'background-color .15s ease, border-color .15s ease',
+          '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' },
         }}
       >
-        <CardContent sx={{ py: 4, px: 2 }}>
-          <Box
-            sx={{
-              width: 64,
-              height: 64,
-              mx: 'auto',
-              mb: 1.5,
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              bgcolor: dragOver ? 'primary.main' : '#e3e7f2',
-              boxShadow: dragOver ? '0 6px 16px rgba(16,104,191,.35)' : 'none',
-              transition: 'all .22s ease',
-              transform: dragOver ? 'scale(1.1)' : 'none',
-            }}
-          >
-            <CloudUploadIcon
-              sx={{ fontSize: 32, color: dragOver ? '#fff' : 'primary.main' }}
-            />
-          </Box>
-          <Typography
-            sx={{ fontWeight: 600, fontSize: '0.95rem' }}
-            color={dragOver ? 'primary.main' : 'text.primary'}
-          >
-            {dragOver ? 'Отпусти — файлы загрузятся' : 'Перетащи файлы сюда'}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            или нажми, чтобы выбрать на компьютере
-          </Typography>
-          <input
-            ref={inputRef}
-            type="file"
-            hidden
-            multiple
-            onChange={(e) => { uploadFiles([...e.target.files]); e.target.value = ''; }}
-          />
-        </CardContent>
-      </Card>
+        <CloudUploadIcon
+          sx={{ fontSize: 40, mb: 1, color: dragOver ? 'primary.main' : 'text.secondary' }}
+        />
+        <Typography sx={{ fontWeight: 500 }}>
+          {dragOver ? 'Отпусти — файлы загрузятся' : 'Перетащи файлы сюда'}
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          или нажми, чтобы выбрать на компьютере
+        </Typography>
+        <input
+          ref={inputRef}
+          type="file"
+          hidden
+          multiple
+          onChange={(e) => { uploadFiles([...e.target.files]); e.target.value = ''; }}
+        />
+      </Box>
 
       {uploads.map((u) => (
         <Box key={u.name} sx={{ mb: 1, maxWidth: 680, mx: 'auto' }}>
