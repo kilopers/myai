@@ -39,6 +39,8 @@ jobs:
           tags: |
             ghcr.io/kilopers/screenshoter/server:latest
             ghcr.io/kilopers/screenshoter/server:${{ github.sha }}
+          cache-from: type=gha,scope=server
+          cache-to: type=gha,mode=max,scope=server
 
       - name: Build & push web (nginx)
         uses: docker/build-push-action@v6
@@ -49,6 +51,8 @@ jobs:
           tags: |
             ghcr.io/kilopers/screenshoter/web:latest
             ghcr.io/kilopers/screenshoter/web:${{ github.sha }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
 
       # Мгновенный триггер автодеплоя: дёргаем HTTP API Watchtower на
       # сервере (polling остаётся страховкой). Секрет: WATCHTOWER_TOKEN.

@@ -133,3 +133,8 @@ Watchtower возвращён в основной `docker-compose.yml`; дост
 ## 0.2.2
 
 - Web fix: скачивание файлов — отдельная кнопка Download сохраняет с реальным именем файла (a[download]), а не blob-хэшем; клик по карточке по-прежнему открывает просмотр.
+
+## 0.2.3
+
+- CI: ускорена сборка образов — BuildKit layer cache через `type=gha` (server/web) в deploy.yml; повторные сборки без изменений зависимостей идут за секунды.
+- CI: релиз — `Swatinem/rust-cache` для cargo (registry+target); macOS собирается только под arm64 (Apple Silicon) вместо universal — вдвое быстрее, dmg arm64.

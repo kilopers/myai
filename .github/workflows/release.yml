@@ -36,9 +36,11 @@ jobs:
       - run: npm ci
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-        if: matrix.platform == 'macos'
+
+      - uses: Swatinem/rust-cache@v2
         with:
-          target: aarch64-apple-darwin,x86_64-apple-darwin
+          workspaces: desktop/src-tauri
+          shared-key: ${{ matrix.platform }}
 
       - name: Build & upload release artifacts
         uses: tauri-apps/tauri-action@v0
@@ -51,4 +53,6 @@ jobs:
           releaseBody: 'See the assets below to download and install this version.'
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.platform == 'macos' && '--target universal-apple-darwin' || '' }}
+          # macOS собираем только под arm64 (Apple Silicon) — universal
+          # компилирует два бинарника и вдвое дольше.
+          args: ''
