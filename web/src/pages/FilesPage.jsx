@@ -274,7 +274,7 @@ export default function FilesPage() {
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Настройки папки">
-                    <IconButton onClick={() => { setEditFolder(fo); setEditFolderTtl(fo.default_ttl_days ?? ''); }}>
+                    <IconButton onClick={() => { setEditFolder(fo); setEditFolderTtl(fo.default_ttl_days == null ? '' : String(fo.default_ttl_days)); }}>
                       <SettingsIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
