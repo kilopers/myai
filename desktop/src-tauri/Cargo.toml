@@ -1,6 +1,6 @@
 [package]
 name = "screenshoter"
-version = "0.1.6"
+version = "0.1.7"
 description = "Screenshot tool with region capture, editing and server upload"
 edition = "2021"
 rust-version = "1.80"

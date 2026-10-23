@@ -69,7 +69,7 @@ async function initOverlay() {
   const monIndex = Number(win.label.split('-')[1] ?? 0);
   const capture = await invoke<Capture | null>('take_capture', { index: monIndex });
   if (!capture) {
-    await invoke('close_overlays');
+    await win.hide();
     return;
   }
 
