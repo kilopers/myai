@@ -66,7 +66,18 @@ export default function GalleryPage() {
       {items.length === 0 ? (
         <Typography color="text.secondary">Пока пусто — сделай первый скриншот из приложения или загрузи файл.</Typography>
       ) : (
-        <ImageList cols={4} gap={12}>
+        <ImageList
+          cols={8}
+          gap={12}
+          sx={{
+            gridTemplateColumns: {
+              xs: 'repeat(2, 1fr) !important',
+              sm: 'repeat(4, 1fr) !important',
+              md: 'repeat(6, 1fr) !important',
+              lg: 'repeat(8, 1fr) !important',
+            },
+          }}
+        >
           {items.map((s) => (
             <ImageListItem key={s.id}>
               <Card>
@@ -78,20 +89,28 @@ export default function GalleryPage() {
                   onClick={() => setPreview(s.url)}
                   loading="lazy"
                 />
-                <ImageListItemBar
-                  position="below"
-                  title={new Date(s.created_at).toLocaleString()}
-                  actionIcon={
-                    <CardActions>
-                      <IconButton size="small" onClick={() => copyUrl(s.url)}>
-                        <ContentCopyIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton size="small" onClick={() => onDelete(s.id)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </CardActions>
-                  }
-                />
+                <CardActions
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    px: 1.5,
+                    py: 0.75,
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary" noWrap>
+                    {new Date(s.created_at).toLocaleDateString()}
+                    {s.expires_at && ` · до ${new Date(s.expires_at).toLocaleDateString()}`}
+                  </Typography>
+                  <Box sx={{ display: 'flex' }}>
+                    <IconButton size="small" onClick={() => copyUrl(s.url)}>
+                      <ContentCopyIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton size="small" onClick={() => onDelete(s.id)}>
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                </CardActions>
               </Card>
             </ImageListItem>
           ))}

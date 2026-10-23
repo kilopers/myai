@@ -12,7 +12,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'email', 'password', 'is_admin', 'must_change_password'])]
+#[Fillable(['name', 'email', 'password', 'is_admin', 'must_change_password', 'default_screenshot_ttl_days', 'default_file_ttl_days', 'default_link_ttl_days'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -40,6 +40,22 @@ class User extends Authenticatable
     public function screenshots(): HasMany
     {
         return $this->hasMany(Screenshot::class);
+    }
+
+    /**
+     * @return HasMany<StoredFile, $this>
+     */
+    public function files(): HasMany
+    {
+        return $this->hasMany(StoredFile::class);
+    }
+
+    /**
+     * @return HasMany<Folder, $this>
+     */
+    public function folders(): HasMany
+    {
+        return $this->hasMany(Folder::class);
     }
 
     /**

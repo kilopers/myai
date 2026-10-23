@@ -50,7 +50,9 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile
-    command: php artisan queue:work --tries=3 --sleep=3
+    command: >
+      sh -c "php artisan schedule:work --no-interaction &
+             exec php artisan queue:work --tries=3 --sleep=3"
     entrypoint: []
     user: www-data
     environment: *app-env

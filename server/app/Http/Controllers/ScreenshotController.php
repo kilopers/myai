@@ -48,6 +48,9 @@ class ScreenshotController extends Controller
             'width' => $width,
             'height' => $height,
             'path' => $path,
+            'expires_at' => $request->user()->default_screenshot_ttl_days
+                ? now()->addDays($request->user()->default_screenshot_ttl_days)
+                : null,
         ]);
 
         return (new ScreenshotResource($screenshot))
@@ -78,6 +81,22 @@ class ScreenshotController extends Controller
             'Content-Type' => $screenshot->mime_type,
             'Cache-Control' => 'public, max-age=31536000, immutable',
         ]);
+    }
+
+    /**
+     * Update retention settings of the resource.
+     */
+    public function update(Request $request, Screenshot $screenshot): ScreenshotResource
+    {
+        Gate::authorize('update', $screenshot);
+
+        $validated = $request->validate([
+            'expires_at' => ['nullable', 'date'],
+        ]);
+
+        $screenshot->update($validated);
+
+        return new ScreenshotResource($screenshot);
     }
 
     /**

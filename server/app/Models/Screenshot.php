@@ -9,11 +9,16 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
 
-#[Fillable(['user_id', 'uuid', 'filename', 'mime_type', 'size', 'width', 'height', 'path'])]
+#[Fillable(['user_id', 'uuid', 'filename', 'mime_type', 'size', 'width', 'height', 'path', 'expires_at'])]
 class Screenshot extends Model
 {
     /** @use HasFactory<ScreenshotFactory> */
     use HasFactory;
+
+    protected function casts(): array
+    {
+        return ['expires_at' => 'datetime'];
+    }
 
     public function getRouteKeyName(): string
     {

@@ -25,6 +25,8 @@ export default function SettingsPage() {
   const [tokenName, setTokenName] = useState('');
   const [newToken, setNewToken] = useState(null);
   const [passwords, setPasswords] = useState({ current_password: '', password: '', password_confirmation: '' });
+  const [profile, setProfile] = useState({ name: '', email: '' });
+  const [ttls, setTtls] = useState({ screenshot: '', file: '', link: '' });
   const [message, setMessage] = useState('');
 
   const loadTokens = useCallback(async () => {
@@ -34,7 +36,15 @@ export default function SettingsPage() {
 
   useEffect(() => {
     loadTokens();
-  }, [loadTokens]);
+    if (user) {
+      setProfile({ name: user.name, email: user.email });
+      setTtls({
+        screenshot: user.default_screenshot_ttl_days ?? '',
+        file: user.default_file_ttl_days ?? '',
+        link: user.default_link_ttl_days ?? '',
+      });
+    }
+  }, [loadTokens, user]);
 
   const createToken = async () => {
     if (!tokenName.trim()) return;
@@ -109,6 +119,94 @@ export default function SettingsPage() {
               <Typography variant="body2" color="text.secondary">Токенов пока нет.</Typography>
             )}
           </List>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Профиль
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              size="small"
+              label="Имя"
+              value={profile.name}
+              onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))}
+            />
+            <TextField
+              size="small"
+              type="email"
+              label="Email"
+              value={profile.email}
+              onChange={(e) => setProfile((p) => ({ ...p, email: e.target.value }))}
+            />
+            <Button
+              variant="contained"
+              sx={{ alignSelf: 'flex-start' }}
+              onClick={async () => {
+                const { data } = await client.put('/api/me', profile);
+                setUser(data.data ?? data);
+                setMessage('Профиль сохранён');
+              }}
+            >
+              Сохранить профиль
+            </Button>
+          </Box>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Сроки хранения по умолчанию
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            В днях. Пусто или 0 — хранить вечно. На файл можно задать свой срок.
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              size="small"
+              type="number"
+              label="Срок жизни скриншотов (дней)"
+              value={ttls.screenshot}
+              onChange={(e) => setTtls((t) => ({ ...t, screenshot: e.target.value }))}
+              slotProps={{ htmlInput: { min: 0 } }}
+            />
+            <TextField
+              size="small"
+              type="number"
+              label="Срок жизни файлов (дней)"
+              value={ttls.file}
+              onChange={(e) => setTtls((t) => ({ ...t, file: e.target.value }))}
+              slotProps={{ htmlInput: { min: 0 } }}
+            />
+            <TextField
+              size="small"
+              type="number"
+              label="Срок жизни ссылок на файлы (дней)"
+              value={ttls.link}
+              onChange={(e) => setTtls((t) => ({ ...t, link: e.target.value }))}
+              slotProps={{ htmlInput: { min: 0 } }}
+            />
+            <Button
+              variant="contained"
+              sx={{ alignSelf: 'flex-start' }}
+              onClick={async () => {
+                const { data } = await client.put('/api/me', {
+                  default_screenshot_ttl_days: ttls.screenshot === '' ? null : Number(ttls.screenshot),
+                  default_file_ttl_days: ttls.file === '' ? null : Number(ttls.file),
+                  default_link_ttl_days: ttls.link === '' ? null : Number(ttls.link),
+                });
+                setUser(data.data ?? data);
+                setMessage('Сроки сохранены');
+              }}
+            >
+              Сохранить сроки
+            </Button>
+          </Box>
         </CardContent>
       </Card>
 

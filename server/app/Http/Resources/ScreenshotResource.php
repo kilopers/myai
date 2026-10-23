@@ -26,6 +26,7 @@ class ScreenshotResource extends JsonResource
             'width' => $this->width,
             'height' => $this->height,
             'created_at' => $this->created_at->toIso8601String(),
+            'expires_at' => $this->expires_at?->toIso8601String(),
         ];
     }
 }

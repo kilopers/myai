@@ -23,6 +23,9 @@ class UserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'is_admin' => $this->is_admin,
+            'default_screenshot_ttl_days' => $this->default_screenshot_ttl_days,
+            'default_file_ttl_days' => $this->default_file_ttl_days,
+            'default_link_ttl_days' => $this->default_link_ttl_days,
             'screenshots_count' => $this->whenCounted('screenshots'),
             'created_at' => $this->created_at->toIso8601String(),
         ];

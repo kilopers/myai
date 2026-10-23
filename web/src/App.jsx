@@ -5,6 +5,7 @@ import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import InviteRegisterPage from './pages/InviteRegisterPage';
 import GalleryPage from './pages/GalleryPage';
+import FilesPage from './pages/FilesPage';
 import SettingsPage from './pages/SettingsPage';
 import AdminPage from './pages/AdminPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
@@ -50,6 +51,7 @@ export default function App() {
         }
       >
         <Route path="/" element={<GalleryPage />} />
+        <Route path="/files" element={<FilesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route
           path="/admin"

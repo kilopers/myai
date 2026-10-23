@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Box,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Button,
   Card,
   CardContent,
@@ -17,6 +21,7 @@ import {
 } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
 import client from '../api/client';
 import { useAuth } from '../context/AuthContext';
 
@@ -26,6 +31,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState([]);
   const [days, setDays] = useState(7);
   const [message, setMessage] = useState('');
+  const [editUser, setEditUser] = useState(null);
 
   const load = useCallback(async () => {
     const [inv, usr] = await Promise.all([
@@ -54,6 +60,15 @@ export default function AdminPage() {
 
   const deleteUser = async (id) => {
     await client.delete(`/api/admin/users/${id}`);
+    load();
+  };
+
+  const saveUser = async () => {
+    await client.put(`/api/admin/users/${editUser.id}`, {
+      name: editUser.name,
+      email: editUser.email,
+    });
+    setEditUser(null);
     load();
   };
 
@@ -140,6 +155,9 @@ export default function AdminPage() {
                   <TableCell>{u.is_admin ? <Chip size="small" label="Админ" color="primary" /> : 'Пользователь'}</TableCell>
                   <TableCell>{u.screenshots_count}</TableCell>
                   <TableCell align="right">
+                    <IconButton size="small" onClick={() => setEditUser({ ...u })}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
                     {u.id !== me.id && (
                       <IconButton size="small" onClick={() => deleteUser(u.id)}>
                         <DeleteIcon fontSize="small" />
@@ -152,6 +170,29 @@ export default function AdminPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={!!editUser} onClose={() => setEditUser(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Пользователь</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          <TextField
+            size="small"
+            label="Имя"
+            value={editUser?.name ?? ''}
+            onChange={(e) => setEditUser((u) => ({ ...u, name: e.target.value }))}
+          />
+          <TextField
+            size="small"
+            type="email"
+            label="Email"
+            value={editUser?.email ?? ''}
+            onChange={(e) => setEditUser((u) => ({ ...u, email: e.target.value }))}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditUser(null)}>Отмена</Button>
+          <Button variant="contained" onClick={saveUser}>Сохранить</Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar open={!!message} autoHideDuration={3000} onClose={() => setMessage('')} message={message} />
     </Box>
