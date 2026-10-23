@@ -6,7 +6,7 @@ use tauri::{
     tray::TrayIconBuilder,
     AppHandle, Manager, WebviewUrl, WebviewWindowBuilder,
 };
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+use tauri_plugin_global_shortcut::ShortcutState;
 
 struct Capture {
     png: Vec<u8>,
@@ -70,11 +70,15 @@ async fn upload_screenshot(
 }
 
 fn capture_primary_screen() -> Result<Capture, String> {
-    let screens = screenshots::Screen::all().map_err(|e| e.to_string())?;
-    let screen = screens.first().ok_or("No displays found")?;
+    let monitors = xcap::Monitor::all().map_err(|e| e.to_string())?;
+    let monitor = monitors
+        .iter()
+        .find(|m| m.is_primary().unwrap_or(false))
+        .or_else(|| monitors.first())
+        .ok_or("No displays found")?;
 
-    let info = screen.display_info;
-    let img = screen.capture().map_err(|e| e.to_string())?;
+    let img = monitor.capture_image().map_err(|e| e.to_string())?;
+    let scale_factor = monitor.scale_factor().unwrap_or(1.0) as f64;
 
     let mut png = Vec::new();
     img.write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png)
@@ -84,7 +88,7 @@ fn capture_primary_screen() -> Result<Capture, String> {
         png,
         width: img.width(),
         height: img.height(),
-        scale_factor: info.scale_factor as f64,
+        scale_factor,
     })
 }
 

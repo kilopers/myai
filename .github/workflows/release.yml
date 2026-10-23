@@ -36,9 +36,9 @@ jobs:
       - run: npm ci
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+        if: matrix.platform == 'macos'
         with:
           target: aarch64-apple-darwin
-          if: matrix.platform == 'macos'
 
       - name: Build & upload release artifacts
         uses: tauri-apps/tauri-action@v0
