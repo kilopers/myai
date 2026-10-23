@@ -63,6 +63,6 @@ jobs:
       - name: Deploy status
         if: always()
         run: |
-          curl -sS -X POST https://build.kilop.ru/api/deploy/status \
+          curl -sS -X POST https://ai.kilop.ru/api/deploy/status \
             -H 'Content-Type: application/json' \
             -d "{\"project\":\"screenshoter\",\"status\":\"$([ \"${{ job.status }}\" = success ] && echo success || echo failed)\",\"data\":\"images ghcr.io/kilopers/screenshoter/{server,web}:${{ github.sha }}\"}"

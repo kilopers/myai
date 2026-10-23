@@ -56,9 +56,10 @@ async function initOverlay() {
   const ctx = canvas.getContext('2d')!;
   const toolbar = document.getElementById('toolbar')!;
 
-  const capture = await invoke<Capture | null>('take_capture');
+  const monIndex = Number(win.label.split('-')[1] ?? 0);
+  const capture = await invoke<Capture | null>('take_capture', { index: monIndex });
   if (!capture) {
-    await win.close();
+    await invoke('close_overlays');
     return;
   }
 
@@ -192,7 +193,7 @@ async function initOverlay() {
 
   async function onToolClick(id: string) {
     if (id === 'undo') { shapes.pop(); render(); return; }
-    if (id === 'cancel') { await win.close(); return; }
+    if (id === 'cancel') { await invoke('close_overlays'); return; }
     if (id === 'upload') { await doUpload(); return; }
     tool = id as Tool;
     mode = id === 'select' ? 'selecting' : 'editing';
@@ -248,7 +249,7 @@ async function initOverlay() {
   });
 
   window.addEventListener('keydown', async (e) => {
-    if (e.key === 'Escape') await win.close();
+    if (e.key === 'Escape') await invoke('close_overlays');
     if (e.ctrlKey && e.key === 'z') { shapes.pop(); render(); }
   });
 
@@ -282,7 +283,7 @@ async function initOverlay() {
       await writeText(url);
       if (!(await isPermissionGranted())) await requestPermission();
       await sendNotification({ title: 'Screenshoter', body: 'Ссылка скопирована в буфер обмена' });
-      await win.close();
+      await invoke('close_overlays');
     } catch (err) {
       alert(`Ошибка загрузки: ${err}`);
     }

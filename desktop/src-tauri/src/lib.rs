@@ -15,7 +15,7 @@ struct Capture {
     scale_factor: f64,
 }
 
-struct PendingCapture(Mutex<Option<Capture>>);
+struct PendingCapture(Mutex<Vec<Capture>>);
 
 #[derive(serde::Serialize)]
 struct CapturePayload {
@@ -26,13 +26,28 @@ struct CapturePayload {
 }
 
 #[tauri::command]
-fn take_capture(state: tauri::State<'_, PendingCapture>) -> Option<CapturePayload> {
-    state.0.lock().ok()?.take().map(|c| CapturePayload {
+fn take_capture(
+    index: usize,
+    state: tauri::State<'_, PendingCapture>,
+) -> Option<CapturePayload> {
+    state.0.lock().ok()?.get(index).map(|c| CapturePayload {
         png_base64: B64.encode(&c.png),
         width: c.width,
         height: c.height,
         scale_factor: c.scale_factor,
     })
+}
+
+#[tauri::command]
+fn close_overlays(app: AppHandle) {
+    for (label, win) in app.webview_windows() {
+        if label.starts_with("overlay") {
+            let _ = win.hide();
+        }
+    }
+    if let Ok(mut guard) = app.state::<PendingCapture>().0.lock() {
+        guard.clear();
+    }
 }
 
 #[tauri::command]
@@ -69,45 +84,47 @@ async fn upload_screenshot(
         .ok_or_else(|| "Unexpected server response".to_string())
 }
 
-fn capture_primary_screen() -> Result<Capture, String> {
-    let monitors = xcap::Monitor::all().map_err(|e| e.to_string())?;
-    let monitor = monitors
-        .iter()
-        .find(|m| m.is_primary().unwrap_or(false))
-        .or_else(|| monitors.first())
-        .ok_or("No displays found")?;
-
-    let img = monitor.capture_image().map_err(|e| e.to_string())?;
-    let scale_factor = monitor.scale_factor().unwrap_or(1.0) as f64;
-
-    let mut png = Vec::new();
-    img.write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png)
-        .map_err(|e| e.to_string())?;
-
-    Ok(Capture {
-        png,
-        width: img.width(),
-        height: img.height(),
-        scale_factor,
-    })
+fn capture_all_screens() -> Result<Vec<Capture>, String> {
+    let mut captures = Vec::new();
+    for monitor in xcap::Monitor::all().map_err(|e| e.to_string())? {
+        let img = monitor.capture_image().map_err(|e| e.to_string())?;
+        let mut png = Vec::new();
+        img.write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png)
+            .map_err(|e| e.to_string())?;
+        captures.push(Capture {
+            png,
+            width: img.width(),
+            height: img.height(),
+            scale_factor: monitor.scale_factor().unwrap_or(1.0) as f64,
+        });
+    }
+    if captures.is_empty() {
+        return Err("No displays found".to_string());
+    }
+    Ok(captures)
 }
 
-fn open_overlay_window(app: &AppHandle) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window("overlay") {
-        win.close().map_err(|e| e.to_string())?;
+fn open_overlay_windows(app: &AppHandle) -> Result<(), String> {
+    let monitors = xcap::Monitor::all().map_err(|e| e.to_string())?;
+    for (i, monitor) in monitors.iter().enumerate() {
+        let label = format!("overlay-{i}");
+        if let Some(win) = app.get_webview_window(&label) {
+            win.show().map_err(|e| e.to_string())?;
+            win.set_focus().map_err(|e| e.to_string())?;
+            continue;
+        }
+        WebviewWindowBuilder::new(app, &label, WebviewUrl::App("index.html".into()))
+            .title("Screenshoter")
+            .position(monitor.x().unwrap_or(0) as f64, monitor.y().unwrap_or(0) as f64)
+            .fullscreen(true)
+            .decorations(false)
+            .transparent(true)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .focused(true)
+            .build()
+            .map_err(|e| e.to_string())?;
     }
-
-    WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App("index.html".into()))
-        .title("Screenshoter")
-        .fullscreen(true)
-        .decorations(false)
-        .transparent(true)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .focused(true)
-        .build()
-        .map_err(|e| e.to_string())?;
-
     Ok(())
 }
 
@@ -132,13 +149,13 @@ fn open_settings_window(app: &AppHandle) -> Result<(), String> {
 }
 
 fn trigger_capture(app: &AppHandle) {
-    // Capture BEFORE the overlay window covers the screen.
-    match capture_primary_screen() {
-        Ok(capture) => {
+    // Capture BEFORE the overlay windows cover the screens.
+    match capture_all_screens() {
+        Ok(captures) => {
             if let Ok(mut guard) = app.state::<PendingCapture>().0.lock() {
-                *guard = Some(capture);
+                *guard = captures;
             }
-            if let Err(e) = open_overlay_window(app) {
+            if let Err(e) = open_overlay_windows(app) {
                 eprintln!("overlay window error: {e}");
             }
         }
@@ -167,9 +184,18 @@ pub fn run() {
                 })
                 .build(),
         )
-        .manage(PendingCapture(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![take_capture, upload_screenshot])
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
+        .manage(PendingCapture(Mutex::new(Vec::new())))
+        .invoke_handler(tauri::generate_handler![take_capture, close_overlays, upload_screenshot])
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             let capture_item = MenuItem::with_id(app, "capture", "Сделать скриншот", true, None::<&str>)?;
             let settings_item = MenuItem::with_id(app, "settings", "Настройки", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;

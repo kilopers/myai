@@ -87,3 +87,10 @@ Watchtower возвращён в основной `docker-compose.yml`; дост
   `PathPrefix("/_watchtower")` на `screen.ai.kilop.ru` + middleware
   `stripPrefix` → `POST https://screen.ai.kilop.ru/_watchtower/v1/update`.
 - `deploy.yml`: триггер-URL обновлён на `/_watchtower/v1/update`.
+
+## 0.1.5
+
+- Desktop: приложение живёт в трее — закрытие окон скрывает их в системный трей (Windows/macOS), выход только через меню трея; на macOS иконка убрана из Dock (ActivationPolicy::Accessory).
+- Desktop: выбор области на ВСЕХ мониторах — по overlay-окну на каждый дисплей, кадр снимается со всех экранов.
+- Desktop: «Загрузить» — кнопка отправки выделенной области, прямая публичная ссылка сразу копируется в буфер обмена.
+- CI: отчёт о статусе деплоя уходит на https://ai.kilop.ru/api/deploy/status (было build.kilop.ru).
