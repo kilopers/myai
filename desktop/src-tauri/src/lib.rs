@@ -111,7 +111,7 @@ fn open_editor(
         return Ok(());
     }
 
-    WebviewWindowBuilder::new(app, "editor", WebviewUrl::App("index.html#editor".into()))
+    WebviewWindowBuilder::new(&app, "editor", WebviewUrl::App("index.html#editor".into()))
         .title("Screenshoter")
         .inner_size(win_w, win_h)
         .min_inner_size(460.0, 360.0)

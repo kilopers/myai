@@ -193,3 +193,7 @@ Watchtower возвращён в основной `docker-compose.yml`; дост
 - Desktop: тулбар редактора в Material-стиле — SVG-иконки, hover/active-состояния, кнопка «Отправить» акцентная; инструмент по умолчанию — стрелка (была рамка).
 - Desktop: в оверлее при выделении показывается бейдж размера области (WxH); Esc — отмена; окно редактора подгоняется под картинку (до 80% экрана).
 - Rust: состояние `PendingEdit` + команды `open_editor`/`take_edit`/`hide_editor`; окно `editor` добавлено в capabilities.
+
+## 0.3.1
+
+- Desktop: фикс компиляции — `WebviewWindowBuilder::new` получает `&AppHandle`.
