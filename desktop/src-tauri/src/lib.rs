@@ -75,16 +75,17 @@ fn open_editor(
     std::thread::spawn(move || {
         // Даём invoke завершиться и вебвью оверлея освободиться.
         std::thread::sleep(std::time::Duration::from_millis(120));
+        let app3 = app2.clone();
         let _ = app2.run_on_main_thread(move || {
-            for (label, win) in app2.webview_windows() {
+            for (label, win) in app3.webview_windows() {
                 if label.starts_with("overlay") {
                     let _ = win.close();
                 }
             }
-            if let Ok(mut guard) = app2.state::<PendingCapture>().0.lock() {
+            if let Ok(mut guard) = app3.state::<PendingCapture>().0.lock() {
                 guard.clear();
             }
-            if let Err(e) = show_editor(&app2, width, height) {
+            if let Err(e) = show_editor(&app3, width, height) {
                 eprintln!("editor window error: {e}");
             }
         });
