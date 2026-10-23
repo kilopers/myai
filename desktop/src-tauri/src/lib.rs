@@ -51,8 +51,9 @@ fn take_edit(state: tauri::State<'_, PendingEdit>) -> Option<CapturePayload> {
     })
 }
 
-/// Выделение завершено: прячем оверлеи (экран «размораживается»)
-/// и открываем обычное окно редактора с кропом.
+/// Выделение завершено: сохраняем кроп и ОТЛОЖЕННО закрываем оверлеи +
+/// открываем окно редактора. Выкладывать всё прямо внутри invoke нельзя:
+/// вызвавшее оверлей-окно умрёт посреди команды и приложение зависнет.
 #[tauri::command]
 fn open_editor(
     app: AppHandle,
@@ -70,17 +71,31 @@ fn open_editor(
         });
     }
 
-    for (label, win) in app.webview_windows() {
-        if label.starts_with("overlay") {
-            let _ = win.close();
-        }
-    }
-    if let Ok(mut guard) = app.state::<PendingCapture>().0.lock() {
-        guard.clear();
-    }
+    let app2 = app.clone();
+    std::thread::spawn(move || {
+        // Даём invoke завершиться и вебвью оверлея освободиться.
+        std::thread::sleep(std::time::Duration::from_millis(120));
+        let _ = app2.run_on_main_thread(move || {
+            for (label, win) in app2.webview_windows() {
+                if label.starts_with("overlay") {
+                    let _ = win.close();
+                }
+            }
+            if let Ok(mut guard) = app2.state::<PendingCapture>().0.lock() {
+                guard.clear();
+            }
+            if let Err(e) = show_editor(&app2, width, height) {
+                eprintln!("editor window error: {e}");
+            }
+        });
+    });
 
-    // Окно подгоняется под картинку (пиксели кропа — физические),
-    // но не больше ~80% экрана; +52px на тулбар.
+    Ok(())
+}
+
+/// Показать/создать окно редактора с кропом размером width×height (физпиксели).
+fn show_editor(app: &AppHandle, width: u32, height: u32) -> Result<(), String> {
+    // Окно подгоняется под картинку, но не больше ~80% экрана; +52px на тулбар.
     let mon = app.primary_monitor().ok().flatten();
     let scale = mon.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0);
     let logical_w = width as f64 / scale;
@@ -111,7 +126,7 @@ fn open_editor(
         return Ok(());
     }
 
-    WebviewWindowBuilder::new(&app, "editor", WebviewUrl::App("index.html#editor".into()))
+    WebviewWindowBuilder::new(app, "editor", WebviewUrl::App("index.html#editor".into()))
         .title("Screenshoter")
         .inner_size(win_w, win_h)
         .min_inner_size(460.0, 360.0)
