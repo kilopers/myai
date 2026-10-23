@@ -157,7 +157,7 @@ fn open_overlay_windows(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-fn open_settings_windowfn open_settings_window(app: &AppHandle) -> Result<(), String> {
+fn open_settings_window(app: &AppHandle) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("settings") {
         win.set_focus().map_err(|e| e.to_string())?;
         return Ok(());

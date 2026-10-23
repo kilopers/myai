@@ -109,3 +109,7 @@ Watchtower возвращён в основной `docker-compose.yml`; дост
 
 - Server fix: админ больше не сбрасывает пароль при каждом рестарте — сидер использует `firstOrCreate` вместо `updateOrCreate` (раньше `db:seed` в entrypoint перезатирал пароль и `must_change_password=true` после каждого деплоя → бесконечный экран «Смена пароля»).
 - Server: регрессионный тест `AdminSeederTest` — повторный прогон сидера не трогает пароль и флаг.
+
+## 0.1.9
+
+- Desktop fix: починена сборка — случайный дубль `fn open_settings_window` в lib.rs ломал компиляцию (error в release-сборке Windows/macOS).
