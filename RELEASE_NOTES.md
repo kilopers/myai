@@ -94,3 +94,8 @@ Watchtower возвращён в основной `docker-compose.yml`; дост
 - Desktop: выбор области на ВСЕХ мониторах — по overlay-окну на каждый дисплей, кадр снимается со всех экранов.
 - Desktop: «Загрузить» — кнопка отправки выделенной области, прямая публичная ссылка сразу копируется в буфер обмена.
 - CI: отчёт о статусе деплоя уходит на https://ai.kilop.ru/api/deploy/status (было build.kilop.ru).
+
+## 0.1.6
+
+- Desktop: галка «Запускать при старте системы» в настройках (tauri-plugin-autostart: LaunchAgent на macOS, реестр на Windows).
+- Desktop: capabilities исправлены — overlay-окна теперь `overlay-*` (раньше `overlay` не матчил лейблы `overlay-N`, плагины на оверлее не имели прав).

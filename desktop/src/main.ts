@@ -3,6 +3,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Store } from '@tauri-apps/plugin-store';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { sendNotification, isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification';
+import { enable as enableAutostart, disable as disableAutostart, isEnabled as isAutostartEnabled } from '@tauri-apps/plugin-autostart';
 
 interface Capture {
   png_base64: string;
@@ -35,15 +36,24 @@ async function initSettings() {
   const store = await Store.load('settings.json');
   const urlInput = document.getElementById('server-url') as HTMLInputElement;
   const tokenInput = document.getElementById('api-token') as HTMLInputElement;
+  const autostartInput = document.getElementById('autostart') as HTMLInputElement;
   const status = document.getElementById('settings-status')!;
 
   urlInput.value = (await store.get<string>(STORE_KEYS.serverUrl)) ?? '';
   tokenInput.value = (await store.get<string>(STORE_KEYS.apiToken)) ?? '';
+  autostartInput.checked = await isAutostartEnabled();
 
   document.getElementById('save-settings')!.addEventListener('click', async () => {
     await store.set(STORE_KEYS.serverUrl, urlInput.value.trim().replace(/\/+$/, ''));
     await store.set(STORE_KEYS.apiToken, tokenInput.value.trim());
     await store.save();
+    try {
+      if (autostartInput.checked) await enableAutostart();
+      else await disableAutostart();
+    } catch (e) {
+      status.textContent = `Настройки сохранены, автозапуск: ${e}`;
+      return;
+    }
     status.textContent = 'Сохранено.';
     setTimeout(() => { status.textContent = ''; }, 2500);
   });
