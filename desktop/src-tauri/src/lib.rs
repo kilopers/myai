@@ -17,6 +17,9 @@ struct Capture {
 
 struct PendingCapture(Mutex<Vec<Option<Capture>>>);
 
+// Кроп выделенной области — его забирает окно редактора.
+struct PendingEdit(Mutex<Option<Capture>>);
+
 #[derive(serde::Serialize)]
 struct CapturePayload {
     png_base64: String,
@@ -36,6 +39,93 @@ fn take_capture(
         height: c.height,
         scale_factor: c.scale_factor,
     })
+}
+
+#[tauri::command]
+fn take_edit(state: tauri::State<'_, PendingEdit>) -> Option<CapturePayload> {
+    state.0.lock().ok()?.as_ref().map(|c| CapturePayload {
+        png_base64: B64.encode(&c.png),
+        width: c.width,
+        height: c.height,
+        scale_factor: c.scale_factor,
+    })
+}
+
+/// Выделение завершено: прячем оверлеи (экран «размораживается»)
+/// и открываем обычное окно редактора с кропом.
+#[tauri::command]
+fn open_editor(
+    app: AppHandle,
+    png_base64: String,
+    width: u32,
+    height: u32,
+) -> Result<(), String> {
+    let bytes = B64.decode(&png_base64).map_err(|e| e.to_string())?;
+    if let Ok(mut guard) = app.state::<PendingEdit>().0.lock() {
+        *guard = Some(Capture {
+            png: bytes,
+            width,
+            height,
+            scale_factor: 1.0,
+        });
+    }
+
+    for (label, win) in app.webview_windows() {
+        if label.starts_with("overlay") {
+            let _ = win.close();
+        }
+    }
+    if let Ok(mut guard) = app.state::<PendingCapture>().0.lock() {
+        guard.clear();
+    }
+
+    // Окно подгоняется под картинку (пиксели кропа — физические),
+    // но не больше ~80% экрана; +52px на тулбар.
+    let mon = app.primary_monitor().ok().flatten();
+    let scale = mon.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0);
+    let logical_w = width as f64 / scale;
+    let logical_h = height as f64 / scale;
+    let (max_w, max_h) = mon
+        .map(|m| {
+            (
+                m.size().width as f64 / scale * 0.8,
+                m.size().height as f64 / scale * 0.8,
+            )
+        })
+        .unwrap_or((1400.0, 800.0));
+    let ratio = (max_w / logical_w.max(1.0))
+        .min(max_h / logical_h.max(1.0))
+        .min(1.0);
+    let win_w = (logical_w * ratio).clamp(460.0, max_w.max(460.0));
+    let win_h = (logical_h * ratio + 52.0).clamp(360.0, max_h.max(360.0));
+
+    if let Some(win) = app.get_webview_window("editor") {
+        let _ = win.set_size(tauri::Size::Logical(tauri::LogicalSize {
+            width: win_w,
+            height: win_h,
+        }));
+        let _ = win.eval("if (location.hash !== '#editor') location.hash = '#editor'; location.reload()");
+        let _ = win.unminimize();
+        let _ = win.show();
+        let _ = win.set_focus();
+        return Ok(());
+    }
+
+    WebviewWindowBuilder::new(app, "editor", WebviewUrl::App("index.html#editor".into()))
+        .title("Screenshoter")
+        .inner_size(win_w, win_h)
+        .min_inner_size(460.0, 360.0)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn hide_editor(app: AppHandle) {
+    if let Some(win) = app.get_webview_window("editor") {
+        let _ = win.hide();
+    }
 }
 
 #[tauri::command]
@@ -215,7 +305,15 @@ pub fn run() {
             }
         })
         .manage(PendingCapture(Mutex::new(Vec::new())))
-        .invoke_handler(tauri::generate_handler![take_capture, close_overlays, upload_screenshot])
+        .manage(PendingEdit(Mutex::new(None)))
+        .invoke_handler(tauri::generate_handler![
+            take_capture,
+            take_edit,
+            open_editor,
+            hide_editor,
+            close_overlays,
+            upload_screenshot
+        ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
