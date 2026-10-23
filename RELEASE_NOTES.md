@@ -43,3 +43,16 @@ https://screen.ai.kilop.ru
   (`nickfedor/watchtower`, опрос GHCR каждые 3 мин, только скоуп
   `screenshoter`).
 - `.env.example`: опциональные `SERVER_IMAGE`/`WEB_IMAGE`/`IMAGE_TAG`.
+
+## v0.1.2 — 2026-10-23
+
+Фикс автодеплоя: GHCR `permission_denied: read_package`.
+
+- Пакеты `ghcr.io/kilopers/screenshoter-server` и `-web` были созданы
+  PAT'ом без привязки к репозиторию — `GITHUB_TOKEN` из Actions писать
+  в них не может. Имена образов переведены на вложенные
+  `ghcr.io/kilopers/screenshoter/server` и `.../web`: пакет создаётся
+  `GITHUB_TOKEN`'ом при первом пуше в `main` и автоматически
+  привязывается к репозиторию.
+- Старые плоские пакеты-сироты в GHCR можно удалить вручную
+  (нужен scope `delete:packages` или веб-интерфейс).

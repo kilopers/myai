@@ -2,7 +2,10 @@ name: Deploy
 
 # Автодеплой: push в main → образы в GHCR → Watchtower на сервере
 # подтягивает их и пересоздаёт контейнеры (миграции — в entrypoint app).
-# Образы: ghcr.io/kilopers/screenshoter-server и ...-web (теги latest и sha).
+# Образы: ghcr.io/kilopers/screenshoter/server и .../web (теги latest и sha).
+# Имена вложенные (screenshoter/server) — пакет создаётся GITHUB_TOKEN'ом
+# и автоматически привязывается к репозиторию; плоские имена
+# screenshoter-server/-web в GHCR уже заняты «сиротами» без привязки.
 
 on:
   push:
@@ -34,8 +37,8 @@ jobs:
           file: server/Dockerfile
           push: true
           tags: |
-            ghcr.io/kilopers/screenshoter-server:latest
-            ghcr.io/kilopers/screenshoter-server:${{ github.sha }}
+            ghcr.io/kilopers/screenshoter/server:latest
+            ghcr.io/kilopers/screenshoter/server:${{ github.sha }}
 
       - name: Build & push web (nginx)
         uses: docker/build-push-action@v6
@@ -44,12 +47,12 @@ jobs:
           file: web/Dockerfile
           push: true
           tags: |
-            ghcr.io/kilopers/screenshoter-web:latest
-            ghcr.io/kilopers/screenshoter-web:${{ github.sha }}
+            ghcr.io/kilopers/screenshoter/web:latest
+            ghcr.io/kilopers/screenshoter/web:${{ github.sha }}
 
       - name: Deploy status
         if: always()
         run: |
           curl -sS -X POST https://build.kilop.ru/api/deploy/status \
             -H 'Content-Type: application/json' \
-            -d "{\"project\":\"screenshoter\",\"status\":\"$([ \"${{ job.status }}\" = success ] && echo success || echo failed)\",\"data\":\"images ghcr.io/kilopers/screenshoter-{server,web}:${{ github.sha }}\"}"
+            -d "{\"project\":\"screenshoter\",\"status\":\"$([ \"${{ job.status }}\" = success ] && echo success || echo failed)\",\"data\":\"images ghcr.io/kilopers/screenshoter/{server,web}:${{ github.sha }}\"}"

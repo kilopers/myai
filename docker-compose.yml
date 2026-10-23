@@ -33,7 +33,7 @@ x-watchtower-label: &watchtower-label
 
 services:
   app:
-    image: ${SERVER_IMAGE:-ghcr.io/kilopers/screenshoter-server}:${IMAGE_TAG:-latest}
+    image: ${SERVER_IMAGE:-ghcr.io/kilopers/screenshoter/server}:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: server/Dockerfile
@@ -46,7 +46,7 @@ services:
     restart: unless-stopped
 
   queue:
-    image: ${SERVER_IMAGE:-ghcr.io/kilopers/screenshoter-server}:${IMAGE_TAG:-latest}
+    image: ${SERVER_IMAGE:-ghcr.io/kilopers/screenshoter/server}:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: server/Dockerfile
@@ -78,7 +78,7 @@ services:
     restart: unless-stopped
 
   web:
-    image: ${WEB_IMAGE:-ghcr.io/kilopers/screenshoter-web}:${IMAGE_TAG:-latest}
+    image: ${WEB_IMAGE:-ghcr.io/kilopers/screenshoter/web}:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: web/Dockerfile

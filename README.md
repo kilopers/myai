@@ -41,6 +41,10 @@ docker compose up --build
 
 Данные лежат в bind-монтах внутри проекта, а не в docker volumes: `./data/db` — база MySQL, `./data/screenshots` — загруженные картинки (`/var/www/html/storage/app/public`). Перенос на другой сервер — остановить стек и скопировать папку `data/` вместе с репозиторием и `.env`; бэкап — `tar czf backup.tgz data/ .env` (при остановленном `db`). Права на `./data/screenshots` чинит entrypoint контейнера `app` (он стартует от root и отдаёт каталог `www-data`).
 
+Автодеплой: пуш в `main` → GitHub Actions (`deploy.yml`) собирает образы
+`ghcr.io/kilopers/screenshoter-{server,web}` → Watchtower на проде
+подтягивает их и пересоздаёт контейнеры (скоуп `screenshoter`).
+
 Dev-вариант с маунтом кода и Vite dev-сервером (данные — отдельно в `./data-dev/`):
 
 ```bash
