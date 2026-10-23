@@ -69,13 +69,13 @@ export default function Layout() {
               color: '#303030',
               justifyContent: open || isMobile ? 'initial' : 'center',
               '& .MuiListItemIcon-root': { color: '#626168', minWidth: 32 },
-              '&:hover': { bgcolor: '#ebebf0' },
+              '&:hover': { bgcolor: '#e4e4ee' },
               '&.Mui-selected': {
-                bgcolor: '#e9e9ee',
+                bgcolor: '#dcdce9',
                 color: '#1f1e24',
                 fontWeight: 600,
-                '&:hover': { bgcolor: '#e3e3e9' },
-                '& .MuiListItemIcon-root': { color: 'primary.main' },
+                '&:hover': { bgcolor: '#d5d5e3' },
+                '& .MuiListItemIcon-root': { color: '#535158' },
                 '& .MuiListItemText-primary': { fontWeight: 600 },
               },
             }}
@@ -86,7 +86,7 @@ export default function Layout() {
             {(open || isMobile) && (
               <ListItemText
                 primary={item.label}
-                primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: selected ? 600 : 400 }}
+                primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: selected ? 600 : 400 }}
               />
             )}
           </ListItemButton>
@@ -137,8 +137,8 @@ export default function Layout() {
             boxSizing: 'border-box',
             transition: (theme) => theme.transitions.create('width'),
             overflowX: 'hidden',
-            bgcolor: '#f6f6f8',
-            borderRight: '1px solid #dcdcde',
+            bgcolor: '#eceef4',
+            borderRight: '1px solid #d5d5e0',
           },
         }}
       >
