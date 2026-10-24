@@ -25,7 +25,8 @@ export default function GalleryPage() {
   const [preview, setPreview] = useState(null);
 
   const load = useCallback(async (p = 1) => {
-    const { data } = await client.get('/api/screenshots', { params: { page: p } });
+    const { data } = await client.post('/api/action', { action: 'screenshots.state', page: p });
+    if (data.state) { setItems(data.state.screenshots); setMeta(data.state.meta); return; }
     setItems(data.data);
     setMeta(data.meta);
   }, []);

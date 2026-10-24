@@ -7,6 +7,11 @@ use tauri::{
     AppHandle, Manager, WebviewUrl, WebviewWindowBuilder,
 };
 use tauri_plugin_global_shortcut::ShortcutState;
+use tauri_plugin_store::StoreExt;
+use futures_util::StreamExt;
+use tokio_tungstenite::connect_async;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 struct Capture {
     png: Vec<u8>,
@@ -272,6 +277,86 @@ fn open_overlay_windows(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Фоновый WS-монитор: держит подключение к Reverb и красит точку
+/// на иконке трея — зелёная = online, красная = offline.
+fn ws_icon(base: &tauri::image::Image, online: bool) -> tauri::image::Image {
+    let rgba = base.rgba().to_vec();
+    let (w, h) = (base.width(), base.height());
+    let mut img = image::RgbaImage::from_raw(w, h, rgba).unwrap_or_default();
+    let d = (w / 3).max(8);
+    let (cx, cy) = (w.saturating_sub(d / 2), h.saturating_sub(d / 2));
+    let color = if online { image::Rgba([34, 197, 94, 255]) } else { image::Rgba([239, 68, 68, 255]) };
+    for y in cy.saturating_sub(d / 2)..cy + d / 2 {
+        for x in cx.saturating_sub(d / 2)..cx + d / 2 {
+            if x < w && y < h {
+                let dx = x as i32 - cx as i32;
+                let dy = y as i32 - cy as i32;
+                if dx * dx + dy * dy <= (d as i32 / 2) * (d as i32 / 2) {
+                    img.put_pixel(x, y, color);
+                }
+            }
+        }
+    }
+    tauri::image::Image::new_owned(img.into_raw(), w, h)
+}
+
+fn set_ws_status(app: &AppHandle, online: Arc<AtomicBool>, val: bool) {
+    online.store(val, Ordering::SeqCst);
+    if let (Some(tray), Some(base)) = (
+        app.tray_by_id("main-tray"),
+        app.default_window_icon().cloned(),
+    ) {
+        tray.set_icon(Some(ws_icon(&base, val))).ok();
+    }
+}
+
+async fn ws_connect_once(app: &AppHandle, online: Arc<AtomicBool>) {
+    let base = match app.store("settings.json")
+        .ok()
+        .and_then(|s| s.get("server_url"))
+        .and_then(|v| v.as_str().map(str::to_owned))
+    {
+        Some(u) if !u.is_empty() => u.trim_end_matches('/').to_string(),
+        _ => return,
+    };
+    // Берём Reverb key из публичного конфига API (fallback — дефолтный).
+    let key = match reqwest::get(format!("{base}/api/ws-config")).await {
+        Ok(r) => r.json::<serde_json::Value>().await.ok()
+            .and_then(|j| j.get("key").and_then(|v| v.as_str()).map(str::to_owned))
+            .unwrap_or_else(|| "screenshoter".to_string()),
+        Err(_) => "screenshoter".to_string(),
+    };
+    // ws(s)://host/app/<key>?protocol=7 — Pusher-handshake Reverb.
+    let ws_base = base
+        .replacen("https://", "wss://", 1)
+        .replacen("http://", "ws://", 1);
+    let ws_url = format!("{ws_base}/app/{key}?protocol=7&client=desktop&version=1.0");
+    match connect_async(&ws_url).await {
+        Ok((mut stream, _)) => {
+            set_ws_status(app, online.clone(), true);
+            while stream.next().await.is_some() {}
+        }
+        Err(_) => {}
+    }
+    set_ws_status(app, online.clone(), false);
+}
+
+fn spawn_ws_monitor(app: &AppHandle) {
+    let app2 = app.clone();
+    let online = app2.state::<Arc<AtomicBool>>().inner().clone();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            ws_connect_once(&app2, online.clone()).await;
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        }
+    });
+}
+
+#[tauri::command]
+fn ws_status(state: tauri::State<'_, Arc<AtomicBool>>) -> bool {
+    state.load(Ordering::SeqCst)
+}
+
 fn open_settings_window(app: &AppHandle) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("settings") {
         let _ = win.unminimize();
@@ -331,6 +416,7 @@ pub fn run() {
         })
         .manage(PendingCapture(Mutex::new(Vec::new())))
         .manage(PendingEdit(Mutex::new(None)))
+        .manage(Arc::new(AtomicBool::new(false)))
         .invoke_handler(tauri::generate_handler![
             take_capture,
             take_edit,
@@ -338,7 +424,8 @@ pub fn run() {
             editor_ready,
             hide_editor,
             close_overlays,
-            upload_screenshot
+            upload_screenshot,
+            ws_status
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -350,6 +437,7 @@ pub fn run() {
             let menu = Menu::with_items(app, &[&capture_item, &settings_item, &quit_item])?;
 
             TrayIconBuilder::new()
+                .id("main-tray")
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
                 .tooltip("Screenshoter — Ctrl+Shift+X")
@@ -367,6 +455,7 @@ pub fn run() {
 
             // Show settings on first launch so the user can configure server + token.
             open_settings_window(app.handle()).ok();
+            spawn_ws_monitor(app.handle());
 
             Ok(())
         })

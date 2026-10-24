@@ -151,8 +151,29 @@ async function initSettings() {
       status.textContent = `Настройки сохранены, автозапуск: ${e}`;
       return;
     }
-    status.textContent = 'Сохранено.';
-    setTimeout(() => { status.textContent = ''; }, 2500);
+    // Сразу показываем состояние подключения (зелёный/красный).
+    status.textContent = 'Сохранено. Проверяю соединение…';
+    status.style.color = '#8f8f8f';
+    try {
+      const cfg = await fetch(`${urlInput.value.trim().replace(/\/+$/, '')}/api/ws-config`).then((r) => r.json());
+      const host = urlInput.value.trim().replace(/\/+$/, '');
+      const wsScheme = host.startsWith('https') ? 'wss' : 'ws';
+      const wsHost = host.replace(/^https?:\/\//, '');
+      const ws = new WebSocket(`${wsScheme}://${wsHost}/app/${cfg.key}?protocol=7&client=desktop&version=1.0`);
+      const done = new Promise<boolean>((res) => {
+        ws.onopen = () => res(true);
+        ws.onerror = () => res(false);
+        setTimeout(() => res(false), 5000);
+      });
+      const ok = await done;
+      ws.close();
+      status.textContent = ok ? 'Сохранено. ● Подключено' : 'Сохранено. ● Нет соединения';
+      status.style.color = ok ? '#7bd88a' : '#e5534b';
+    } catch {
+      status.textContent = 'Сохранено. ● Нет соединения';
+      status.style.color = '#e5534b';
+    }
+    setTimeout(() => { status.textContent = ''; }, 4000);
   });
 }
 

@@ -225,3 +225,10 @@ Watchtower возвращён в основной `docker-compose.yml`; дост
 
 - Desktop: фикс белого окна редактора — `markActive` падал на свотчах (`tools[i].id` на undefined), первый `render()` не вызывался; окно создаётся скрытым и показывается по `editor_ready` после первого кадра.
 - Desktop: окно редактора двигается за тулбар — `startDragging` + право `core:window:allow-start-dragging`.
+
+## 0.4.0
+
+- WebSockets: Laravel Reverb — сервис `reverb` в docker-compose (порт `WS_PORT`, прод 8286), роутер Traefik `Host(screen.ai.kilop.ru) && PathPrefix(/app)` → Reverb; публичный `GET /api/ws-config` отдаёт app-key.
+- API: единая точка входа `POST /api/action` (`ActionController`) — `screenshots.state/upload/delete`, `files.state/upload/delete`, `folders.create/delete/setTtl`, `share.create/delete`; ответ `{ok, result, state}` — состояние страницы возвращается одним JSON.
+- Web: галерея и файлы переведены на `/api/action`; в файлах текущая папка — в URL (`/files?folder=ID`), кнопка «назад» браузера возвращает в предыдущую папку; грид адаптивный без горизонтального скролла.
+- Desktop: фоновый WS-монитор к Reverb с автореконнектом (5 сек); точка на иконке трея — зелёная online / красная offline; в настройках после сохранения — проверка соединения и цветной статус.

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ActionController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\ApiTokenController;
 use App\Http\Controllers\AuthController;
@@ -16,11 +17,20 @@ Route::post('/auth/login', [AuthController::class, 'login'])->middleware('thrott
 Route::get('/invites/{token}', [AuthController::class, 'showInvite'])->name('invites.show');
 Route::post('/register/{token}', [AuthController::class, 'registerViaInvite'])->middleware('throttle:register');
 
+Route::get('/ws-config', function () {
+    return response()->json([
+        'key' => config('broadcasting.connections.reverb.key'),
+        'host' => parse_url(config('app.url'), PHP_URL_HOST) ?: 'localhost',
+    ]);
+});
+
 // Authenticated
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/change-password', [AuthController::class, 'changePassword']);
+
+    Route::post('/action', [ActionController::class, 'handle']);
 
     Route::put('/me', [ProfileController::class, 'update']);
 

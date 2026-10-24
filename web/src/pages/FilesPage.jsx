@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -68,6 +69,7 @@ const fmtSize = (n) =>
 export default function FilesPage() {
   const [folders, setFolders] = useState([]);
   const [files, setFiles] = useState([]);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [folder, setFolder] = useState(null); // current folder object or null (root)
   const [page, setPage] = useState(1);
   const [meta, setMeta] = useState(null);
@@ -86,16 +88,18 @@ export default function FilesPage() {
   const inputRef = useRef(null);
   const isMobile = useMediaQuery((theme) => theme.breakpoints.down('sm'));
 
+  const folderId = searchParams.get('folder');
   const load = useCallback(async () => {
-    const params = folder ? { folder_id: folder.id, page } : { page };
-    const [fo, fi] = await Promise.all([
-      client.get('/api/folders'),
-      client.get('/api/files', { params }),
-    ]);
-    setFolders(fo.data.data);
-    setFiles(fi.data.data);
-    setMeta(fi.data.meta);
-  }, [folder, page]);
+    const r = await client.post('/api/action', {
+      action: 'files.state',
+      folder_id: folderId ? Number(folderId) : null,
+      page,
+    });
+    setFolders(r.data.state.folders);
+    setFiles(r.data.state.files);
+    setFolder(r.data.state.folder);
+    setMeta(r.data.state.meta ?? null);
+  }, [folderId, page]);
 
   useEffect(() => {
     load();
@@ -109,7 +113,8 @@ export default function FilesPage() {
       fd.append('file', f);
       if (folder) fd.append('folder_id', folder.id);
       try {
-        await client.post('/api/files', fd, {
+        fd.append('action', 'files.upload');
+        await client.post('/api/action', fd, {
           onUploadProgress: (e) => {
             const pct = e.total ? Math.round((e.loaded / e.total) * 100) : 0;
             setUploads((u) => u.map((x) => (x === entry ? { ...x, progress: pct } : x)));
@@ -137,14 +142,15 @@ export default function FilesPage() {
 
   const createFolder = async () => {
     if (!newFolderName.trim()) return;
-    await client.post('/api/folders', { name: newFolderName.trim() });
+    await client.post('/api/action', { action: 'folders.create', name: newFolderName.trim(), parent_id: folder?.id ?? null });
     setNewFolderName('');
     setNewFolderOpen(false);
     load();
   };
 
   const saveFolder = async () => {
-    await client.put(`/api/folders/${editFolder.id}`, {
+    await client.post('/api/action', {
+      action: 'folders.setTtl', id: editFolder.id,
       default_ttl_days: editFolderTtl === '' ? null : Number(editFolderTtl),
     });
     setEditFolder(null);
@@ -188,12 +194,12 @@ export default function FilesPage() {
   };
 
   const removeFile = async (id) => {
-    await client.delete(`/api/files/${id}`);
+    await client.post('/api/action', { action: 'files.delete', id });
     load();
   };
 
   const removeFolder = async (id) => {
-    await client.delete(`/api/folders/${id}`);
+    await client.post('/api/action', { action: 'folders.delete', id });
     load();
   };
 
@@ -204,7 +210,7 @@ export default function FilesPage() {
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
         {folder && (
-          <IconButton onClick={() => { setFolder(null); setPage(1); }}>
+          <IconButton onClick={() => { setSearchParams({}); setPage(1); }}>
             <ArrowBackIcon />
           </IconButton>
         )}
@@ -305,7 +311,7 @@ export default function FilesPage() {
                 </Box>
               }
             >
-              <ListItemButton onClick={() => { setFolder(fo); setPage(1); }}>
+              <ListItemButton onClick={() => { setSearchParams({ folder: String(fo.id) }); setPage(1); }}>
                 <ListItemIcon><FolderIcon color="primary" /></ListItemIcon>
                 <ListItemText
                   primary={fo.name}
@@ -320,7 +326,7 @@ export default function FilesPage() {
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? 130 : 150}px, 1fr))`,
+          gridTemplateColumns: 'repeat(auto-fill, minmax(min(150px, 100%), 1fr))',
           gap: 1,
         }}
       >
