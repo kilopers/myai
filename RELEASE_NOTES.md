@@ -248,3 +248,7 @@ Watchtower возвращён в основной `docker-compose.yml`; дост
 ## 0.4.4
 
 - Desktop: кнопка «Копировать» в редакторе — PNG с канваса (со всеми аннотациями) кладётся в буфер обмена как картинка (команда `copy_screenshot`, уведомление, пермишен `clipboard-manager:allow-write-image`).
+
+## 0.4.5
+
+- Desktop/macOS: явная ad-hoc подпись (`signingIdentity: "-"` в tauri.conf — обязательна для arm64) + инструкция по снятию карантина Gatekeeper (`xattr -cr /Applications/Screenshoter.app`) в описании релиза — ошибка «Приложение повреждено» на M1.

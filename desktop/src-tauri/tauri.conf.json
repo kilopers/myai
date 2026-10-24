@@ -32,6 +32,9 @@
         ],
         "displayLanguageSelector": false
       }
+    },
+    "macOS": {
+      "signingIdentity": "-"
     }
   }
 }
