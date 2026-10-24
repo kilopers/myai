@@ -52,7 +52,7 @@ class ActionController extends Controller
         return response()->json([
             'ok' => true,
             'result' => $result,
-            'state' => $request->boolean('state') ? $this->autoState($request, $action) : null,
+            'state' => $this->autoState($request, $action),
         ]);
     }
 

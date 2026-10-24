@@ -240,3 +240,7 @@ Watchtower возвращён в основной `docker-compose.yml`; дост
 ## 0.4.2
 
 - Server: в образ добавлен ext-pcntl — без него `php artisan reverb:start` падает (`Undefined constant SIGINT`); сокеты на проде подняты.
+
+## 0.4.3
+
+- API: фикс белого экрана — `/api/action` возвращал `state: null` (состояние отдавалось только по флагу `state:true`); теперь `state` приходит всегда.
