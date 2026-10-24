@@ -236,3 +236,7 @@ Watchtower возвращён в основной `docker-compose.yml`; дост
 ## 0.4.1
 
 - Desktop: фикс сборки Rust — `Image<'static>` у `ws_icon`, `TrayIconBuilder::with_id("main-tray")` вместо `.id()`.
+
+## 0.4.2
+
+- Server: в образ добавлен ext-pcntl — без него `php artisan reverb:start` падает (`Undefined constant SIGINT`); сокеты на проде подняты.

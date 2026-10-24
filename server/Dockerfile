@@ -19,7 +19,7 @@ RUN apk add --no-cache \
         libzip-dev \
         oniguruma-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && for ext in bcmath gd intl opcache pdo_mysql zip; do \
+    && for ext in bcmath gd intl opcache pcntl pdo_mysql zip; do \
          docker-php-ext-install -j"$(nproc)" "$ext"; \
        done \
     && rm -rf /var/cache/apk/*
