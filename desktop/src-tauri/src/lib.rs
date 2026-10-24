@@ -215,10 +215,12 @@ fn open_overlay_windows(app: &AppHandle) -> Result<(), String> {
     // Capture BEFORE the overlay windows cover the screens. Index in `captures`
     // matches the Tauri monitor index and the `overlay-{i}` window label.
     let mut captures: Vec<Option<Capture>> = Vec::with_capacity(monitors.len());
-    for tmon in &monitors {
+    for (mi, tmon) in monitors.iter().enumerate() {
         let pos = tmon.position();
         let size = tmon.size();
-        let capture = xcap_monitors
+        // Строгий матч по позиции+размеру, на Retina размеры в pt/px
+        // расходятся — фолбэки: только по позиции, затем по индексу.
+        let xmon = xcap_monitors
             .iter()
             .find(|m| {
                 (m.x().unwrap_or(i32::MIN) - pos.x).abs() <= 4
@@ -226,6 +228,14 @@ fn open_overlay_windows(app: &AppHandle) -> Result<(), String> {
                     && m.width().unwrap_or(0) == size.width
                     && m.height().unwrap_or(0) == size.height
             })
+            .or_else(|| {
+                xcap_monitors.iter().find(|m| {
+                    (m.x().unwrap_or(i32::MIN) - pos.x).abs() <= 8
+                        && (m.y().unwrap_or(i32::MIN) - pos.y).abs() <= 8
+                })
+            })
+            .or_else(|| xcap_monitors.get(mi));
+        let capture = xmon
             .and_then(|m| m.capture_image().ok())
             .and_then(|img| {
                 let mut png = Vec::new();
