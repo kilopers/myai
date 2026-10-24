@@ -209,3 +209,8 @@ Watchtower возвращён в основной `docker-compose.yml`; дост
 ## 0.3.4
 
 - Desktop: фикс компиляции — лишний clone AppHandle для кложура в `run_on_main_thread`.
+
+## 0.3.5
+
+- Server: лимит загрузки файлов поднят до 8 ГБ — PHP `upload_max_filesize`/`post_max_size` = 8G, `max_input_time`/`max_execution_time` = 3600; nginx `client_max_body_size` = 8g + `fastcgi_read_timeout`; валидация Laravel `max:8388608` КБ.
+- Web: версия внизу меню на проде показывала `vdev` — `VERSION` теперь копируется в web-образ, vite.config читает `./VERSION` как фолбэк.

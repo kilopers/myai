@@ -5,11 +5,12 @@ import react from '@vitejs/plugin-react';
 
 const apiTarget = process.env.VITE_API_TARGET || 'http://localhost:8000';
 const appVersion = (() => {
-  try {
-    return readFileSync(fileURLToPath(new URL('../VERSION', import.meta.url)), 'utf8').trim();
-  } catch {
-    return 'dev';
+  for (const p of ['../VERSION', './VERSION']) {
+    try {
+      return readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8').trim();
+    } catch { /* следующий кандидат */ }
   }
+  return 'dev';
 })();
 
 export default defineConfig({

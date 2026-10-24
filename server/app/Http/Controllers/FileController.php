@@ -30,7 +30,7 @@ class FileController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'file' => ['required', 'file', 'max:102400'],
+            'file' => ['required', 'file', 'max:8388608'],
             'folder_id' => ['nullable', 'integer'],
         ]);
 
