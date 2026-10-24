@@ -34,6 +34,7 @@ const ICONS: Record<string, string> = {
   blur: 'M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z',
   undo: 'M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z',
   send: 'M2.01 21L23 12 2.01 3 2 10l15 2-15 2z',
+  copy: 'M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z',
   close: 'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z',
 };
 
@@ -342,6 +343,7 @@ async function initEditor() {
     { id: 'colors', icon: '', title: '' },
     { id: 'sep', icon: '', title: '' },
     { id: 'upload', icon: 'send', title: 'Загрузить и скопировать ссылку', cls: 'primary', text: 'Отправить' },
+    { id: 'copy', icon: 'copy', title: 'Скопировать картинку в буфер', text: 'Копировать' },
     { id: 'spacer', icon: '', title: '' },
     { id: 'close', icon: 'close', title: 'Закрыть (Esc)' },
   ];
@@ -432,6 +434,7 @@ async function initEditor() {
     if (id === 'undo') { shapes.pop(); render(); return; }
     if (id === 'close') { await invoke('hide_editor'); return; }
     if (id === 'upload') { await doUpload(); return; }
+    if (id === 'copy') { await doCopy(); return; }
     tool = id as Tool;
     markActive();
   }
@@ -473,6 +476,18 @@ async function initEditor() {
     if (e.key === 'Escape') await invoke('hide_editor');
     if (e.ctrlKey && e.key === 'z') { shapes.pop(); render(); }
   });
+
+  async function doCopy() {
+    render();
+    const base64 = canvas.toDataURL('image/png').split(',')[1];
+    try {
+      await invoke('copy_screenshot', { pngBase64: base64 });
+      if (!(await isPermissionGranted())) await requestPermission();
+      await sendNotification({ title: 'Screenshoter', body: 'Картинка скопирована в буфер обмена' });
+    } catch (err) {
+      alert(`Ошибка копирования: ${err}`);
+    }
+  }
 
   async function doUpload() {
     render();

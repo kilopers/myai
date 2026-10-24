@@ -8,6 +8,7 @@ use tauri::{
 };
 use tauri_plugin_global_shortcut::ShortcutState;
 use tauri_plugin_store::StoreExt;
+use tauri_plugin_clipboard_manager::ClipboardExt;
 use futures_util::StreamExt;
 use tokio_tungstenite::connect_async;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -352,6 +353,19 @@ fn spawn_ws_monitor(app: &AppHandle) {
     });
 }
 
+/// Копирует PNG (base64) в буфер обмена как картинку.
+#[tauri::command]
+fn copy_screenshot(app: AppHandle, png_base64: String) -> Result<(), String> {
+    let png = B64.decode(png_base64).map_err(|e| e.to_string())?;
+    let img = image::load_from_memory(&png)
+        .map_err(|e| e.to_string())?
+        .to_rgba8();
+    let (w, h) = img.dimensions();
+    app.clipboard()
+        .write_image(&tauri::image::Image::new_owned(img.into_raw(), w, h))
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn ws_status(state: tauri::State<'_, Arc<AtomicBool>>) -> bool {
     state.load(Ordering::SeqCst)
@@ -425,6 +439,7 @@ pub fn run() {
             hide_editor,
             close_overlays,
             upload_screenshot,
+            copy_screenshot,
             ws_status
         ])
         .setup(|app| {
