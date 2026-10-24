@@ -113,7 +113,7 @@ fn show_editor(app: &AppHandle, width: u32, height: u32) -> Result<(), String> {
         .min(max_h / logical_h.max(1.0))
         .min(1.0);
     let win_w = (logical_w * ratio).clamp(460.0, max_w.max(460.0));
-    let win_h = (logical_h * ratio + 52.0).clamp(360.0, max_h.max(360.0));
+    let win_h = (logical_h * ratio + 68.0).clamp(360.0, max_h.max(360.0));
 
     if let Some(win) = app.get_webview_window("editor") {
         let _ = win.set_size(tauri::Size::Logical(tauri::LogicalSize {
@@ -129,6 +129,7 @@ fn show_editor(app: &AppHandle, width: u32, height: u32) -> Result<(), String> {
 
     WebviewWindowBuilder::new(app, "editor", WebviewUrl::App("index.html#editor".into()))
         .title("Screenshoter")
+        .decorations(false)
         .inner_size(win_w, win_h)
         .min_inner_size(460.0, 360.0)
         .build()

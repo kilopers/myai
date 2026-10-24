@@ -35,6 +35,18 @@
       #toolbar .sep { width: 1px; height: 24px; background: #dadce0; margin: 0 6px; }
       #toolbar .spacer { flex: 1; }
       #toolbar .hint-text { color: #80868b; font-size: 12px; margin-right: 8px; }
+      #toolbar button.swatch {
+        min-width: 0; width: 26px; height: 26px; padding: 0;
+        border-radius: 50%; border: 2px solid rgba(0,0,0,.15); margin: 0 3px;
+      }
+      #toolbar button.swatch:hover { transform: scale(1.1); background: inherit; }
+      #toolbar button.swatch.active { border-color: #1a73e8; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1a73e8; }
+      #text-input {
+        position: fixed; z-index: 30; padding: 6px 10px;
+        font: 16px system-ui; border: 2px solid #1a73e8; border-radius: 8px;
+        background: #fff; color: #222; outline: none;
+        box-shadow: 0 2px 8px rgba(0,0,0,.25);
+      }
 
       /* Settings view */
       #settings-view {
@@ -56,7 +68,7 @@
     </style>
   </head>
   <body>
-    <div id="toolbar"></div>
+    <div id="toolbar" data-tauri-drag-region></div>
     <canvas id="canvas"></canvas>
     <div id="settings-view">
       <h1>Screenshoter — настройки</h1>

@@ -214,3 +214,9 @@ Watchtower возвращён в основной `docker-compose.yml`; дост
 
 - Server: лимит загрузки файлов поднят до 8 ГБ — PHP `upload_max_filesize`/`post_max_size` = 8G, `max_input_time`/`max_execution_time` = 3600; nginx `client_max_body_size` = 8g + `fastcgi_read_timeout`; валидация Laravel `max:8388608` КБ.
 - Web: версия внизу меню на проде показывала `vdev` — `VERSION` теперь копируется в web-образ, vite.config читает `./VERSION` как фолбэк.
+
+## 0.3.6
+
+- Desktop: окно редактора без системной рамки (тулбар сам по себе заголовок + drag-region); высота окна учитывает тулбар — картинка без скролла.
+- Desktop: стрелка крупнее (линия 6px, наконечник 22px), рамка 5px; палитра из 5 цветов в тулбаре (красный/жёлтый/зелёный/синий/чёрный).
+- Desktop: текст вводится inline-полем на канвасе («Введите текст») вместо системного prompt().
