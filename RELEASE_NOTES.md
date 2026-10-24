@@ -232,3 +232,7 @@ Watchtower возвращён в основной `docker-compose.yml`; дост
 - API: единая точка входа `POST /api/action` (`ActionController`) — `screenshots.state/upload/delete`, `files.state/upload/delete`, `folders.create/delete/setTtl`, `share.create/delete`; ответ `{ok, result, state}` — состояние страницы возвращается одним JSON.
 - Web: галерея и файлы переведены на `/api/action`; в файлах текущая папка — в URL (`/files?folder=ID`), кнопка «назад» браузера возвращает в предыдущую папку; грид адаптивный без горизонтального скролла.
 - Desktop: фоновый WS-монитор к Reverb с автореконнектом (5 сек); точка на иконке трея — зелёная online / красная offline; в настройках после сохранения — проверка соединения и цветной статус.
+
+## 0.4.1
+
+- Desktop: фикс сборки Rust — `Image<'static>` у `ws_icon`, `TrayIconBuilder::with_id("main-tray")` вместо `.id()`.

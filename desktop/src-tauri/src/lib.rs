@@ -279,7 +279,7 @@ fn open_overlay_windows(app: &AppHandle) -> Result<(), String> {
 
 /// Фоновый WS-монитор: держит подключение к Reverb и красит точку
 /// на иконке трея — зелёная = online, красная = offline.
-fn ws_icon(base: &tauri::image::Image, online: bool) -> tauri::image::Image {
+fn ws_icon(base: &tauri::image::Image<'_>, online: bool) -> tauri::image::Image<'static> {
     let rgba = base.rgba().to_vec();
     let (w, h) = (base.width(), base.height());
     let mut img = image::RgbaImage::from_raw(w, h, rgba).unwrap_or_default();
@@ -436,8 +436,7 @@ pub fn run() {
             let quit_item = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&capture_item, &settings_item, &quit_item])?;
 
-            TrayIconBuilder::new()
-                .id("main-tray")
+            TrayIconBuilder::with_id("main-tray")
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
                 .tooltip("Screenshoter — Ctrl+Shift+X")
