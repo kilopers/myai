@@ -121,9 +121,6 @@ fn show_editor(app: &AppHandle, width: u32, height: u32) -> Result<(), String> {
             height: win_h,
         }));
         let _ = win.eval("if (location.hash !== '#editor') location.hash = '#editor'; location.reload()");
-        let _ = win.unminimize();
-        let _ = win.show();
-        let _ = win.set_focus();
         return Ok(());
     }
 
@@ -132,10 +129,21 @@ fn show_editor(app: &AppHandle, width: u32, height: u32) -> Result<(), String> {
         .decorations(false)
         .inner_size(win_w, win_h)
         .min_inner_size(460.0, 360.0)
+        .visible(false)
         .build()
         .map_err(|e| e.to_string())?;
 
     Ok(())
+}
+
+/// Фронт дорендерил картинку — только теперь показываем окно (без белой вспышки).
+#[tauri::command]
+fn editor_ready(app: AppHandle) {
+    if let Some(win) = app.get_webview_window("editor") {
+        let _ = win.unminimize();
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
 }
 
 #[tauri::command]
@@ -327,6 +335,7 @@ pub fn run() {
             take_capture,
             take_edit,
             open_editor,
+            editor_ready,
             hide_editor,
             close_overlays,
             upload_screenshot

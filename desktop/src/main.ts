@@ -356,6 +356,10 @@ async function initEditor() {
     toolbar.appendChild(b);
   }
   toolbar.style.display = 'flex';
+  toolbar.addEventListener('mousedown', (e) => {
+    if ((e.target as HTMLElement).closest('button, input')) return;
+    void getCurrentWindow().startDragging();
+  });
 
   function markSwatches() {
     toolbar.querySelectorAll<HTMLButtonElement>('.swatch').forEach((el) => {
@@ -399,7 +403,7 @@ async function initEditor() {
 
   function markActive() {
     [...toolbar.children].forEach((el, i) => {
-      el.classList.toggle('active', tools[i].id === tool);
+      el.classList.toggle('active', tools[i]?.id === tool);
     });
   }
 
@@ -459,6 +463,7 @@ async function initEditor() {
   markActive();
   markSwatches();
   render();
+  await invoke('editor_ready');
 }
 
 // ---------- entry ----------
