@@ -109,21 +109,55 @@ export default function FilesPage() {
     load();
   }, [load]);
 
+  const fmtSpeed = (bps) =>
+    bps >= 1048576 ? `${(bps / 1048576).toFixed(1)} МБ/с` : `${Math.max(1, Math.round(bps / 1024))} КБ/с`;
+
   const uploadFiles = async (list) => {
     for (const f of list) {
-      const entry = { name: f.name, progress: 0, done: false, leaving: false };
+      const entry = { name: f.name, progress: 0, done: false, leaving: false, speed: '' };
       setUploads((u) => [...u, entry]);
-      const fd = new FormData();
-      fd.append('file', f);
-      if (folder) fd.append('folder_id', folder.id);
+      let lastT = performance.now();
+      let lastLoaded = 0;
+      const onProgress = (loaded) => {
+        const now = performance.now();
+        const dt = (now - lastT) / 1000;
+        let speed = entry.speed;
+        if (dt >= 0.4) {
+          speed = fmtSpeed((loaded - lastLoaded) / dt);
+          lastT = now;
+          lastLoaded = loaded;
+        }
+        const pct = f.size ? Math.round((loaded / f.size) * 100) : 0;
+        setUploads((u) => u.map((x) => (x === entry ? { ...x, progress: pct, speed } : x)));
+      };
       try {
-        fd.append('action', 'files.upload');
-        await client.post('/api/action', fd, {
-          onUploadProgress: (e) => {
-            const pct = e.total ? Math.round((e.loaded / e.total) * 100) : 0;
-            setUploads((u) => u.map((x) => (x === entry ? { ...x, progress: pct } : x)));
-          },
-        });
+        // Файлы больше 4 МБ грузим чанками — размер не ограничен лимитами POST
+        const CHUNK = 4 * 1024 * 1024;
+        if (f.size > CHUNK) {
+          const uploadId = crypto.randomUUID();
+          const total = Math.ceil(f.size / CHUNK);
+          for (let i = 0; i < total; i++) {
+            const fd = new FormData();
+            fd.append('action', 'files.uploadChunk');
+            fd.append('upload_id', uploadId);
+            fd.append('index', String(i));
+            fd.append('total', String(total));
+            fd.append('name', f.name);
+            if (folder) fd.append('folder_id', String(folder.id));
+            fd.append('file', f.slice(i * CHUNK, (i + 1) * CHUNK), f.name);
+            await client.post('/api/action', fd, {
+              onUploadProgress: (e) => onProgress(i * CHUNK + e.loaded),
+            });
+          }
+        } else {
+          const fd = new FormData();
+          fd.append('file', f);
+          if (folder) fd.append('folder_id', String(folder.id));
+          fd.append('action', 'files.upload');
+          await client.post('/api/action', fd, {
+            onUploadProgress: (e) => onProgress(e.loaded),
+          });
+        }
       } catch {
         setMessage(`Не удалось загрузить ${f.name}`);
       }
@@ -312,7 +346,7 @@ export default function FilesPage() {
           }}
         >
           <Typography variant="caption" color={u.done ? 'success.main' : 'text.secondary'}>
-            {u.name} — {u.done ? 'загружен' : `${u.progress}%`}
+            {u.name} — {u.done ? 'загружен' : `${u.progress}%${u.speed ? ` · ${u.speed}` : ''}`}
           </Typography>
           <LinearProgress
             variant="determinate"

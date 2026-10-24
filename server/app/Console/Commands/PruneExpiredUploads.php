@@ -6,6 +6,7 @@ use App\Models\Screenshot;
 use App\Models\ShareLink;
 use App\Models\StoredFile;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Storage;
 
 class PruneExpiredUploads extends Command
 {
@@ -33,7 +34,22 @@ class PruneExpiredUploads extends Command
         $links = ShareLink::whereNotNull('expires_at')
             ->where('expires_at', '<=', now())->delete();
 
-        $this->info("Pruned {$screenshots->count()} screenshots, {$files->count()} files, {$links} links.");
+        // Недособранные чанковые загрузки старше суток
+        $chunks = 0;
+        foreach (Storage::directories('chunks') as $userDir) {
+            foreach (Storage::directories($userDir) as $uploadDir) {
+                $parts = Storage::files($uploadDir);
+                $stale = collect($parts)->every(
+                    fn (string $p) => Storage::lastModified($p) < now()->subDay()->getTimestamp()
+                );
+                if ($stale) {
+                    Storage::deleteDirectory($uploadDir);
+                    $chunks++;
+                }
+            }
+        }
+
+        $this->info("Pruned {$screenshots->count()} screenshots, {$files->count()} files, {$links} links, {$chunks} stale uploads.");
 
         return self::SUCCESS;
     }

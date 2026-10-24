@@ -61,6 +61,67 @@ class FileController extends Controller
         return (new StoredFileResource($file))->response()->setStatusCode(201);
     }
 
+    /**
+     * Приём одного чанка большого файла. Когда все части на месте —
+     * собирает их в финальный файл и создаёт запись StoredFile.
+     */
+    public function storeChunk(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'upload_id' => ['required', 'string', 'regex:/^[A-Za-z0-9_-]{8,64}$/'],
+            'index' => ['required', 'integer', 'min:0'],
+            'total' => ['required', 'integer', 'min:1', 'max:4096'],
+            'name' => ['required', 'string', 'max:255'],
+            'folder_id' => ['nullable', 'integer'],
+            'file' => ['required', 'file', 'max:16384'],
+        ]);
+
+        $dir = "chunks/{$request->user()->id}/{$validated['upload_id']}";
+        $request->file('file')->storeAs($dir, "{$validated['index']}.part");
+
+        $received = count(Storage::files($dir));
+        if ($received < (int) $validated['total']) {
+            return response()->json(['ok' => true, 'received' => $received]);
+        }
+
+        $folder = null;
+        if (! empty($validated['folder_id'])) {
+            $folder = Folder::where('user_id', $request->user()->id)
+                ->findOrFail($validated['folder_id']);
+        }
+
+        $uuid = (string) Str::uuid();
+        $extension = strtolower(pathinfo($validated['name'], PATHINFO_EXTENSION) ?: 'bin');
+        $path = "files/{$uuid}.{$extension}";
+
+        $tmp = fopen('php://temp', 'w+b');
+        for ($i = 0; $i < (int) $validated['total']; $i++) {
+            $part = Storage::readStream("{$dir}/{$i}.part");
+            abort_if($part === false, 500, "Missing chunk {$i}");
+            stream_copy_to_stream($part, $tmp);
+            fclose($part);
+        }
+        rewind($tmp);
+        Storage::disk('public')->put($path, $tmp);
+        fclose($tmp);
+        Storage::deleteDirectory($dir);
+
+        $ttl = $folder?->default_ttl_days ?? $request->user()->default_file_ttl_days;
+
+        $file = $request->user()->files()->create([
+            'folder_id' => $folder?->id,
+            'uuid' => $uuid,
+            'name' => $validated['name'],
+            'filename' => "{$uuid}.{$extension}",
+            'mime_type' => Storage::disk('public')->mimeType($path),
+            'size' => Storage::disk('public')->size($path),
+            'path' => $path,
+            'expires_at' => $ttl ? now()->addDays($ttl) : null,
+        ]);
+
+        return (new StoredFileResource($file))->response()->setStatusCode(201);
+    }
+
     public function update(Request $request, StoredFile $file): StoredFileResource
     {
         abort_unless($file->user_id === $request->user()->id, 403);

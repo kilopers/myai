@@ -34,6 +34,7 @@ class ActionController extends Controller
                 // Файлы/папки
                 'files.state' => $this->filesState($request),
                 'files.upload' => $this->fileUpload($request),
+                'files.uploadChunk' => $this->fileUploadChunk($request),
                 'files.delete' => $this->deleteModel(StoredFile::class, $request),
                 'folders.create' => $this->folderCreate($request),
                 'folders.delete' => $this->deleteModel(Folder::class, $request),
@@ -135,6 +136,11 @@ class ActionController extends Controller
     private function fileUpload(Request $request): JsonResponse
     {
         return app(FileController::class)->store($request);
+    }
+
+    private function fileUploadChunk(Request $request): JsonResponse
+    {
+        return app(FileController::class)->storeChunk($request);
     }
 
     private function folderCreate(Request $request): array
