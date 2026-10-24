@@ -52,8 +52,27 @@ class ActionController extends Controller
         return response()->json([
             'ok' => true,
             'result' => $result,
-            'state' => $this->autoState($request, $action),
+            'state' => $this->stateFor($request, $action, $result),
         ]);
+    }
+
+    /**
+     * Состояние для ответа: у *.state-экшенов result и есть состояние
+     * (не считаем повторно), у мутаций сбой состояния не должен
+     * превращать успешную операцию в ошибку — логируем и отдаём null.
+     */
+    private function stateFor(Request $request, string $action, mixed $result): ?array
+    {
+        if (str($action)->endsWith('.state')) {
+            return is_array($result) ? $result : null;
+        }
+        try {
+            return $this->autoState($request, $action);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return null;
+        }
     }
 
     /** Авто-состояние после мутации — по префиксу экшена. */
