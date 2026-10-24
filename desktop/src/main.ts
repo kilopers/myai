@@ -289,9 +289,17 @@ async function initOverlay() {
 
 // ---------- editor window: аннотации + отправка ----------
 async function initEditor() {
-  document.documentElement.style.background = '#f5f5f7';
-  document.body.style.background = '#f5f5f7';
+  // Тёмная «сцена»: маленький кроп плавает по центру на чёрном фоне,
+  // тулбар фиксирован сверху.
+  document.documentElement.style.background = '#111114';
+  document.body.style.background = '#111114';
   document.body.style.overflow = 'auto';
+  document.body.style.display = 'flex';
+  document.body.style.alignItems = 'center';
+  document.body.style.justifyContent = 'center';
+  document.body.style.minHeight = '100vh';
+  document.body.style.boxSizing = 'border-box';
+  document.body.style.padding = '60px 12px 12px';
 
   const toolbar = document.getElementById('toolbar')!;
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -306,11 +314,19 @@ async function initEditor() {
 
   canvas.width = img.width;
   canvas.height = img.height;
-  canvas.style.maxWidth = 'calc(100vw - 24px)';
-  canvas.style.height = 'auto';
+  // Картинка в натуральном размере; уменьшаем только если не влезает
+  // (24px — боковые поля, 84px — тулбар + нижнее поле). Апскейла нет:
+  // маленькая область остаётся чёткой на тёмном фоне.
+  const fit = Math.min(
+    1,
+    (window.innerWidth - 24) / img.width,
+    (window.innerHeight - 84) / img.height,
+  );
+  canvas.style.width = `${Math.max(1, Math.round(img.width * fit))}px`;
+  canvas.style.height = `${Math.max(1, Math.round(img.height * fit))}px`;
   canvas.style.display = 'block';
-  canvas.style.margin = '52px auto 8px';
-  canvas.style.boxShadow = '0 1px 4px rgba(0,0,0,.25)';
+  canvas.style.margin = '0 auto';
+  canvas.style.boxShadow = '0 1px 4px rgba(0,0,0,.5)';
   canvas.style.background = '#fff';
 
   let tool: Tool = 'arrow'; // по умолчанию — стрелка

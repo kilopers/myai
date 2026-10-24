@@ -115,11 +115,15 @@ fn show_editor(app: &AppHandle, width: u32, height: u32) -> Result<(), String> {
             )
         })
         .unwrap_or((1400.0, 800.0));
+    // Минимум окна — чтобы гарантированно влезал вся панель
+    // (инструменты + цвета + Отправить/Копировать + закрытие ≈ 700px).
+    const MIN_W: f64 = 720.0;
+    const MIN_H: f64 = 420.0;
     let ratio = (max_w / logical_w.max(1.0))
         .min(max_h / logical_h.max(1.0))
         .min(1.0);
-    let win_w = (logical_w * ratio).clamp(460.0, max_w.max(460.0));
-    let win_h = (logical_h * ratio + 68.0).clamp(360.0, max_h.max(360.0));
+    let win_w = (logical_w * ratio).clamp(MIN_W, max_w.max(MIN_W));
+    let win_h = (logical_h * ratio + 68.0).clamp(MIN_H, max_h.max(MIN_H));
 
     if let Some(win) = app.get_webview_window("editor") {
         let _ = win.set_size(tauri::Size::Logical(tauri::LogicalSize {
@@ -134,7 +138,7 @@ fn show_editor(app: &AppHandle, width: u32, height: u32) -> Result<(), String> {
         .title("Screenshoter")
         .decorations(false)
         .inner_size(win_w, win_h)
-        .min_inner_size(460.0, 360.0)
+        .min_inner_size(MIN_W, MIN_H)
         .visible(false)
         .build()
         .map_err(|e| e.to_string())?;
