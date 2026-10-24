@@ -240,6 +240,20 @@ fn open_overlay_windows(app: &AppHandle) -> Result<(), String> {
         captures.push(capture);
     }
 
+    // Если захват не удался ни на одном мониторе — на macOS это почти
+    // всегда отсутствие права «Запись экрана»: предупреждаем пользователя.
+    if captures.iter().all(|c| c.is_none()) {
+        notify(app, "Screenshoter", "Не удалось сделать снимок экрана. На macOS разрешите «Запись экрана»: Системные настройки → Конфиденциальность и безопасность → Запись экрана, затем перезапустите приложение.");
+        #[cfg(target_os = "macos")]
+        {
+            // Открываем панель настроек прямо отсюда.
+            let _ = std::process::Command::new("open")
+                .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+                .spawn();
+        }
+        return Err("screen capture failed (permission?)".into());
+    }
+
     if let Ok(mut guard) = app.state::<PendingCapture>().0.lock() {
         *guard = captures;
     }
@@ -393,9 +407,17 @@ fn open_settings_window(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+fn notify(app: &AppHandle, title: &str, body: &str) {
+    use tauri_plugin_notification::NotificationExt;
+    let _ = app.notification().builder().title(title).body(body).show();
+}
+
 fn trigger_capture(app: &AppHandle) {
     if let Err(e) = open_overlay_windows(app) {
         eprintln!("overlay window error: {e}");
+        if !e.contains("screen capture failed") {
+            notify(app, "Screenshoter", &format!("Ошибка захвата экрана: {e}"));
+        }
     }
 }
 
