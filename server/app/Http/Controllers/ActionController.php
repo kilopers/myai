@@ -86,7 +86,7 @@ class ActionController extends Controller
         return [
             'folder' => $folder ? (new JsonResource($folder))->resolve() : null,
             'folders' => JsonResource::collection(
-                Folder::where('user_id', $userId)->where('parent_id', $folder?->id)->orderBy('name')->get()
+                Folder::where('user_id', $userId)->where('parent_id', $folder?->id)->withCount('files')->orderBy('name')->get()
             )->resolve(),
             'files' => StoredFileResource::collection(
                 StoredFile::where('user_id', $userId)->where('folder_id', $folder?->id)->latest()->get()

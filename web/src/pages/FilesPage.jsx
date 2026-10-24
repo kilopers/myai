@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
+  Breadcrumbs,
   Button,
   Card,
   CardContent,
@@ -17,6 +18,7 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Link,
   MenuItem,
   Pagination,
   Select,
@@ -69,6 +71,7 @@ const fmtSize = (n) =>
 export default function FilesPage() {
   const [folders, setFolders] = useState([]);
   const [files, setFiles] = useState([]);
+  const [crumbs, setCrumbs] = useState([]);
   const [searchParams, setSearchParams] = useSearchParams();
   const [folder, setFolder] = useState(null); // current folder object or null (root)
   const [page, setPage] = useState(1);
@@ -98,6 +101,7 @@ export default function FilesPage() {
     setFolders(r.data.state.folders);
     setFiles(r.data.state.files);
     setFolder(r.data.state.folder);
+    setCrumbs(r.data.state.breadcrumbs ?? []);
     setMeta(r.data.state.meta ?? null);
   }, [folderId, page]);
 
@@ -210,7 +214,13 @@ export default function FilesPage() {
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
         {folder && (
-          <IconButton onClick={() => { setSearchParams({}); setPage(1); }}>
+          <IconButton
+            onClick={() => {
+              const p = crumbs.length > 1 ? crumbs[crumbs.length - 2] : null;
+              setSearchParams(p ? { folder: String(p.id) } : {});
+              setPage(1);
+            }}
+          >
             <ArrowBackIcon />
           </IconButton>
         )}
@@ -225,6 +235,31 @@ export default function FilesPage() {
           Папка
         </Button>
       </Box>
+
+      {crumbs.length > 1 && (
+        <Breadcrumbs sx={{ mb: 2 }}>
+          <Link
+            component="button"
+            underline="hover"
+            color="inherit"
+            onClick={() => { setSearchParams({}); setPage(1); }}
+          >
+            Файлы
+          </Link>
+          {crumbs.slice(0, -1).map((c) => (
+            <Link
+              key={c.id}
+              component="button"
+              underline="hover"
+              color="inherit"
+              onClick={() => { setSearchParams({ folder: String(c.id) }); setPage(1); }}
+            >
+              {c.name}
+            </Link>
+          ))}
+          <Typography color="text.primary">{crumbs[crumbs.length - 1].name}</Typography>
+        </Breadcrumbs>
+      )}
 
       <Box
         onClick={() => inputRef.current?.click()}
@@ -287,7 +322,7 @@ export default function FilesPage() {
         </Box>
       ))}
 
-      {!folder && folders.length > 0 && (
+      {folders.length > 0 && (
         <List dense sx={{ mb: 2, maxWidth: 680, mx: 'auto', width: '100%' }}>
           {folders.map((fo) => (
             <ListItem
@@ -378,7 +413,7 @@ export default function FilesPage() {
           </Card>
         ))}
       </Box>
-      {files.length === 0 && !folder && folders.length === 0 && (
+      {files.length === 0 && folders.length === 0 && (
         <Typography color="text.secondary">Файлов пока нет — перетащи их в область выше.</Typography>
       )}
 

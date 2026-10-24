@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Validation\Rule;
 
 class FolderController extends Controller
 {
@@ -21,6 +22,11 @@ class FolderController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:120'],
+            'parent_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('folders', 'id')->where('user_id', $request->user()->id),
+            ],
             'default_ttl_days' => ['nullable', 'integer', 'min:1', 'max:36500'],
         ]);
 
@@ -47,11 +53,21 @@ class FolderController extends Controller
     {
         abort_unless($folder->user_id === $request->user()->id, 403);
 
-        foreach ($folder->files as $file) {
-            $file->deleteFile();
-        }
-        $folder->delete();
+        $this->deleteTree($folder);
 
         return response()->json(['message' => 'Deleted.']);
+    }
+
+    private function deleteTree(Folder $folder): void
+    {
+        foreach ($folder->children as $child) {
+            $this->deleteTree($child);
+        }
+        foreach ($folder->files as $file) {
+            $file->shareLinks()->delete();
+            $file->deleteFile();
+        }
+        $folder->shareLinks()->delete();
+        $folder->delete();
     }
 }

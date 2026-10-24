@@ -8,13 +8,25 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
-#[Fillable(['user_id', 'name', 'default_ttl_days'])]
+#[Fillable(['user_id', 'parent_id', 'name', 'default_ttl_days'])]
 class Folder extends Model
 {
     /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** @return BelongsTo<Folder, $this> */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(Folder::class, 'parent_id');
+    }
+
+    /** @return HasMany<Folder, $this> */
+    public function children(): HasMany
+    {
+        return $this->hasMany(Folder::class, 'parent_id');
     }
 
     /** @return HasMany<StoredFile, $this> */
