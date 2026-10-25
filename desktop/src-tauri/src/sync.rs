@@ -183,9 +183,6 @@ struct RemoteTree {
 struct RemoteFolder {
     id: i64,
     #[serde(default)]
-    parent_id: Option<i64>,
-    name: String,
-    #[serde(default)]
     is_system: bool,
     path: String,
     #[serde(default)]
@@ -348,7 +345,7 @@ pub fn save_screenshot_copy(app: &AppHandle, uuid: &str, png: &[u8], mtime: u64,
     let fname = format!("{uuid}.{ext}");
     match std::fs::write(dir.join(&fname), png) {
         Ok(()) => {
-            let _ = filetime::FileTime::set_file_mtime(
+            let _ = filetime::set_file_mtime(
                 dir.join(&fname),
                 filetime::FileTime::from_unix_time(mtime as i64, 0),
             );
@@ -744,7 +741,7 @@ async fn run_sync(app: &AppHandle, only_folder_id: Option<i64>) {
         .filter(|a| matches!(a, Act::DelLocal { .. }))
         .collect();
     local_dels.sort_by_key(|a| {
-        let (Act::DelLocal { rel, is_dir }) = a else { unreachable!() };
+        let Act::DelLocal { rel, is_dir } = a else { unreachable!() };
         (*is_dir, std::cmp::Reverse(rel.matches('/').count()))
     });
     for act in local_dels {
@@ -769,7 +766,7 @@ async fn run_sync(app: &AppHandle, only_folder_id: Option<i64>) {
         .filter(|a| matches!(a, Act::MkRemoteDir { .. }))
         .collect();
     remote_dirs_plan.sort_by_key(|a| {
-        let (Act::MkRemoteDir { rel, .. }) = a else { unreachable!() };
+        let Act::MkRemoteDir { rel, .. } = a else { unreachable!() };
         rel.matches('/').count()
     });
     for act in remote_dirs_plan {
@@ -945,7 +942,7 @@ async fn download(
     }
     std::fs::write(&path, &bytes).map_err(|e| e.to_string())?;
     // mtime — серверный, чтобы локальный и серверный хэши совпали
-    let _ = filetime::FileTime::set_file_mtime(
+    let _ = filetime::set_file_mtime(
         &path,
         filetime::FileTime::from_unix_time(entry.mtime as i64, 0),
     );
