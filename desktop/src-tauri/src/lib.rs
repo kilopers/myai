@@ -334,14 +334,14 @@ fn open_overlay_windows(app: &AppHandle) -> Result<(), String> {
 }
 
 /// Фоновый WS-монитор: держит подключение к Reverb и красит точку
-/// на иконке трея — зелёная = online, красная = offline.
-fn ws_icon(base: &tauri::image::Image<'_>, online: bool) -> tauri::image::Image<'static> {
+/// на иконке трея — жёлтая = идёт синхронизация, зелёная = online
+/// (ws + валидный токен), красная = offline.
+fn ws_icon(base: &tauri::image::Image<'_>, color: image::Rgba<u8>) -> tauri::image::Image<'static> {
     let rgba = base.rgba().to_vec();
     let (w, h) = (base.width(), base.height());
     let mut img = image::RgbaImage::from_raw(w, h, rgba).unwrap_or_default();
     let d = (w / 3).max(8);
     let (cx, cy) = (w.saturating_sub(d / 2), h.saturating_sub(d / 2));
-    let color = if online { image::Rgba([34, 197, 94, 255]) } else { image::Rgba([239, 68, 68, 255]) };
     for y in cy.saturating_sub(d / 2)..cy + d / 2 {
         for x in cx.saturating_sub(d / 2)..cx + d / 2 {
             if x < w && y < h {
@@ -356,14 +356,35 @@ fn ws_icon(base: &tauri::image::Image<'_>, online: bool) -> tauri::image::Image<
     tauri::image::Image::new_owned(img.into_raw(), w, h)
 }
 
-fn set_ws_status(app: &AppHandle, online: Arc<AtomicBool>, val: bool) {
-    online.store(val, Ordering::SeqCst);
+/// Перерисовать точку трея по текущим флагам: приоритет у жёлтой
+/// (идёт синхронизация), затем зелёная (online), иначе красная.
+pub fn refresh_tray_icon(app: &AppHandle) {
+    let syncing = app
+        .try_state::<sync::SyncRunning>()
+        .map(|s| s.0.load(Ordering::SeqCst))
+        .unwrap_or(false);
+    let online = app
+        .try_state::<Arc<AtomicBool>>()
+        .map(|s| s.load(Ordering::SeqCst))
+        .unwrap_or(false);
+    let color = if syncing {
+        image::Rgba([234, 179, 8, 255])
+    } else if online {
+        image::Rgba([34, 197, 94, 255])
+    } else {
+        image::Rgba([239, 68, 68, 255])
+    };
     if let (Some(tray), Some(base)) = (
         app.tray_by_id("main-tray"),
         app.default_window_icon().cloned(),
     ) {
-        tray.set_icon(Some(ws_icon(&base, val))).ok();
+        tray.set_icon(Some(ws_icon(&base, color))).ok();
     }
+}
+
+fn set_ws_status(app: &AppHandle, online: Arc<AtomicBool>, val: bool) {
+    online.store(val, Ordering::SeqCst);
+    refresh_tray_icon(app);
 }
 
 async fn ws_connect_once(app: &AppHandle, online: Arc<AtomicBool>) {
@@ -389,7 +410,10 @@ async fn ws_connect_once(app: &AppHandle, online: Arc<AtomicBool>) {
     let ws_url = format!("{ws_base}/app/{key}?protocol=7&client=desktop&version=1.0");
     match connect_async(&ws_url).await {
         Ok((mut stream, _)) => {
-            set_ws_status(app, online.clone(), true);
+            // «Онлайн» = ws подключён И токен принят сервером
+            // (/api/auth/me вернул id). Битый токен → красная точка.
+            let uid = fetch_user_id(app, &base).await;
+            set_ws_status(app, online.clone(), uid.is_some());
 
             // Страховка на случай пропущенного push: сверка версии
             // по HTTP при каждом (ре)коннекте.
@@ -402,7 +426,7 @@ async fn ws_connect_once(app: &AppHandle, online: Arc<AtomicBool>) {
             }
 
             // Подписка на канал «Синхронизировать эту ветку» из веба.
-            if let Some(uid) = fetch_user_id(app, &base).await {
+            if let Some(uid) = uid {
                 let sub = serde_json::json!({
                     "event": "pusher:subscribe",
                     "data": { "channel": format!("sync.user.{uid}") },

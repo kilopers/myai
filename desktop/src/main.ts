@@ -218,12 +218,22 @@ async function initSettings() {
       status.textContent = `Настройки сохранены, автозапуск: ${e}`;
       return;
     }
-    // Сразу показываем состояние подключения (зелёный/красный).
+    // Сразу показываем состояние подключения: токен проверяем
+    // через /api/auth/me — невалидный токен ≠ «подключено».
     status.textContent = 'Сохранено. Проверяю соединение…';
     status.style.color = '#8f8f8f';
     try {
-      const cfg = await fetch(`${urlInput.value.trim().replace(/\/+$/, '')}/api/ws-config`).then((r) => r.json());
       const host = urlInput.value.trim().replace(/\/+$/, '');
+      const meResp = await fetch(`${host}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${tokenInput.value.trim()}` },
+      });
+      if (!meResp.ok) {
+        status.textContent = 'Сохранено. ● Токен не принят сервером';
+        status.style.color = '#e5534b';
+        setTimeout(() => { status.textContent = ''; }, 6000);
+        return;
+      }
+      const cfg = await fetch(`${host}/api/ws-config`).then((r) => r.json());
       const wsScheme = host.startsWith('https') ? 'wss' : 'ws';
       const wsHost = host.replace(/^https?:\/\//, '');
       const ws = new WebSocket(`${wsScheme}://${wsHost}/app/${cfg.key}?protocol=7&client=desktop&version=1.0`);

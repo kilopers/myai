@@ -369,10 +369,12 @@ pub fn spawn_sync(app: &AppHandle, folder_id: Option<i64>) -> bool {
     {
         return false;
     }
+    crate::refresh_tray_icon(app); // жёлтая точка — синк идёт
     let app2 = app.clone();
     tauri::async_runtime::spawn(async move {
         run_sync(&app2, folder_id).await;
         app2.state::<SyncRunning>().0.store(false, Ordering::SeqCst);
+        crate::refresh_tray_icon(&app2); // обратно в зелёный/красный
     });
     true
 }
