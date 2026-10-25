@@ -482,6 +482,18 @@ fn spawn_ws_monitor(app: &AppHandle) {
     });
 }
 
+/// Проверка новой версии раз в 6 часов — подхватывает релизы, чей
+/// push пролетел мимо (спящий/офлайн клиент при стабильном ws).
+fn spawn_update_poller(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(6 * 3600)).await;
+            update::check_saved(&app).await;
+        }
+    });
+}
+
 /// Копирует PNG (base64) в буфер обмена как картинку.
 #[tauri::command]
 fn copy_screenshot(app: AppHandle, png_base64: String) -> Result<(), String> {
@@ -649,6 +661,7 @@ pub fn run() {
             // Show settings on first launch so the user can configure server + token.
             open_settings_window(app.handle()).ok();
             spawn_ws_monitor(app.handle());
+            spawn_update_poller(app.handle());
             // FS-монитор sync-папки + heartbeat корневого хэша
             sync::spawn_watch(app.handle());
             // Синхронизация при запуске (если настроена папка)

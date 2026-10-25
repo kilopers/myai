@@ -11,7 +11,6 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_notification::NotificationExt;
-#[cfg(any(target_os = "windows", target_os = "macos"))]
 use tauri_plugin_store::StoreExt;
 
 /// Версии, для которых диалог уже показывали — не донимать повторно
@@ -66,7 +65,6 @@ pub fn is_newer(latest: &str, current: &str) -> bool {
 }
 
 /// Сервер из настроек приложения.
-#[cfg(any(target_os = "windows", target_os = "macos"))]
 fn server_base(app: &AppHandle) -> Option<String> {
     app.store("settings.json")
         .ok()
@@ -109,6 +107,14 @@ pub async fn check_for_update(app: &AppHandle, base: &str) {
         return;
     };
     prompt_update(app, info);
+}
+
+/// Периодическая проверка по сохранённому server_url — страховка от
+/// пропущенного push, когда ws-соединение держится без реконнектов.
+pub async fn check_saved(app: &AppHandle) {
+    if let Some(base) = server_base(app) {
+        check_for_update(app, &base).await;
+    }
 }
 
 /// Уведомление + диалог «обновить?»; общий вход и для push-события,
