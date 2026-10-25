@@ -179,7 +179,13 @@ async function initSettings() {
         : 'Хэш корня папки: не вычислен';
       if (h) el.title = h;
     }
-  } catch { /* sync выключена */ }
+  } catch { /* sync.db ещё не создана */ }
+
+  // --- версия приложения (блок «О программе») ---
+  try {
+    const el = document.getElementById('app-version');
+    if (el) el.textContent = `Версия: ${await getVersion()}`;
+  } catch { /* dev-режим */ }
 
   // --- живой журнал синхронизации (ring buffer в памяти Rust) ---
   const logEl = document.getElementById('sync-log') as HTMLTextAreaElement;
