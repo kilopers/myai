@@ -119,15 +119,16 @@ export default function FilesPage() {
       setUploads((u) => [...u, entry]);
       let lastT = performance.now();
       let lastLoaded = 0;
+      let curSpeed = '';
       const onProgress = (loaded) => {
         const now = performance.now();
         const dt = (now - lastT) / 1000;
-        let speed = entry.speed;
         if (dt >= 0.4) {
-          speed = fmtSpeed((loaded - lastLoaded) / dt);
+          curSpeed = fmtSpeed((loaded - lastLoaded) / dt);
           lastT = now;
           lastLoaded = loaded;
         }
+        const speed = curSpeed;
         // e.loaded включает multipart-оверхед — ограничиваем 100%.
         const pct = f.size ? Math.min(100, Math.round((loaded / f.size) * 100)) : 0;
         setUploads((u) => u.map((x) => (x.id === entry.id ? { ...x, progress: pct, speed } : x)));
