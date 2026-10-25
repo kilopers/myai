@@ -546,6 +546,7 @@ pub fn run() {
         .manage(Arc::new(AtomicBool::new(false)))
         .manage(sync::LogBuf(Mutex::new(std::collections::VecDeque::new())))
         .manage(sync::SyncRunning(AtomicBool::new(false)))
+        .manage(sync::SyncWatch::default())
         .invoke_handler(tauri::generate_handler![
             take_capture,
             take_edit,
@@ -595,6 +596,8 @@ pub fn run() {
             // Show settings on first launch so the user can configure server + token.
             open_settings_window(app.handle()).ok();
             spawn_ws_monitor(app.handle());
+            // FS-монитор sync-папки + heartbeat корневого хэша
+            sync::spawn_watch(app.handle());
             // Синхронизация при запуске (если настроена папка)
             sync::spawn_sync(app.handle(), None);
 

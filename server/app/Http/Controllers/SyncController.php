@@ -83,6 +83,22 @@ class SyncController extends Controller
     }
 
     /**
+     * Heartbeat корневого хэша: десктоп присылает свой local_root_hash,
+     * сервер отвечает своим root_hash и флагом расхождения деревьев.
+     * Расхождение = нужна синхронизация (неважно, кто изменился).
+     */
+    public function hash(Request $request): JsonResponse
+    {
+        $root = SyncHash::rootHash($request->user());
+        $client = (string) $request->input('root_hash', '');
+
+        return response()->json([
+            'root_hash' => $root,
+            'diverged' => $client !== '' && ! hash_equals($root, $client),
+        ]);
+    }
+
+    /**
      * Tombstone-лог: удалённые файлы/скриншоты (и папки) пользователя.
      * ?since=<date|unix> — только записи не старше метки.
      */

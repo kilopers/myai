@@ -53,6 +53,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Синхронизация (десктоп)
     Route::get('/sync/tree', [SyncController::class, 'tree']);
     Route::get('/sync/deleted', [SyncController::class, 'deleted']);
+    Route::post('/sync/hash', [SyncController::class, 'hash']);
 
     Route::apiResource('tokens', ApiTokenController::class)->only(['index', 'store', 'destroy']);
 

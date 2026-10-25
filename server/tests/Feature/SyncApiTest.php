@@ -150,4 +150,29 @@ class SyncApiTest extends TestCase
             fn ($e) => $e->userId === $user->id && $e->folderId === $folder->id,
         );
     }
+
+    public function test_hash_endpoint_reports_divergence(): void
+    {
+        $user = User::factory()->create();
+
+        $res = $this->actingAs($user)
+            ->postJson('/api/sync/hash', ['root_hash' => str_repeat('0', 64)])
+            ->assertOk()
+            ->assertJsonPath('diverged', true);
+
+        $real = $res->json('root_hash');
+        $this->assertSame(64, strlen($real));
+
+        $this->actingAs($user)
+            ->postJson('/api/sync/hash', ['root_hash' => $real])
+            ->assertOk()
+            ->assertJsonPath('diverged', false);
+
+        // Хэш меняется при изменении дерева
+        $this->file($user, null, 'new.txt', 10, 100);
+        $this->actingAs($user)
+            ->postJson('/api/sync/hash', ['root_hash' => $real])
+            ->assertOk()
+            ->assertJsonPath('diverged', true);
+    }
 }

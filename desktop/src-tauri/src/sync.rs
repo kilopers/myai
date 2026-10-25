@@ -21,7 +21,7 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_store::StoreExt;
 
@@ -31,12 +31,38 @@ const LOG_CAP: usize = 500;
 const CHUNK_SIZE: usize = 8 * 1024 * 1024;
 /// Файлы больше этого порога грузятся чанками.
 const CHUNK_THRESHOLD: u64 = 4 * 1024 * 1024;
+/// «Файл в полёте»: пересчёт хэша только через столько тишины после
+/// последнего FS-события на путь.
+const FS_DEBOUNCE: Duration = Duration::from_secs(5);
+/// Heartbeat корневого хэша на сервер.
+const HASH_BEAT: Duration = Duration::from_secs(5);
+/// Минимальный интервал между автосинками по heartbeat.
+const AUTO_SYNC_COOLDOWN: Duration = Duration::from_secs(15);
 
 /// Кольцевой буфер журнала — только память (в БД/файл не пишем).
 pub struct LogBuf(pub Mutex<VecDeque<String>>);
 
 /// Флаг «синхронизация уже идёт».
 pub struct SyncRunning(pub AtomicBool);
+
+/// Живое дерево хэшей + накопленные события FS-монитора.
+#[derive(Default)]
+pub struct SyncWatch(Mutex<WatchState>);
+
+#[derive(Default)]
+struct WatchState {
+    /// rel_path → узел; заполняется полным сканом, дальше — инкрементально.
+    tree: Option<BTreeMap<String, LocalNode>>,
+    /// Корневой dir_hash живого дерева.
+    root_hash: Option<String>,
+    /// Watcher потерял события (переполнение/ошибка) — нужен полный rescan.
+    stale: bool,
+    /// rel_path → время последнего FS-события (скользящий дебаунс).
+    dirty: HashMap<String, Instant>,
+    /// Троттлинг автосинка по heartbeat и лога ошибок heartbeat'а.
+    last_auto_sync: Option<Instant>,
+    hb_error_logged_at: Option<Instant>,
+}
 
 fn now_secs() -> u64 {
     SystemTime::now()
@@ -104,6 +130,24 @@ fn scan_local(root: &Path) -> Result<(BTreeMap<String, LocalNode>, String), Stri
     let mut out = BTreeMap::new();
     let root_hash = scan_dir(root, "", &mut out)?;
     Ok((out, root_hash))
+}
+
+/// Локальное дерево для синка: живое дерево watcher'а, если оно свежее,
+/// иначе полный скан (результат сохраняется в живое дерево).
+fn local_tree(app: &AppHandle, root: &Path) -> Result<(BTreeMap<String, LocalNode>, String), String> {
+    if let Some(w) = app.try_state::<SyncWatch>() {
+        if let Ok(g) = w.0.lock() {
+            if !g.stale {
+                if let (Some(map), Some(rh)) = (&g.tree, &g.root_hash) {
+                    return Ok((map.clone(), rh.clone()));
+                }
+            }
+        }
+    }
+    let (map, rh) = scan_local(root)?;
+    store_live_tree(app, map.clone(), &rh);
+
+    Ok((map, rh))
 }
 
 /// Рекурсивно заполняет `out` детьми `dir` (rel — относительный путь
@@ -377,9 +421,8 @@ async fn run_sync(app: &AppHandle, only_folder_id: Option<i64>) {
         }
     };
 
-    // Локальный обход — только метаданные
-    log(app, "сканирую локальную папку…");
-    let (local, local_root_hash) = match scan_local(&root) {
+    // Локальное дерево — живое от watcher'а или полный скан
+    let (local, local_root_hash) = match local_tree(app, &root) {
         Ok(v) => v,
         Err(e) => {
             log(app, format!("ошибка сканирования: {e}"));
@@ -877,8 +920,14 @@ async fn run_sync(app: &AppHandle, only_folder_id: Option<i64>) {
         );
     }
 
-    // Финальный локальный хэш → новый remote_root_hash
-    let new_root = scan_local(&root).map(|(_, h)| h).unwrap_or_default();
+    // Финальный локальный хэш → новый remote_root_hash; живое дерево — обновить
+    let new_root = match scan_local(&root) {
+        Ok((map, h)) => {
+            store_live_tree(app, map, &h);
+            h
+        }
+        Err(_) => String::new(),
+    };
     finish(app, &conn, &new_root, &new_root);
     log(app, format!(
         "── синхронизация завершена: ↑{} ↓{} лок.удал.{} серв.удал.{}, конфликтов {} ──",
@@ -1145,6 +1194,330 @@ fn rand_u64() -> u64 {
         .map(|d| d.as_nanos() as u64)
         .unwrap_or(0);
     t ^ (std::process::id() as u64).wrapping_mul(0x9E3779B97F4A7C15)
+}
+
+// ---------- живое дерево: FS-watcher + heartbeat хэша ----------
+
+/// rel → имя последнего компонента.
+fn rel_name(rel: &str) -> String {
+    rel.rsplit('/').next().unwrap_or(rel).to_string()
+}
+
+/// rel родителя ('' — для узлов верхнего уровня).
+fn rel_parent(rel: &str) -> &str {
+    rel.rsplit_once('/').map(|(p, _)| p).unwrap_or("")
+}
+
+/// Прямые дети папки `dir` ('' — корень) в виде (имя, entry_hash).
+fn dir_children(map: &BTreeMap<String, LocalNode>, dir: &str) -> Vec<(String, String)> {
+    map.iter()
+        .filter(|(rel, _)| rel_parent(rel) == dir)
+        .map(|(rel, n)| (rel_name(rel), n.entry_hash.clone()))
+        .collect()
+}
+
+/// Все предки узла включая корень: «a/b/c» → ["a/b", "a", ""].
+fn ancestors_of(rel: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = rel;
+    while let Some((p, _)) = cur.rsplit_once('/') {
+        out.push(p.to_string());
+        cur = p;
+    }
+    out.push(String::new());
+    out
+}
+
+/// Сохранить результат полного скана в живое дерево (старт, конец синка,
+/// восстановление после потери событий watcher'а).
+fn store_live_tree(app: &AppHandle, map: BTreeMap<String, LocalNode>, root_hash: &str) {
+    if let Some(w) = app.try_state::<SyncWatch>() {
+        if let Ok(mut g) = w.0.lock() {
+            g.tree = Some(map);
+            g.root_hash = Some(root_hash.to_string());
+            g.stale = false;
+            // dirty не трогаем: события, пришедшие во время скана,
+            // дожмутся своей обработки на следующем тике.
+        }
+    }
+}
+
+/// Инкрементальный пересчёт: только «отстоявшиеся» пути (тишина ≥ 5с)
+/// и их предки до корня — полный обход не нужен.
+fn apply_dirty(app: &AppHandle, root: &Path, st: &mut WatchState) {
+    let now = Instant::now();
+    let aged: Vec<String> = st
+        .dirty
+        .iter()
+        .filter(|(_, t)| now.duration_since(**t) >= FS_DEBOUNCE)
+        .map(|(p, _)| p.clone())
+        .collect();
+    if aged.is_empty() || st.tree.is_none() {
+        return;
+    }
+    for p in &aged {
+        st.dirty.remove(p);
+    }
+    let map = st.tree.as_mut().unwrap();
+    let mut touched: HashSet<String> = HashSet::new();
+
+    // Глубже-первее: удалённая папка сносит поддерево до обработки детей.
+    let mut paths = aged;
+    paths.sort_by_key(|p| std::cmp::Reverse(p.matches('/').count()));
+
+    for rel in paths {
+        for a in ancestors_of(&rel) {
+            touched.insert(a);
+        }
+        let full = root.join(&rel);
+        let name = rel_name(&rel);
+        match std::fs::metadata(&full) {
+            Err(_) => {
+                let prefix = format!("{rel}/");
+                map.retain(|k, _| k != &rel && !k.starts_with(&prefix));
+                log(app, format!("fs: удалён {rel}"));
+            }
+            Ok(m) if m.is_dir() => {
+                // Поддерево пересканируем: при переносе папки целиком
+                // события на её содержимое не приходят.
+                let prefix = format!("{rel}/");
+                map.retain(|k, _| k == &rel || !k.starts_with(&prefix));
+                match scan_dir(&full, &rel, map) {
+                    Ok(dh) => {
+                        map.insert(
+                            rel.clone(),
+                            LocalNode {
+                                is_dir: true,
+                                entry_hash: folder_hash(&name, &dh),
+                                dir_hash: dh,
+                                ..Default::default()
+                            },
+                        );
+                        log(app, format!("fs: папка {rel}"));
+                    }
+                    Err(e) => log(app, format!("fs: {rel}: {e}")),
+                }
+            }
+            Ok(m) => {
+                let mtime = m
+                    .modified()
+                    .ok()
+                    .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                map.insert(
+                    rel.clone(),
+                    LocalNode {
+                        is_dir: false,
+                        size: m.len(),
+                        mtime,
+                        entry_hash: file_hash(&name, m.len(), mtime),
+                        ..Default::default()
+                    },
+                );
+                log(app, format!("fs: изменён {rel}"));
+            }
+        }
+    }
+
+    // Пересчёт dir_hash предков снизу вверх (глубже-первее).
+    let mut anc: Vec<String> = touched.into_iter().collect();
+    anc.sort_by_key(|p| std::cmp::Reverse(p.matches('/').count()));
+    for dir_rel in anc {
+        if dir_rel.is_empty() || !map.get(&dir_rel).map(|n| n.is_dir).unwrap_or(false) {
+            continue;
+        }
+        let dh = dir_hash(&dir_children(map, &dir_rel));
+        let name = rel_name(&dir_rel);
+        if let Some(node) = map.get_mut(&dir_rel) {
+            node.dir_hash = dh.clone();
+            node.entry_hash = folder_hash(&name, &dh);
+        }
+    }
+
+    let rh = dir_hash(&dir_children(map, ""));
+    if st.root_hash.as_deref() != Some(rh.as_str()) {
+        log(app, format!("хэш корня изменился → {}", &rh[..12]));
+        st.root_hash = Some(rh);
+    }
+}
+
+/// notify → пометить пути dirty (дебаунс пересчёта — 5 с тишины).
+fn make_watcher(app: &AppHandle, root: &str) -> Option<notify::RecommendedWatcher> {
+    use notify::{RecursiveMode, Watcher};
+    let root_buf = PathBuf::from(root);
+    let app2 = app.clone();
+    let mut watcher = match notify::recommended_watcher(
+        move |res: Result<notify::Event, notify::Error>| {
+            let Some(state) = app2.try_state::<SyncWatch>() else { return };
+            let Ok(mut g) = state.0.lock() else { return };
+            match res {
+                Ok(ev) => {
+                    if matches!(ev.kind, notify::EventKind::Access(_)) {
+                        return;
+                    }
+                    for p in &ev.paths {
+                        let Ok(rel) = p.strip_prefix(&root_buf) else { continue };
+                        let rel = rel.to_string_lossy().replace('\\', "/");
+                        if rel.is_empty() {
+                            continue;
+                        }
+                        // Скрытые/служебные не синхронизируем — как в scan_dir.
+                        if rel.split('/').any(|c| c.starts_with('.')) {
+                            continue;
+                        }
+                        g.dirty.insert(rel, Instant::now());
+                    }
+                    if ev.need_rescan() {
+                        g.stale = true;
+                    }
+                }
+                Err(_) => g.stale = true,
+            }
+        },
+    ) {
+        Ok(w) => w,
+        Err(e) => {
+            log(app, format!("fs-watch: не удалось создать watcher: {e}"));
+            return None;
+        }
+    };
+    match watcher.watch(Path::new(root), RecursiveMode::Recursive) {
+        Ok(()) => Some(watcher),
+        Err(e) => {
+            log(app, format!("fs-watch: {root}: {e}"));
+            None
+        }
+    }
+}
+
+/// Каждые 5 сек: локальный корневой хэш → сервер; разошлись → синк.
+async fn hash_heartbeat(app: &AppHandle, local_hash: &str) {
+    let Some((base, token, _)) = settings(app) else { return };
+    let resp = reqwest::Client::new()
+        .post(format!("{base}/api/sync/hash"))
+        .bearer_auth(&token)
+        .json(&serde_json::json!({ "root_hash": local_hash }))
+        .send()
+        .await;
+    match resp {
+        Ok(r) if r.status().is_success() => {
+            let Ok(j) = r.json::<serde_json::Value>().await else { return };
+            if j["diverged"].as_bool().unwrap_or(false) {
+                if let Some(w) = app.try_state::<SyncWatch>() {
+                    if let Ok(mut g) = w.0.lock() {
+                        if g.last_auto_sync.map(|t| t.elapsed() < AUTO_SYNC_COOLDOWN).unwrap_or(false) {
+                            return;
+                        }
+                        g.last_auto_sync = Some(Instant::now());
+                    }
+                }
+                log(app, format!(
+                    "хэши разошлись (лок. {} / серв. {}) — синхронизирую",
+                    &local_hash[..12.min(local_hash.len())],
+                    j["root_hash"].as_str().unwrap_or("?").chars().take(12).collect::<String>(),
+                ));
+                spawn_sync(app, None);
+            }
+        }
+        _ => {
+            // Ошибки heartbeat'а логируем не чаще раза в минуту.
+            if let Some(w) = app.try_state::<SyncWatch>() {
+                if let Ok(mut g) = w.0.lock() {
+                    let quiet = g
+                        .hb_error_logged_at
+                        .map(|t| t.elapsed() > Duration::from_secs(60))
+                        .unwrap_or(true);
+                    if quiet {
+                        g.hb_error_logged_at = Some(Instant::now());
+                        drop(g);
+                        log(app, "heartbeat sync/hash: сервер недоступен".to_string());
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Фоновый монитор: watcher на sync-папку + дебаунс + heartbeat хэша.
+/// Полный обход дерева — только при старте/смене папки/потере событий.
+async fn watch_loop(app: &AppHandle) {
+    let mut current_root: Option<String> = None;
+    // Живой объект — drop останавливает слежение; присваивается только
+    // при смене корня и хранит активный watcher между тиками.
+    let mut watcher: Option<notify::RecommendedWatcher>;
+    let mut beat = Instant::now();
+
+    loop {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        let root_str = sync_root(app);
+        if root_str != current_root {
+            current_root = root_str.clone();
+            watcher = root_str.as_deref().and_then(|r| make_watcher(app, r));
+            if root_str.is_some() && watcher.is_none() {
+                // make_watcher уже залогировал причину; без watcher'а
+                // остаётся heartbeat по устаревшему/сканному дереву.
+            }
+            if let Some(w) = app.try_state::<SyncWatch>() {
+                if let Ok(mut g) = w.0.lock() {
+                    g.tree = None;
+                    g.root_hash = None;
+                    g.dirty.clear();
+                    g.stale = false;
+                }
+            }
+            if let Some(r) = &root_str {
+                log(app, format!("fs-watch: слежу за {r}"));
+            }
+        }
+        let Some(root_str) = root_str else { continue };
+        let root = PathBuf::from(&root_str);
+
+        // Полный скан — старт/смена папки или watcher потерял события.
+        let need_scan = app
+            .try_state::<SyncWatch>()
+            .and_then(|w| w.0.lock().ok().map(|g| g.tree.is_none() || g.stale))
+            .unwrap_or(false);
+        if need_scan {
+            match scan_local(&root) {
+                Ok((map, rh)) => {
+                    log(app, format!("fs-watch: полный скан, хэш корня {}", &rh[..12]));
+                    store_live_tree(app, map, &rh);
+                }
+                Err(e) => log(app, format!("fs-watch: {e}")),
+            }
+            continue;
+        }
+
+        // Инкрементальный пересчёт отстоявшихся путей.
+        if let Some(w) = app.try_state::<SyncWatch>() {
+            if let Ok(mut g) = w.0.lock() {
+                apply_dirty(app, &root, &mut g);
+            }
+        }
+
+        // Heartbeat хэша каждые 5 сек (не во время синка).
+        if beat.elapsed() >= HASH_BEAT
+            && !app.state::<SyncRunning>().0.load(Ordering::SeqCst)
+        {
+            beat = Instant::now();
+            let hash = app
+                .try_state::<SyncWatch>()
+                .and_then(|w| w.0.lock().ok().and_then(|g| g.root_hash.clone()));
+            if let Some(h) = hash {
+                hash_heartbeat(app, &h).await;
+            }
+        }
+    }
+}
+
+/// Запустить фоновый FS-монитор + heartbeat хэша.
+pub fn spawn_watch(app: &AppHandle) {
+    let app2 = app.clone();
+    tauri::async_runtime::spawn(async move {
+        watch_loop(&app2).await;
+    });
 }
 
 // ---------- Tauri-команды ----------
