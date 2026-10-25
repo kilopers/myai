@@ -30,7 +30,7 @@ export default function LoginPage() {
       <Card sx={{ width: 400 }}>
         <CardContent>
           <Typography variant="h5" gutterBottom>
-            Вход в Screenshoter
+            Вход в Мой AI ассистент
           </Typography>
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>

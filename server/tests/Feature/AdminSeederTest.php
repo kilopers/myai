@@ -16,7 +16,7 @@ class AdminSeederTest extends TestCase
     {
         $this->seed(DatabaseSeeder::class);
 
-        $admin = User::where('email', env('ADMIN_EMAIL', 'admin@screenshoter.local'))->firstOrFail();
+        $admin = User::where('email', env('ADMIN_EMAIL', 'admin@myai.local'))->firstOrFail();
         $admin->update([
             'password' => 'user-changed-password',
             'must_change_password' => false,

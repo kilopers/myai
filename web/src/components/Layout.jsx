@@ -161,7 +161,7 @@ export default function Layout() {
             to="/"
             sx={{ color: 'inherit', textDecoration: 'none', flexGrow: 1 }}
           >
-            Screenshoter
+            Мой AI ассистент
           </Typography>
           <Typography variant="body2" sx={{ mr: 1, opacity: 0.85 }}>
             {user?.name}

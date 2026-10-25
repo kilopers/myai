@@ -1,4 +1,4 @@
-name: screenshoter-dev
+name: myai-dev
 
 # Dev-вариант: живой код примонтирован, debug включён, Vite dev-сервер для фронта.
 # Запуск: docker compose -f docker-compose.yml -f docker-compose.dev.yml up

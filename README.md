@@ -1,4 +1,4 @@
-# Screenshoter
+# Мой AI ассистент
 
 Монорепо скриншот-сервиса: бэкенд на Laravel (PHP 8.5.12, Docker), веб-интерфейс на React + Material UI, десктоп-приложение на Tauri 2 (Windows + macOS).
 
@@ -28,7 +28,7 @@ npm install
 npm run dev            # http://localhost:5173 (проксирует /api и /i на :8000)
 ```
 
-Вход: `admin@screenshoter.local` / `admin` — потребует смены пароля при первом входе.
+Вход: `admin@myai.local` / `admin` — потребует смены пароля при первом входе.
 
 ## Docker (весь стек)
 
@@ -42,10 +42,10 @@ docker compose up --build
 Данные лежат в bind-монтах внутри проекта, а не в docker volumes: `./data/db` — база MySQL, `./data/screenshots` — загруженные картинки (`/var/www/html/storage/app/public`). Перенос на другой сервер — остановить стек и скопировать папку `data/` вместе с репозиторием и `.env`; бэкап — `tar czf backup.tgz data/ .env` (при остановленном `db`). Права на `./data/screenshots` чинит entrypoint контейнера `app` (он стартует от root и отдаёт каталог `www-data`).
 
 Автодеплой: пуш в `main` → GitHub Actions (`deploy.yml`) собирает образы
-`ghcr.io/kilopers/screenshoter-{server,web}` → дёргает HTTP API
-Watchtower (`POST https://screen.ai.kilop.ru/_watchtower/v1/update`,
+`ghcr.io/kilopers/myai-{server,web}` → дёргает HTTP API
+Watchtower (`POST https://myai.ai.kilop.ru/_watchtower/v1/update`,
 Bearer = секрет `WATCHTOWER_TOKEN`) → Watchtower тянет образы и
-пересоздаёт контейнеры (скоуп `screenshoter`, сервис в том же
+пересоздаёт контейнеры (скоуп `myai`, сервис в том же
 docker-compose, порт 8283; polling 3 мин — страховка).
 
 Dev-вариант с маунтом кода и Vite dev-сервером (данные — отдельно в `./data-dev/`):

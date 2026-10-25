@@ -5,6 +5,14 @@
 при больших/ломающих изменениях, главная — по решению владельца.
 Актуальная версия — в файле `VERSION`.
 
+## 1.1.0
+
+- rename: приложение → «Мой AI ассистент» (slug `myai`): репо
+  kilopers/myai, productName, identifier com.myai.app, crate
+  myai/myai_lib, пакеты ghcr.io/kilopers/myai/*, compose-проект
+  myai, БД и REVERB_APP_ID, домен myai.ai.kilop.ru
+  (screen.ai.kilop.ru удалён), папка на хосте /docker/myai
+
 ## 1.0.7
 
 - fix(web): скорость загрузки не моргает — между пересчётами
@@ -194,7 +202,7 @@ UX-правки веба и десктопа.
 ## v0.1.0 — 2026-10-23
 
 Первая версия. Скриншот-сервис задеплоен в прод:
-https://screen.ai.kilop.ru
+https://myai.ai.kilop.ru
 
 - Монорепо: бэкенд `server/` (Laravel 13, PHP 8.5, Sanctum —
   авторизация, инвайты, загрузка/раздача скриншотов, API-токены),
@@ -203,7 +211,7 @@ https://screen.ai.kilop.ru
 - Docker-стек (`docker-compose.yml`): web (nginx) / app (PHP-FPM) /
   queue / db (MySQL 8.4). Данные — bind-монты в проекте:
   `./data/db` и `./data/screenshots` (dev-стек — `./data-dev/`).
-- Прод: `/docker/screenshoter` на aidevserver, порт 8282, TLS через
+- Прод: `/docker/myai` на aidevserver, порт 8282, TLS через
   Traefik + Let's Encrypt.
 - Исправления под прод-деплой:
   - `server/Dockerfile`: `COPY` с учётом контекста корня репо;
@@ -220,24 +228,24 @@ https://screen.ai.kilop.ru
 Автодеплой через GHCR + Watchtower.
 
 - Новый workflow `.github/workflows/deploy.yml`: при пуше в `main`
-  собирает и пушит образы `ghcr.io/kilopers/screenshoter-server` и
-  `ghcr.io/kilopers/screenshoter-web` (теги `latest` и sha коммита),
+  собирает и пушит образы `ghcr.io/kilopers/myai-server` и
+  `ghcr.io/kilopers/myai-web` (теги `latest` и sha коммита),
   шлёт статус деплоя в build.kilop.ru.
 - `docker-compose.yml`: сервисам `app`/`queue`/`web` добавлены `image:`
   на GHCR (локальный `build:` сохранён — `up --build` работает как
   раньше), метки скоупа watchtower; добавлен сервис `watchtower`
   (`nickfedor/watchtower`, опрос GHCR каждые 3 мин, только скоуп
-  `screenshoter`).
+  `myai`).
 - `.env.example`: опциональные `SERVER_IMAGE`/`WEB_IMAGE`/`IMAGE_TAG`.
 
 ## v0.1.2 — 2026-10-23
 
 Фикс автодеплоя: GHCR `permission_denied: read_package`.
 
-- Пакеты `ghcr.io/kilopers/screenshoter-server` и `-web` были созданы
+- Пакеты `ghcr.io/kilopers/myai-server` и `-web` были созданы
   PAT'ом без привязки к репозиторию — `GITHUB_TOKEN` из Actions писать
   в них не может. Имена образов переведены на вложенные
-  `ghcr.io/kilopers/screenshoter/server` и `.../web`: пакет создаётся
+  `ghcr.io/kilopers/myai/server` и `.../web`: пакет создаётся
   `GITHUB_TOKEN`'ом при первом пуше в `main` и автоматически
   привязывается к репозиторию.
 - Старые плоские пакеты-сироты в GHCR можно удалить вручную
@@ -248,8 +256,8 @@ https://screen.ai.kilop.ru
 Watchtower в отдельный стек + мгновенный триггер деплоя из Actions.
 
 - Watchtower вынесен из `docker-compose.yml` в отдельный стек
-  `docker-compose.watchtower.yml` (проект `screenshoter-watchtower`,
-  контейнер `screenshoter-watchtower`) — не зависит от `compose down`
+  `docker-compose.watchtower.yml` (проект `myai-watchtower`,
+  контейнер `myai-watchtower`) — не зависит от `compose down`
   основного стека.
 - Включён HTTP API Watchtower (`WATCHTOWER_HTTP_API_MODE`): порт
   `${WATCHTOWER_PORT:-8283}:8080`, Bearer-токен `WATCHTOWER_TOKEN` из
@@ -270,8 +278,8 @@ Watchtower возвращён в основной `docker-compose.yml`; дост
 - Сервис `watchtower` снова в `docker-compose.yml` (HTTP API + Bearer,
   порт 8283), `docker-compose.watchtower.yml` удалён.
 - Traefik: убран роутер `watchtower.ai.kilop.ru`; добавлен
-  `PathPrefix("/_watchtower")` на `screen.ai.kilop.ru` + middleware
-  `stripPrefix` → `POST https://screen.ai.kilop.ru/_watchtower/v1/update`.
+  `PathPrefix("/_watchtower")` на `myai.ai.kilop.ru` + middleware
+  `stripPrefix` → `POST https://myai.ai.kilop.ru/_watchtower/v1/update`.
 - `deploy.yml`: триггер-URL обновлён на `/_watchtower/v1/update`.
 
 ## 0.1.5
@@ -414,7 +422,7 @@ Watchtower возвращён в основной `docker-compose.yml`; дост
 
 ## 0.4.0
 
-- WebSockets: Laravel Reverb — сервис `reverb` в docker-compose (порт `WS_PORT`, прод 8286), роутер Traefik `Host(screen.ai.kilop.ru) && PathPrefix(/app)` → Reverb; публичный `GET /api/ws-config` отдаёт app-key.
+- WebSockets: Laravel Reverb — сервис `reverb` в docker-compose (порт `WS_PORT`, прод 8286), роутер Traefik `Host(myai.ai.kilop.ru) && PathPrefix(/app)` → Reverb; публичный `GET /api/ws-config` отдаёт app-key.
 - API: единая точка входа `POST /api/action` (`ActionController`) — `screenshots.state/upload/delete`, `files.state/upload/delete`, `folders.create/delete/setTtl`, `share.create/delete`; ответ `{ok, result, state}` — состояние страницы возвращается одним JSON.
 - Web: галерея и файлы переведены на `/api/action`; в файлах текущая папка — в URL (`/files?folder=ID`), кнопка «назад» браузера возвращает в предыдущую папку; грид адаптивный без горизонтального скролла.
 - Desktop: фоновый WS-монитор к Reverb с автореконнектом (5 сек); точка на иконке трея — зелёная online / красная offline; в настройках после сохранения — проверка соединения и цветной статус.
@@ -437,7 +445,7 @@ Watchtower возвращён в основной `docker-compose.yml`; дост
 
 ## 0.4.5
 
-- Desktop/macOS: явная ad-hoc подпись (`signingIdentity: "-"` в tauri.conf — обязательна для arm64) + инструкция по снятию карантина Gatekeeper (`xattr -cr /Applications/Screenshoter.app`) в описании релиза — ошибка «Приложение повреждено» на M1.
+- Desktop/macOS: явная ad-hoc подпись (`signingIdentity: "-"` в tauri.conf — обязательна для arm64) + инструкция по снятию карантина Gatekeeper (`xattr -cr /Applications/Мой AI ассистент.app`) в описании релиза — ошибка «Приложение повреждено» на M1.
 
 ## 0.4.6
 
@@ -470,4 +478,4 @@ Watchtower возвращён в основной `docker-compose.yml`; дост
 
 ## 0.4.12
 
-- Desktop/macOS: оверлей выделения области больше не уходит в нативный фулскрин (`toggleFullScreen` создавал отдельный Space и показывал тайтлбар «Screenshoter» с кнопками при подходе курсора к верху экрана). Вместо него — бордерлес-окно `always_on_top` + `visible_on_all_workspaces` на весь монитор в текущем Space: никакой панели, экран не «съезжает». Windows/Linux — прежний фулскрин.
+- Desktop/macOS: оверлей выделения области больше не уходит в нативный фулскрин (`toggleFullScreen` создавал отдельный Space и показывал тайтлбар «Мой AI ассистент» с кнопками при подходе курсора к верху экрана). Вместо него — бордерлес-окно `always_on_top` + `visible_on_all_workspaces` на весь монитор в текущем Space: никакой панели, экран не «съезжает». Windows/Linux — прежний фулскрин.

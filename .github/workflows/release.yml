@@ -49,10 +49,10 @@ jobs:
         with:
           projectPath: desktop
           tagName: ${{ github.ref_name }}
-          releaseName: 'Screenshoter ${{ github.ref_name }}'
+          releaseName: 'Мой AI ассистент ${{ github.ref_name }}'
           releaseBody: |
             Windows: запустите .msi или .exe инсталлятор.
-            macOS (Apple Silicon): скачайте .dmg, перетащите в Applications. Если macOS пишет «Приложение повреждено» — это карантин Gatekeeper для неподписанного приложения. Снимите карантин: `xattr -cr /Applications/Screenshoter.app` в Терминале.
+            macOS (Apple Silicon): скачайте .dmg, перетащите в Applications. Если macOS пишет «Приложение повреждено» — это карантин Gatekeeper для неподписанного приложения. Снимите карантин: `xattr -cr /Applications/Мой AI ассистент.app` в Терминале.
           releaseDraft: true
           prerelease: false
           # macOS собираем только под arm64 (Apple Silicon) — universal

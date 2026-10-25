@@ -16,7 +16,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         User::firstOrCreate(
-            ['email' => env('ADMIN_EMAIL', 'admin@screenshoter.local')],
+            ['email' => env('ADMIN_EMAIL', 'admin@myai.local')],
             [
                 'name' => 'Admin',
                 'password' => env('ADMIN_PASSWORD', 'admin'),

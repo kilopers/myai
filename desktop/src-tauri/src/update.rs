@@ -131,7 +131,7 @@ pub fn prompt_update(app: &AppHandle, info: UpdateInfo) {
 
     notify(
         app,
-        "Screenshoter",
+        "Мой AI ассистент",
         &format!("Доступна новая версия {} — сейчас установлена {}", info.version, env!("CARGO_PKG_VERSION")),
     );
 
@@ -143,7 +143,7 @@ pub fn prompt_update(app: &AppHandle, info: UpdateInfo) {
                 "Доступна версия {}. Обновить сейчас?",
                 info.version
             ))
-            .title("Обновление Screenshoter")
+            .title("Обновление Мой AI ассистент")
             .buttons(MessageDialogButtons::OkCancelCustom(
                 "Обновить".to_string(),
                 "Позже".to_string(),
@@ -172,13 +172,13 @@ async fn run_update(app: &AppHandle, info: &UpdateInfo) {
             Some(url) => match download_installer(&url).await {
                 Ok(path) => {
                     if let Err(e) = launch_installer(&path) {
-                        notify(app, "Screenshoter", &format!("Не удалось запустить инсталлятор: {e}"));
+                        notify(app, "Мой AI ассистент", &format!("Не удалось запустить инсталлятор: {e}"));
                         return;
                     }
                     app.exit(0);
                 }
                 Err(e) => {
-                    notify(app, "Screenshoter", &format!("Не удалось скачать обновление: {e}"));
+                    notify(app, "Мой AI ассистент", &format!("Не удалось скачать обновление: {e}"));
                     if let Some(u) = info.notes_url.as_deref() {
                         open_url(u);
                     }
@@ -202,8 +202,8 @@ async fn run_update(app: &AppHandle, info: &UpdateInfo) {
         }
         notify(
             app,
-            "Screenshoter",
-            "После установки новой версии выполните в Терминале: xattr -cr /Applications/Screenshoter.app",
+            "Мой AI ассистент",
+            "После установки новой версии выполните в Терминале: xattr -cr /Applications/Мой AI ассистент.app",
         );
     }
 
@@ -223,7 +223,7 @@ async fn download_installer(url: &str) -> Result<std::path::PathBuf, String> {
         .rsplit('/')
         .next()
         .filter(|n| !n.is_empty())
-        .unwrap_or("screenshoter-setup.msi")
+        .unwrap_or("myai-setup.msi")
         .to_string();
     let bytes = reqwest::Client::new()
         .get(url)
@@ -237,7 +237,7 @@ async fn download_installer(url: &str) -> Result<std::path::PathBuf, String> {
         .await
         .map_err(|e| e.to_string())?;
 
-    let dir = std::env::temp_dir().join("screenshoter-update");
+    let dir = std::env::temp_dir().join("myai-update");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let path = dir.join(name);
     std::fs::write(&path, bytes).map_err(|e| e.to_string())?;

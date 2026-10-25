@@ -138,7 +138,7 @@ fn show_editor(app: &AppHandle, width: u32, height: u32) -> Result<(), String> {
     }
 
     WebviewWindowBuilder::new(app, "editor", WebviewUrl::App("index.html#editor".into()))
-        .title("Screenshoter")
+        .title("Мой AI ассистент")
         .decorations(false)
         .inner_size(win_w, win_h)
         .min_inner_size(MIN_W, MIN_H)
@@ -279,7 +279,7 @@ fn open_overlay_windows(app: &AppHandle) -> Result<(), String> {
     // Если захват не удался ни на одном мониторе — на macOS это почти
     // всегда отсутствие права «Запись экрана»: предупреждаем пользователя.
     if captures.iter().all(|c| c.is_none()) {
-        notify(app, "Screenshoter", "Не удалось сделать снимок экрана. На macOS разрешите «Запись экрана»: Системные настройки → Конфиденциальность и безопасность → Запись экрана, затем перезапустите приложение.");
+        notify(app, "Мой AI ассистент", "Не удалось сделать снимок экрана. На macOS разрешите «Запись экрана»: Системные настройки → Конфиденциальность и безопасность → Запись экрана, затем перезапустите приложение.");
         #[cfg(target_os = "macos")]
         {
             // Открываем панель настроек прямо отсюда.
@@ -306,7 +306,7 @@ fn open_overlay_windows(app: &AppHandle) -> Result<(), String> {
             continue;
         }
         let win = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("index.html".into()))
-            .title("Screenshoter")
+            .title("Мой AI ассистент")
             .decorations(false)
             .transparent(true)
             .always_on_top(true)
@@ -400,8 +400,8 @@ async fn ws_connect_once(app: &AppHandle, online: Arc<AtomicBool>) {
     let key = match reqwest::get(format!("{base}/api/ws-config")).await {
         Ok(r) => r.json::<serde_json::Value>().await.ok()
             .and_then(|j| j.get("key").and_then(|v| v.as_str()).map(str::to_owned))
-            .unwrap_or_else(|| "screenshoter".to_string()),
-        Err(_) => "screenshoter".to_string(),
+            .unwrap_or_else(|| "myai".to_string()),
+        Err(_) => "myai".to_string(),
     };
     // ws(s)://host/app/<key>?protocol=7 — Pusher-handshake Reverb.
     let ws_base = base
@@ -568,7 +568,7 @@ fn open_settings_window(app: &AppHandle) -> Result<(), String> {
         "settings",
         WebviewUrl::App("index.html#settings".into()),
     )
-    .title("Screenshoter — настройки")
+    .title("Мой AI ассистент — настройки")
     .inner_size(520.0, 840.0)
     .resizable(true)
     .build()
@@ -586,7 +586,7 @@ fn trigger_capture(app: &AppHandle) {
     if let Err(e) = open_overlay_windows(app) {
         eprintln!("overlay window error: {e}");
         if !e.contains("screen capture failed") {
-            notify(app, "Screenshoter", &format!("Ошибка захвата экрана: {e}"));
+            notify(app, "Мой AI ассистент", &format!("Ошибка захвата экрана: {e}"));
         }
     }
 }
@@ -661,7 +661,7 @@ pub fn run() {
             TrayIconBuilder::with_id("main-tray")
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
-                .tooltip("Screenshoter — Ctrl+Shift+X")
+                .tooltip("Мой AI ассистент — Ctrl+Shift+X")
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "capture" => trigger_capture(app),
                     "sync" => {

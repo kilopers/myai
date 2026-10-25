@@ -2,10 +2,10 @@ name: Deploy
 
 # Автодеплой: push в main → образы в GHCR → Watchtower на сервере
 # подтягивает их и пересоздаёт контейнеры (миграции — в entrypoint app).
-# Образы: ghcr.io/kilopers/screenshoter/server и .../web (теги latest и sha).
-# Имена вложенные (screenshoter/server) — пакет создаётся GITHUB_TOKEN'ом
+# Образы: ghcr.io/kilopers/myai/server и .../web (теги latest и sha).
+# Имена вложенные (myai/server) — пакет создаётся GITHUB_TOKEN'ом
 # и автоматически привязывается к репозиторию; плоские имена
-# screenshoter-server/-web в GHCR уже заняты «сиротами» без привязки.
+# myai-server/-web в GHCR уже заняты «сиротами» без привязки.
 
 on:
   push:
@@ -37,8 +37,8 @@ jobs:
           file: server/Dockerfile
           push: true
           tags: |
-            ghcr.io/kilopers/screenshoter/server:latest
-            ghcr.io/kilopers/screenshoter/server:${{ github.sha }}
+            ghcr.io/kilopers/myai/server:latest
+            ghcr.io/kilopers/myai/server:${{ github.sha }}
           cache-from: type=gha,scope=server
           cache-to: type=gha,mode=max,scope=server
 
@@ -49,8 +49,8 @@ jobs:
           file: web/Dockerfile
           push: true
           tags: |
-            ghcr.io/kilopers/screenshoter/web:latest
-            ghcr.io/kilopers/screenshoter/web:${{ github.sha }}
+            ghcr.io/kilopers/myai/web:latest
+            ghcr.io/kilopers/myai/web:${{ github.sha }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
 
@@ -60,6 +60,6 @@ jobs:
         if: success()
         continue-on-error: true
         run: |
-          curl -sS -X POST https://screen.ai.kilop.ru/_watchtower/v1/update \
+          curl -sS -X POST https://myai.ai.kilop.ru/_watchtower/v1/update \
             -H "Authorization: Bearer ${{ secrets.WATCHTOWER_TOKEN }}" \
             --max-time 30

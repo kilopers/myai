@@ -23,11 +23,11 @@ class DesktopReleaseTest extends TestCase
         Http::fake([
             'api.github.com/*' => Http::response([
                 'tag_name' => "v{$version}",
-                'html_url' => "https://github.com/kilopers/screenshoter/releases/tag/v{$version}",
+                'html_url' => "https://github.com/kilopers/myai/releases/tag/v{$version}",
                 'assets' => [
-                    ['name' => "Screenshoter_{$version}_x64-setup.exe", 'browser_download_url' => 'https://example.com/app.exe'],
-                    ['name' => "Screenshoter_{$version}_x64_en-US.msi", 'browser_download_url' => 'https://example.com/app.msi'],
-                    ['name' => "Screenshoter_{$version}_aarch64.dmg", 'browser_download_url' => 'https://example.com/app.dmg'],
+                    ['name' => "Мой AI ассистент_{$version}_x64-setup.exe", 'browser_download_url' => 'https://example.com/app.exe'],
+                    ['name' => "Мой AI ассистент_{$version}_x64_en-US.msi", 'browser_download_url' => 'https://example.com/app.msi'],
+                    ['name' => "Мой AI ассистент_{$version}_aarch64.dmg", 'browser_download_url' => 'https://example.com/app.dmg'],
                 ],
             ], 200),
             '*' => Http::response('fake-installer-binary', 200),
@@ -43,7 +43,7 @@ class DesktopReleaseTest extends TestCase
         $this->assertSame(app(DesktopReleaseSync::class)->appVersion(), $r->json('version'));
         $this->assertNull($r->json('downloads'));
         $this->assertSame(
-            'https://github.com/kilopers/screenshoter/releases/tag/v'.$r->json('version'),
+            'https://github.com/kilopers/myai/releases/tag/v'.$r->json('version'),
             $r->json('notes_url'),
         );
     }
@@ -54,7 +54,7 @@ class DesktopReleaseTest extends TestCase
         Storage::disk('public')->put('desktop/latest.json', json_encode([
             'version' => '1.0.0',
             'files' => ['windows' => 'app.msi', 'macos' => 'app.dmg'],
-            'notes_url' => 'https://github.com/kilopers/screenshoter/releases/tag/v1.0.0',
+            'notes_url' => 'https://github.com/kilopers/myai/releases/tag/v1.0.0',
             'fetched_at' => now()->toIso8601String(),
         ]));
 
@@ -64,7 +64,7 @@ class DesktopReleaseTest extends TestCase
         $this->assertSame('/api/desktop-download/windows', $r->json('downloads.windows'));
         $this->assertSame('/api/desktop-download/macos', $r->json('downloads.macos'));
         $this->assertSame(
-            'https://github.com/kilopers/screenshoter/releases/tag/v1.0.0',
+            'https://github.com/kilopers/myai/releases/tag/v1.0.0',
             $r->json('notes_url'),
         );
     }
@@ -108,36 +108,36 @@ class DesktopReleaseTest extends TestCase
         $manifest = app(DesktopReleaseSync::class)->sync('v1.0.0');
 
         $this->assertSame('1.0.0', $manifest['version']);
-        $this->assertSame('Screenshoter_1.0.0_x64_en-US.msi', $manifest['files']['windows']);
-        $this->assertSame('Screenshoter_1.0.0_aarch64.dmg', $manifest['files']['macos']);
+        $this->assertSame('Мой AI ассистент_1.0.0_x64_en-US.msi', $manifest['files']['windows']);
+        $this->assertSame('Мой AI ассистент_1.0.0_aarch64.dmg', $manifest['files']['macos']);
 
         $disk = Storage::disk('public');
         $this->assertSame(
             'fake-installer-binary',
-            $disk->get('desktop/1.0.0/Screenshoter_1.0.0_x64_en-US.msi')
+            $disk->get('desktop/1.0.0/Мой AI ассистент_1.0.0_x64_en-US.msi')
         );
-        $this->assertTrue($disk->exists('desktop/1.0.0/Screenshoter_1.0.0_aarch64.dmg'));
+        $this->assertTrue($disk->exists('desktop/1.0.0/Мой AI ассистент_1.0.0_aarch64.dmg'));
         // .exe игнорируется — предпочтён .msi
-        $this->assertFalse($disk->exists('desktop/1.0.0/Screenshoter_1.0.0_x64-setup.exe'));
+        $this->assertFalse($disk->exists('desktop/1.0.0/Мой AI ассистент_1.0.0_x64-setup.exe'));
         // старая версия удалена
         $this->assertFalse($disk->exists('desktop/0.9.0/old.msi'));
 
         $saved = json_decode($disk->get('desktop/latest.json'), true);
         $this->assertSame('1.0.0', $saved['version']);
-        $this->assertSame('https://github.com/kilopers/screenshoter/releases/tag/v1.0.0', $saved['notes_url']);
+        $this->assertSame('https://github.com/kilopers/myai/releases/tag/v1.0.0', $saved['notes_url']);
     }
 
     public function test_sync_is_idempotent_and_skips_existing_files(): void
     {
         Storage::fake('public');
-        Storage::disk('public')->put('desktop/1.0.0/Screenshoter_1.0.0_x64_en-US.msi', 'already-here');
+        Storage::disk('public')->put('desktop/1.0.0/Мой AI ассистент_1.0.0_x64_en-US.msi', 'already-here');
         $this->fakeGitHubRelease('1.0.0');
 
         app(DesktopReleaseSync::class)->sync('1.0.0');
 
         $disk = Storage::disk('public');
-        $this->assertSame('already-here', $disk->get('desktop/1.0.0/Screenshoter_1.0.0_x64_en-US.msi'));
-        $this->assertSame('fake-installer-binary', $disk->get('desktop/1.0.0/Screenshoter_1.0.0_aarch64.dmg'));
+        $this->assertSame('already-here', $disk->get('desktop/1.0.0/Мой AI ассистент_1.0.0_x64_en-US.msi'));
+        $this->assertSame('fake-installer-binary', $disk->get('desktop/1.0.0/Мой AI ассистент_1.0.0_aarch64.dmg'));
     }
 
     public function test_sync_github_error_keeps_existing_manifest(): void
@@ -204,7 +204,7 @@ class DesktopReleaseTest extends TestCase
         $manifest = [
             'version' => '1.0.0',
             'files' => ['windows' => 'app.msi'],
-            'notes_url' => 'https://github.com/kilopers/screenshoter/releases/tag/v1.0.0',
+            'notes_url' => 'https://github.com/kilopers/myai/releases/tag/v1.0.0',
         ];
 
         $this->assertTrue($sync->broadcastIfNew($manifest));
@@ -217,7 +217,7 @@ class DesktopReleaseTest extends TestCase
                 && $e->broadcastWith() === [
                     'version' => '1.0.0',
                     'downloads' => ['windows' => '/api/desktop-download/windows'],
-                    'notes_url' => 'https://github.com/kilopers/screenshoter/releases/tag/v1.0.0',
+                    'notes_url' => 'https://github.com/kilopers/myai/releases/tag/v1.0.0',
                 ];
         });
 
@@ -246,7 +246,7 @@ class DesktopReleaseTest extends TestCase
         $this->artisan('app:desktop-release-sync', ['version' => 'v1.0.0'])
             ->assertSuccessful();
 
-        $this->assertTrue(Storage::disk('public')->exists('desktop/1.0.0/Screenshoter_1.0.0_x64_en-US.msi'));
+        $this->assertTrue(Storage::disk('public')->exists('desktop/1.0.0/Мой AI ассистент_1.0.0_x64_en-US.msi'));
         Event::assertDispatched(UpdateAvailable::class);
     }
 

@@ -3,7 +3,7 @@
         "laravel-boost": {
             "command": "C:\\php\\php.exe",
             "args": [
-                "F:\\screenshoter\\server\\artisan",
+                "F:\\myai\\server\\artisan",
                 "boost:mcp"
             ]
         }

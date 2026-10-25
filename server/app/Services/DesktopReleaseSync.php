@@ -16,7 +16,7 @@ use RuntimeException;
  */
 class DesktopReleaseSync
 {
-    public const REPO = 'kilopers/screenshoter';
+    public const REPO = 'kilopers/myai';
 
     public const DIR = 'desktop';
 
@@ -24,7 +24,7 @@ class DesktopReleaseSync
 
     public const ANNOUNCED_CACHE_KEY = 'desktop.release_announced';
 
-    private const USER_AGENT = 'screenshoter-release-sync';
+    private const USER_AGENT = 'myai-release-sync';
 
     /**
      * Скачать артефакты релиза v{version} в desktop/{version}/ и

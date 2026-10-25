@@ -1,12 +1,12 @@
 [package]
-name = "screenshoter"
-version = "1.0.7"
+name = "myai"
+version = "1.1.0"
 description = "Screenshot tool with region capture, editing and server upload"
 edition = "2021"
 rust-version = "1.80"
 
 [lib]
-name = "screenshoter_lib"
+name = "myai_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

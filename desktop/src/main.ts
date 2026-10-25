@@ -119,7 +119,7 @@ async function uploadPng(base64: string): Promise<string | null> {
     });
     await writeText(url);
     if (!(await isPermissionGranted())) await requestPermission();
-    await sendNotification({ title: 'Screenshoter', body: 'Ссылка скопирована в буфер обмена' });
+    await sendNotification({ title: 'Мой AI ассистент', body: 'Ссылка скопирована в буфер обмена' });
     return url;
   } catch (err) {
     alert(`Ошибка загрузки: ${err}`);
@@ -575,7 +575,7 @@ async function initEditor() {
     try {
       await invoke('copy_screenshot', { pngBase64: base64 });
       if (!(await isPermissionGranted())) await requestPermission();
-      await sendNotification({ title: 'Screenshoter', body: 'Картинка скопирована в буфер обмена' });
+      await sendNotification({ title: 'Мой AI ассистент', body: 'Картинка скопирована в буфер обмена' });
     } catch (err) {
       alert(`Ошибка копирования: ${err}`);
     }

@@ -1507,7 +1507,7 @@ pub fn set_sync_folder(app: AppHandle, path: String) -> Result<(), String> {
     }
     std::fs::create_dir_all(&p).map_err(|e| format!("Не могу создать папку: {e}"))?;
     // Проверка права записи (важно для macOS-доступа к выбранной папке)
-    let probe = p.join(".screenshoter-probe");
+    let probe = p.join(".myai-probe");
     std::fs::write(&probe, b"")
         .map_err(|e| format!("Нет права записи в папку (проверьте доступ на macOS): {e}"))?;
     let _ = std::fs::remove_file(&probe);
