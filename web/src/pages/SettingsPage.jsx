@@ -35,6 +35,7 @@ export default function SettingsPage() {
   const [trashDays, setTrashDays] = useState('14');
   const [trash, setTrash] = useState({ files: [], screenshots: [] });
   const [trashTab, setTrashTab] = useState(0);
+  const [rootHash, setRootHash] = useState('');
   const [message, setMessage] = useState('');
 
   const loadTokens = useCallback(async () => {
@@ -45,6 +46,10 @@ export default function SettingsPage() {
   const loadTrash = useCallback(async () => {
     const { data } = await client.get('/api/trash');
     setTrash({ files: data.files ?? [], screenshots: data.screenshots ?? [] });
+    try {
+      const r = await client.post('/api/sync/hash', {});
+      setRootHash(r.data.root_hash ?? '');
+    } catch { /* sync недоступен */ }
   }, []);
 
   useEffect(() => {
@@ -321,6 +326,26 @@ export default function SettingsPage() {
               <Typography variant="body2" color="text.secondary">Корзина пуста.</Typography>
             )}
           </List>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Синхронизация
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Хэш корневой папки (сверяйте с настройками десктопа — при
+            расхождении деревья разошлись, нужна синхронизация):
+          </Typography>
+          <Typography
+            variant="body2"
+            component="div"
+            sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}
+          >
+            {rootHash || '—'}
+          </Typography>
         </CardContent>
       </Card>
 

@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { getVersion } from '@tauri-apps/api/app';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
@@ -167,6 +168,18 @@ async function initSettings() {
     }
     setTimeout(() => { status.textContent = ''; }, 4000);
   });
+
+  // --- хэш корня синхронизируемой папки (для сверки с вебом) ---
+  try {
+    const h = await invoke<string | null>('sync_root_hash');
+    const el = document.getElementById('sync-hash');
+    if (el) {
+      el.textContent = h
+        ? `Хэш корня папки: ${h.slice(0, 16)}…`
+        : 'Хэш корня папки: не вычислен';
+      if (h) el.title = h;
+    }
+  } catch { /* sync выключена */ }
 
   // --- живой журнал синхронизации (ring buffer в памяти Rust) ---
   const logEl = document.getElementById('sync-log') as HTMLTextAreaElement;
@@ -565,11 +578,24 @@ async function initEditor() {
   await invoke('editor_ready');
 }
 
+// ---------- about view ----------
+async function initAbout() {
+  const view = document.getElementById('about-view')!;
+  view.style.display = 'block';
+  document.getElementById('canvas')!.style.display = 'none';
+  try {
+    document.getElementById('about-version')!.textContent =
+      `Версия ${await getVersion()}`;
+  } catch { /* dev-режим */ }
+}
+
 // ---------- entry ----------
 if (location.hash === '#settings' || location.search.includes('view=settings')) {
   initSettings();
 } else if (location.hash === '#editor') {
   initEditor();
+} else if (location.hash === '#about') {
+  void initAbout();
 } else {
   initOverlay();
 }

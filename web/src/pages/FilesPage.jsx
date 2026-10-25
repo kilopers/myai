@@ -106,8 +106,16 @@ export default function FilesPage() {
     bps >= 1048576 ? `${(bps / 1048576).toFixed(1)} МБ/с` : `${Math.max(1, Math.round(bps / 1024))} КБ/с`;
 
   const uploadFiles = async (list) => {
+    // Дубли имён в одной папке запрещены: проверяем список файлов
+    // и уже идущие загрузки.
+    const taken = new Set(files.map((x) => x.name));
     for (const f of list) {
-      const entry = { name: f.name, progress: 0, done: false, leaving: false, speed: '' };
+      if (taken.has(f.name)) {
+        setMessage(`Файл «${f.name}» уже есть в этой папке — пропущен`);
+        continue;
+      }
+      taken.add(f.name);
+      const entry = { id: crypto.randomUUID(), name: f.name, progress: 0, done: false, error: false, leaving: false, speed: '' };
       setUploads((u) => [...u, entry]);
       let lastT = performance.now();
       let lastLoaded = 0;
@@ -120,8 +128,9 @@ export default function FilesPage() {
           lastT = now;
           lastLoaded = loaded;
         }
-        const pct = f.size ? Math.round((loaded / f.size) * 100) : 0;
-        setUploads((u) => u.map((x) => (x === entry ? { ...x, progress: pct, speed } : x)));
+        // e.loaded включает multipart-оверхед — ограничиваем 100%.
+        const pct = f.size ? Math.min(100, Math.round((loaded / f.size) * 100)) : 0;
+        setUploads((u) => u.map((x) => (x.id === entry.id ? { ...x, progress: pct, speed } : x)));
       };
       try {
         // Файлы больше 4 МБ грузим чанками — размер не ограничен лимитами POST
@@ -153,14 +162,23 @@ export default function FilesPage() {
         }
       } catch {
         setMessage(`Не удалось загрузить ${f.name}`);
+        setUploads((u) => u.map((x) => (x.id === entry.id ? { ...x, error: true } : x)));
+        setTimeout(() => {
+          setUploads((u) => u.map((x) => (x.id === entry.id ? { ...x, leaving: true } : x)));
+        }, 5500);
+        setTimeout(() => {
+          setUploads((u) => u.filter((x) => x.id !== entry.id));
+        }, 6000);
+        continue;
       }
-      setUploads((u) => u.map((x) => (x === entry ? { ...x, progress: 100, done: true } : x)));
+      setUploads((u) => u.map((x) => (x.id === entry.id ? { ...x, progress: 100, done: true } : x)));
+      // Успешная загрузка: прогресс-бар исчезает через 3 секунды.
       setTimeout(() => {
-        setUploads((u) => u.map((x) => (x === entry ? { ...x, leaving: true } : x)));
-      }, 4500);
+        setUploads((u) => u.map((x) => (x.id === entry.id ? { ...x, leaving: true } : x)));
+      }, 2500);
       setTimeout(() => {
-        setUploads((u) => u.filter((x) => x !== entry));
-      }, 5000);
+        setUploads((u) => u.filter((x) => x.id !== entry.id));
+      }, 3000);
     }
     load();
   };
@@ -316,7 +334,7 @@ export default function FilesPage() {
 
       {uploads.map((u) => (
         <Box
-          key={u.name}
+          key={u.id}
           sx={{
             mb: 1,
             maxWidth: 680,
@@ -325,13 +343,13 @@ export default function FilesPage() {
             transition: 'opacity .5s ease',
           }}
         >
-          <Typography variant="caption" color={u.done ? 'success.main' : 'text.secondary'}>
-            {u.name} — {u.done ? 'загружен' : `${u.progress}%${u.speed ? ` · ${u.speed}` : ''}`}
+          <Typography variant="caption" color={u.done ? 'success.main' : u.error ? 'error.main' : 'text.secondary'}>
+            {u.name} — {u.done ? 'загружен' : u.error ? 'ошибка загрузки' : `${u.progress}%${u.speed ? ` · ${u.speed}` : ''}`}
           </Typography>
           <LinearProgress
             variant="determinate"
             value={u.progress}
-            color={u.done ? 'success' : 'primary'}
+            color={u.done ? 'success' : u.error ? 'error' : 'primary'}
           />
         </Box>
       ))}

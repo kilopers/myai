@@ -109,12 +109,21 @@
       <button id="save-settings">Сохранить</button>
       <div id="settings-status"></div>
 
+      <div class="hint" id="sync-hash" style="margin-top:8px"></div>
+
       <label>Журнал синхронизации</label>
       <textarea id="sync-log" readonly></textarea>
 
       <div class="hint">
         Хоткей: Ctrl+Shift+X — выделение области.<br />
         Токен создаётся в веб-интерфейсе: Настройки → API-токены.
+      </div>
+    </div>
+    <div id="about-view" style="display:none; text-align:center; padding-top:56px">
+      <h1 style="font-size:20px;margin:0 0 8px">Screenshoter</h1>
+      <div class="hint" id="about-version" style="color:#aaa;font-size:13px"></div>
+      <div class="hint" style="color:#777;font-size:12px;margin-top:16px">
+        Скриншоты по Ctrl+Shift+X
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

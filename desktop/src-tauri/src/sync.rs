@@ -1582,6 +1582,26 @@ pub fn open_privacy_settings() {
 
 // ---------- тест-векторы (паритет с PHP SyncHash) ----------
 
+fn meta_get(conn: &Connection, key: &str) -> Option<String> {
+    conn.query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0))
+        .ok()
+}
+
+/// Хэш корня синхронизируемой папки — из живого дерева либо из
+/// sync.db (local_root_hash). Для отображения в настройках.
+#[tauri::command]
+pub fn sync_root_hash(app: AppHandle) -> Option<String> {
+    if let Some(h) = app
+        .try_state::<SyncWatch>()
+        .and_then(|w| w.0.lock().ok().and_then(|g| g.root_hash.clone()))
+    {
+        return Some(h);
+    }
+    open_db(&app)
+        .ok()
+        .and_then(|conn| meta_get(&conn, "local_root_hash"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

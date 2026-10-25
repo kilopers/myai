@@ -500,6 +500,25 @@ fn ws_status(state: tauri::State<'_, Arc<AtomicBool>>) -> bool {
     state.load(Ordering::SeqCst)
 }
 
+/// Окно «О программе» — версия приложения.
+fn open_about_window(app: &AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("about") {
+        let _ = win.unminimize();
+        win.show().map_err(|e| e.to_string())?;
+        win.set_focus().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    WebviewWindowBuilder::new(app, "about", WebviewUrl::App("index.html#about".into()))
+        .title("О программе")
+        .inner_size(340.0, 220.0)
+        .resizable(false)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
 fn open_settings_window(app: &AppHandle) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("settings") {
         let _ = win.unminimize();
@@ -514,7 +533,7 @@ fn open_settings_window(app: &AppHandle) -> Result<(), String> {
         WebviewUrl::App("index.html#settings".into()),
     )
     .title("Screenshoter — настройки")
-    .inner_size(520.0, 660.0)
+    .inner_size(520.0, 840.0)
     .resizable(true)
     .build()
     .map_err(|e| e.to_string())?;
@@ -586,6 +605,7 @@ pub fn run() {
             ws_status,
             sync::sync_now,
             sync::sync_log_tail,
+            sync::sync_root_hash,
             sync::get_sync_folder,
             sync::set_sync_folder,
             sync::os_name,
@@ -598,8 +618,9 @@ pub fn run() {
             let capture_item = MenuItem::with_id(app, "capture", "Сделать скриншот", true, None::<&str>)?;
             let sync_item = MenuItem::with_id(app, "sync", "Синхронизировать", true, None::<&str>)?;
             let settings_item = MenuItem::with_id(app, "settings", "Настройки", true, None::<&str>)?;
+            let about_item = MenuItem::with_id(app, "about", "О программе", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&capture_item, &sync_item, &settings_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&capture_item, &sync_item, &settings_item, &about_item, &quit_item])?;
 
             TrayIconBuilder::with_id("main-tray")
                 .icon(app.default_window_icon().unwrap().clone())
@@ -613,6 +634,11 @@ pub fn run() {
                     "settings" => {
                         if let Err(e) = open_settings_window(app) {
                             eprintln!("settings window error: {e}");
+                        }
+                    }
+                    "about" => {
+                        if let Err(e) = open_about_window(app) {
+                            eprintln!("about window error: {e}");
                         }
                     }
                     "quit" => app.exit(0),
