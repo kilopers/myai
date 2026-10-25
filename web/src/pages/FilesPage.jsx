@@ -13,11 +13,6 @@ import {
   DialogTitle,
   IconButton,
   LinearProgress,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
   Link,
   MenuItem,
   Pagination,
@@ -30,7 +25,6 @@ import {
   Typography,
   useMediaQuery,
 } from '@mui/material';
-import FolderIcon from '@mui/icons-material/Folder';
 import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
@@ -45,6 +39,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import client from '../api/client';
+import { notifyFoldersChanged } from '../components/FolderTree';
 
 const TTL_OPTIONS = [
   { value: '', label: 'По умолчанию' },
@@ -84,8 +79,6 @@ export default function FilesPage() {
   const [shareDialog, setShareDialog] = useState(null); // {type:'file'|'folder', id, name}
   const [shareTtl, setShareTtl] = useState('');
   const [shareResult, setShareResult] = useState('');
-  const [editFolder, setEditFolder] = useState(null);
-  const [editFolderTtl, setEditFolderTtl] = useState('');
   const [editFile, setEditFile] = useState(null);
   const [editFileTtl, setEditFileTtl] = useState('');
   const inputRef = useRef(null);
@@ -183,15 +176,7 @@ export default function FilesPage() {
     await client.post('/api/action', { action: 'folders.create', name: newFolderName.trim(), parent_id: folder?.id ?? null });
     setNewFolderName('');
     setNewFolderOpen(false);
-    load();
-  };
-
-  const saveFolder = async () => {
-    await client.post('/api/action', {
-      action: 'folders.setTtl', id: editFolder.id,
-      default_ttl_days: editFolderTtl === '' ? null : Number(editFolderTtl),
-    });
-    setEditFolder(null);
+    notifyFoldersChanged();
     load();
   };
 
@@ -233,11 +218,6 @@ export default function FilesPage() {
 
   const removeFile = async (id) => {
     await client.post('/api/action', { action: 'files.delete', id });
-    load();
-  };
-
-  const removeFolder = async (id) => {
-    await client.post('/api/action', { action: 'folders.delete', id });
     load();
   };
 
@@ -356,42 +336,6 @@ export default function FilesPage() {
         </Box>
       ))}
 
-      {folders.length > 0 && (
-        <List dense sx={{ mb: 2, maxWidth: 680, mx: 'auto', width: '100%' }}>
-          {folders.map((fo) => (
-            <ListItem
-              key={fo.id}
-              disablePadding
-              secondaryAction={
-                <Box>
-                  <Tooltip title="Ссылка на папку">
-                    <IconButton onClick={() => { setShareDialog({ type: 'folder', id: fo.id, name: fo.name }); setShareResult(''); }}>
-                      <LinkIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Настройки папки">
-                    <IconButton onClick={() => { setEditFolder(fo); setEditFolderTtl(fo.default_ttl_days == null ? '' : String(fo.default_ttl_days)); }}>
-                      <SettingsIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <IconButton onClick={() => removeFolder(fo.id)}>
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-              }
-            >
-              <ListItemButton onClick={() => { setSearchParams({ folder: String(fo.id) }); setPage(1); }}>
-                <ListItemIcon><FolderIcon color="primary" /></ListItemIcon>
-                <ListItemText
-                  primary={fo.name}
-                  secondary={`файлов: ${fo.files_count ?? 0}`}
-                />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
-      )}
-
       <Box
         sx={{
           display: 'grid',
@@ -448,7 +392,9 @@ export default function FilesPage() {
         ))}
       </Box>
       {files.length === 0 && folders.length === 0 && (
-        <Typography color="text.secondary">Файлов пока нет — перетащи их в область выше.</Typography>
+        <Typography color="text.secondary">
+          Файлов пока нет — перетащи их в область выше. Папки — в дереве слева.
+        </Typography>
       )}
 
       {meta?.last_page > 1 && (
@@ -505,27 +451,6 @@ export default function FilesPage() {
         <DialogActions>
           <Button onClick={() => setShareDialog(null)}>Закрыть</Button>
           <Button variant="contained" onClick={createLink}>Создать ссылку</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Настройки папки */}
-      <Dialog open={!!editFolder} onClose={() => setEditFolder(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Папка «{editFolder?.name}»</DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <FormControl size="small" fullWidth>
-            <InputLabel>Срок хранения файлов по умолчанию</InputLabel>
-            <Select value={editFolderTtl} label="Срок хранения файлов по умолчанию" onChange={(e) => setEditFolderTtl(e.target.value)}>
-              <MenuItem value="">Вечно / наследовать</MenuItem>
-              <MenuItem value="1">1 день</MenuItem>
-              <MenuItem value="7">7 дней</MenuItem>
-              <MenuItem value="30">30 дней</MenuItem>
-              <MenuItem value="365">Год</MenuItem>
-            </Select>
-          </FormControl>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditFolder(null)}>Отмена</Button>
-          <Button variant="contained" onClick={saveFolder}>Сохранить</Button>
         </DialogActions>
       </Dialog>
 

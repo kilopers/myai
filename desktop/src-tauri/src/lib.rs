@@ -1,3 +1,5 @@
+mod sync;
+
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use std::io::Cursor;
 use std::sync::Mutex;
@@ -9,8 +11,8 @@ use tauri::{
 use tauri_plugin_global_shortcut::ShortcutState;
 use tauri_plugin_store::StoreExt;
 use tauri_plugin_clipboard_manager::ClipboardExt;
-use futures_util::StreamExt;
-use tokio_tungstenite::connect_async;
+use futures_util::{SinkExt, StreamExt};
+use tokio_tungstenite::{connect_async, tungstenite::Message};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -177,13 +179,14 @@ fn close_overlays(app: AppHandle) {
 
 #[tauri::command]
 async fn upload_screenshot(
+    app: AppHandle,
     server_url: String,
     token: String,
     png_base64: String,
 ) -> Result<String, String> {
     let bytes = B64.decode(&png_base64).map_err(|e| e.to_string())?;
 
-    let part = reqwest::multipart::Part::bytes(bytes)
+    let part = reqwest::multipart::Part::bytes(bytes.clone())
         .file_name("screenshot.png")
         .mime_str("image/png")
         .map_err(|e| e.to_string())?;
@@ -203,6 +206,24 @@ async fn upload_screenshot(
     }
 
     let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+
+    // Копия скриншота в {sync_root}/Скриншоты/{uuid}.{ext} — участвует
+    // в синхронизации; mtime берём из ответа сервера, чтобы хэши совпали.
+    if let Some(uuid) = json["data"]["id"].as_str() {
+        let mtime = json["data"]["mtime"].as_u64().unwrap_or_else(|| {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0)
+        });
+        let ext = json["data"]["url"]
+            .as_str()
+            .and_then(|u| u.rsplit('.').next())
+            .unwrap_or("png")
+            .to_string();
+        sync::save_screenshot_copy(&app, uuid, &bytes, mtime, &ext);
+    }
+
     json["data"]["url"]
         .as_str()
         .map(str::to_owned)
@@ -368,11 +389,60 @@ async fn ws_connect_once(app: &AppHandle, online: Arc<AtomicBool>) {
     match connect_async(&ws_url).await {
         Ok((mut stream, _)) => {
             set_ws_status(app, online.clone(), true);
-            while stream.next().await.is_some() {}
+
+            // Подписка на канал «Синхронизировать эту ветку» из веба.
+            if let Some(uid) = fetch_user_id(app, &base).await {
+                let sub = serde_json::json!({
+                    "event": "pusher:subscribe",
+                    "data": { "channel": format!("sync.user.{uid}") },
+                });
+                let _ = stream.send(Message::Text(sub.to_string().into())).await;
+            }
+
+            while let Some(msg) = stream.next().await {
+                let Ok(Message::Text(text)) = msg else { continue };
+                let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else {
+                    continue;
+                };
+                match v["event"].as_str() {
+                    Some("pusher:ping") => {
+                        let pong = serde_json::json!({"event": "pusher:pong", "data": {}});
+                        let _ = stream.send(Message::Text(pong.to_string().into())).await;
+                    }
+                    Some("sync.requested") => {
+                        // data — JSON-строка в протоколе Pusher
+                        let data = v["data"]
+                            .as_str()
+                            .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok())
+                            .unwrap_or_else(|| v["data"].clone());
+                        let folder_id = data["folder_id"].as_i64();
+                        sync::log(app, "событие из веба: синхронизировать ветку".to_string());
+                        sync::spawn_sync(app, folder_id);
+                    }
+                    _ => {}
+                }
+            }
         }
         Err(_) => {}
     }
     set_ws_status(app, online.clone(), false);
+}
+
+/// id текущего пользователя по API-токену — для канала sync.user.{id}.
+async fn fetch_user_id(app: &AppHandle, base: &str) -> Option<i64> {
+    let token = app
+        .store("settings.json")
+        .ok()
+        .and_then(|s| s.get("api_token"))
+        .and_then(|v| v.as_str().map(str::to_owned))?;
+    let resp = reqwest::Client::new()
+        .get(format!("{base}/api/auth/me"))
+        .bearer_auth(token)
+        .send()
+        .await
+        .ok()?;
+    let j: serde_json::Value = resp.json().await.ok()?;
+    j["id"].as_i64()
 }
 
 fn spawn_ws_monitor(app: &AppHandle) {
@@ -418,8 +488,8 @@ fn open_settings_window(app: &AppHandle) -> Result<(), String> {
         WebviewUrl::App("index.html#settings".into()),
     )
     .title("Screenshoter — настройки")
-    .inner_size(440.0, 380.0)
-    .resizable(false)
+    .inner_size(520.0, 660.0)
+    .resizable(true)
     .build()
     .map_err(|e| e.to_string())?;
 
@@ -449,6 +519,8 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -472,6 +544,8 @@ pub fn run() {
         .manage(PendingCapture(Mutex::new(Vec::new())))
         .manage(PendingEdit(Mutex::new(None)))
         .manage(Arc::new(AtomicBool::new(false)))
+        .manage(sync::LogBuf(Mutex::new(std::collections::VecDeque::new())))
+        .manage(sync::SyncRunning(AtomicBool::new(false)))
         .invoke_handler(tauri::generate_handler![
             take_capture,
             take_edit,
@@ -481,16 +555,23 @@ pub fn run() {
             close_overlays,
             upload_screenshot,
             copy_screenshot,
-            ws_status
+            ws_status,
+            sync::sync_now,
+            sync::sync_log_tail,
+            sync::get_sync_folder,
+            sync::set_sync_folder,
+            sync::os_name,
+            sync::open_privacy_settings
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             let capture_item = MenuItem::with_id(app, "capture", "Сделать скриншот", true, None::<&str>)?;
+            let sync_item = MenuItem::with_id(app, "sync", "Синхронизировать", true, None::<&str>)?;
             let settings_item = MenuItem::with_id(app, "settings", "Настройки", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&capture_item, &settings_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&capture_item, &sync_item, &settings_item, &quit_item])?;
 
             TrayIconBuilder::with_id("main-tray")
                 .icon(app.default_window_icon().unwrap().clone())
@@ -498,6 +579,9 @@ pub fn run() {
                 .tooltip("Screenshoter — Ctrl+Shift+X")
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "capture" => trigger_capture(app),
+                    "sync" => {
+                        sync::spawn_sync(app, None);
+                    }
                     "settings" => {
                         if let Err(e) = open_settings_window(app) {
                             eprintln!("settings window error: {e}");
@@ -511,6 +595,8 @@ pub fn run() {
             // Show settings on first launch so the user can configure server + token.
             open_settings_window(app.handle()).ok();
             spawn_ws_monitor(app.handle());
+            // Синхронизация при запуске (если настроена папка)
+            sync::spawn_sync(app.handle(), None);
 
             Ok(())
         })

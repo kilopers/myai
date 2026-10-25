@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Http\Resources\StoredFileResource;
 use App\Models\Folder;
 use App\Models\StoredFile;
+use App\Services\TrashService;
+use App\Support\StoragePath;
+use App\Support\SyncHash;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -32,6 +35,7 @@ class FileController extends Controller
         $validated = $request->validate([
             'file' => ['required', 'file', 'max:8388608'],
             'folder_id' => ['nullable', 'integer'],
+            'mtime' => ['nullable', 'integer', 'min:0'],
         ]);
 
         $folder = null;
@@ -43,9 +47,11 @@ class FileController extends Controller
         $uploaded = $request->file('file');
         $uuid = (string) Str::uuid();
         $extension = strtolower($uploaded->getClientOriginalExtension() ?: 'bin');
-        $path = $uploaded->storeAs('files', "{$uuid}.{$extension}", 'public');
+        $path = StoragePath::file($uuid, $extension);
+        Storage::disk('public')->putFileAs(dirname($path), $uploaded, basename($path));
 
         $ttl = $folder?->default_ttl_days ?? $request->user()->default_file_ttl_days;
+        $mtime = isset($validated['mtime']) ? (int) $validated['mtime'] : now()->getTimestamp();
 
         $file = $request->user()->files()->create([
             'folder_id' => $folder?->id,
@@ -55,8 +61,12 @@ class FileController extends Controller
             'mime_type' => $uploaded->getMimeType(),
             'size' => $uploaded->getSize(),
             'path' => $path,
+            'mtime' => $mtime,
+            'entry_hash' => SyncHash::file($uploaded->getClientOriginalName(), (int) $uploaded->getSize(), $mtime),
             'expires_at' => $ttl ? now()->addDays($ttl) : null,
         ]);
+
+        SyncHash::refreshFolderChain($folder);
 
         return (new StoredFileResource($file))->response()->setStatusCode(201);
     }
@@ -73,6 +83,7 @@ class FileController extends Controller
             'total' => ['required', 'integer', 'min:1', 'max:4096'],
             'name' => ['required', 'string', 'max:255'],
             'folder_id' => ['nullable', 'integer'],
+            'mtime' => ['nullable', 'integer', 'min:0'],
             'file' => ['required', 'file', 'max:16384'],
         ]);
 
@@ -92,7 +103,7 @@ class FileController extends Controller
 
         $uuid = (string) Str::uuid();
         $extension = strtolower(pathinfo($validated['name'], PATHINFO_EXTENSION) ?: 'bin');
-        $path = "files/{$uuid}.{$extension}";
+        $path = StoragePath::file($uuid, $extension);
 
         $tmp = fopen('php://temp', 'w+b');
         for ($i = 0; $i < (int) $validated['total']; $i++) {
@@ -107,6 +118,8 @@ class FileController extends Controller
         Storage::deleteDirectory($dir);
 
         $ttl = $folder?->default_ttl_days ?? $request->user()->default_file_ttl_days;
+        $mtime = isset($validated['mtime']) ? (int) $validated['mtime'] : now()->getTimestamp();
+        $size = Storage::disk('public')->size($path);
 
         $file = $request->user()->files()->create([
             'folder_id' => $folder?->id,
@@ -114,10 +127,14 @@ class FileController extends Controller
             'name' => $validated['name'],
             'filename' => "{$uuid}.{$extension}",
             'mime_type' => Storage::disk('public')->mimeType($path),
-            'size' => Storage::disk('public')->size($path),
+            'size' => $size,
             'path' => $path,
+            'mtime' => $mtime,
+            'entry_hash' => SyncHash::file($validated['name'], (int) $size, $mtime),
             'expires_at' => $ttl ? now()->addDays($ttl) : null,
         ]);
+
+        SyncHash::refreshFolderChain($folder);
 
         return (new StoredFileResource($file))->response()->setStatusCode(201);
     }
@@ -137,7 +154,19 @@ class FileController extends Controller
                 ->findOrFail($validated['folder_id']);
         }
 
+        $oldFolder = $file->folder;
+        $nameChanged = isset($validated['name']) && $validated['name'] !== $file->name;
         $file->update($validated);
+
+        // Переименование/перенос меняет entry_hash узла и dir_hash веток.
+        if ($nameChanged) {
+            $file->refreshEntryHash();
+            $file->saveQuietly();
+        }
+        if ($nameChanged || $file->folder_id !== $oldFolder?->id) {
+            SyncHash::refreshFolderChain($file->folder);
+            SyncHash::refreshFolderChain($oldFolder);
+        }
 
         return new StoredFileResource($file);
     }
@@ -152,14 +181,16 @@ class FileController extends Controller
         ]);
     }
 
+    /**
+     * Удаление — в корзину (soft-delete). Физический файл остаётся
+     * на диске до автоочистки по users.trash_retention_days.
+     */
     public function destroy(Request $request, StoredFile $file): JsonResponse
     {
         abort_unless($file->user_id === $request->user()->id, 403);
 
-        $file->shareLinks()->delete();
-        $file->deleteFile();
-        $file->delete();
+        app(TrashService::class)->trashFile($file);
 
-        return response()->json(['message' => 'Deleted.']);
+        return response()->json(['message' => 'Moved to trash.']);
     }
 }

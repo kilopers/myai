@@ -65,7 +65,7 @@ class FolderTreeTest extends TestCase
         ])->assertStatus(422);
     }
 
-    public function test_delete_folder_removes_children_files_and_links(): void
+    public function test_delete_folder_moves_children_files_to_trash(): void
     {
         Storage::fake('public');
         $user = User::factory()->create();
@@ -89,9 +89,15 @@ class FolderTreeTest extends TestCase
             'id' => $root->id,
         ])->assertOk();
 
-        $this->assertDatabaseMissing('folders', ['id' => $root->id]);
-        $this->assertDatabaseMissing('folders', ['id' => $child->id]);
-        $this->assertDatabaseMissing('files', ['id' => $file->id]);
-        Storage::disk('public')->assertMissing('files/a.txt');
+        // Всё ушло в корзину: записи помечены deleted_at, файл на диске остался
+        $this->assertSoftDeleted('folders', ['id' => $root->id]);
+        $this->assertSoftDeleted('folders', ['id' => $child->id]);
+        $this->assertSoftDeleted('files', ['id' => $file->id]);
+        $this->assertSame('root/child/a.txt', $file->fresh()->original_path);
+        Storage::disk('public')->assertExists('files/a.txt');
+
+        // Tombstone-лог для синхронизации
+        $this->assertDatabaseHas('deleted_files', ['kind' => 'file', 'name' => 'a.txt', 'dir_path' => 'root/child']);
+        $this->assertDatabaseHas('deleted_files', ['kind' => 'folder', 'name' => 'root']);
     }
 }

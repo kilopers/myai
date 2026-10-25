@@ -10,6 +10,8 @@ use App\Http\Controllers\InviteController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ScreenshotController;
 use App\Http\Controllers\ShareLinkController;
+use App\Http\Controllers\SyncController;
+use App\Http\Controllers\TrashController;
 use Illuminate\Support\Facades\Route;
 
 // Public
@@ -41,6 +43,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/files/{file}/download', [FileController::class, 'download']);
     Route::post('/share-links', [ShareLinkController::class, 'store']);
     Route::delete('/share-links/{shareLink}', [ShareLinkController::class, 'destroy']);
+
+    // Корзина
+    Route::get('/trash', [TrashController::class, 'index']);
+    Route::post('/trash/{type}/{id}/restore', [TrashController::class, 'restore']);
+    Route::delete('/trash/{type}/{id}', [TrashController::class, 'destroy']);
+    Route::delete('/trash', [TrashController::class, 'clear']);
+
+    // Синхронизация (десктоп)
+    Route::get('/sync/tree', [SyncController::class, 'tree']);
+    Route::get('/sync/deleted', [SyncController::class, 'deleted']);
 
     Route::apiResource('tokens', ApiTokenController::class)->only(['index', 'store', 'destroy']);
 

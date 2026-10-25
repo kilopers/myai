@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { listen } from '@tauri-apps/api/event';
+import { open } from '@tauri-apps/plugin-dialog';
 import { Store } from '@tauri-apps/plugin-store';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { sendNotification, isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification';
@@ -140,6 +142,51 @@ async function initSettings() {
   urlInput.value = (await store.get<string>(STORE_KEYS.serverUrl)) ?? '';
   tokenInput.value = (await store.get<string>(STORE_KEYS.apiToken)) ?? '';
   autostartInput.checked = await isAutostartEnabled();
+
+  // --- папка синхронизации ---
+  const folderInput = document.getElementById('sync-folder') as HTMLInputElement;
+  folderInput.value = (await invoke<string | null>('get_sync_folder')) ?? '';
+  document.getElementById('pick-folder')!.addEventListener('click', async () => {
+    const dir = await open({ directory: true, multiple: false });
+    if (typeof dir !== 'string') return;
+    try {
+      await invoke('set_sync_folder', { path: dir });
+      folderInput.value = dir;
+    } catch (e) {
+      alert(String(e));
+    }
+  });
+  document.getElementById('sync-now')!.addEventListener('click', async () => {
+    try {
+      const started = await invoke<boolean>('sync_now');
+      status.textContent = started ? 'Синхронизация запущена' : 'Синхронизация уже идёт';
+      status.style.color = '#8f8f8f';
+    } catch (e) {
+      status.textContent = `Ошибка: ${e}`;
+      status.style.color = '#e5534b';
+    }
+    setTimeout(() => { status.textContent = ''; }, 4000);
+  });
+
+  // --- живой журнал синхронизации (ring buffer в памяти Rust) ---
+  const logEl = document.getElementById('sync-log') as HTMLTextAreaElement;
+  const appendLog = (line: string) => {
+    logEl.value += (logEl.value ? '\n' : '') + line;
+    logEl.scrollTop = logEl.scrollHeight;
+  };
+  for (const line of await invoke<string[]>('sync_log_tail')) appendLog(line);
+  await listen<string>('sync-log', (e) => appendLog(e.payload));
+
+  // --- macOS: подсказка про разрешения ---
+  try {
+    if ((await invoke<string>('os_name')) === 'macos') {
+      document.getElementById('macos-perms')!.style.display = 'block';
+      document.getElementById('open-privacy')!.addEventListener('click', (e) => {
+        e.preventDefault();
+        void invoke('open_privacy_settings');
+      });
+    }
+  } catch { /* os_name недоступен */ }
 
   document.getElementById('save-settings')!.addEventListener('click', async () => {
     await store.set(STORE_KEYS.serverUrl, urlInput.value.trim().replace(/\/+$/, ''));

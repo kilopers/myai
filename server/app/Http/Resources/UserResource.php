@@ -26,6 +26,7 @@ class UserResource extends JsonResource
             'default_screenshot_ttl_days' => $this->default_screenshot_ttl_days,
             'default_file_ttl_days' => $this->default_file_ttl_days,
             'default_link_ttl_days' => $this->default_link_ttl_days,
+            'trash_retention_days' => $this->trash_retention_days,
             'screenshots_count' => $this->whenCounted('screenshots'),
             'created_at' => $this->created_at->toIso8601String(),
         ];

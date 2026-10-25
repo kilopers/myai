@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\SyncRequested;
 use App\Http\Requests\UploadScreenshotRequest;
 use App\Http\Resources\ScreenshotResource;
 use App\Http\Resources\StoredFileResource;
@@ -43,6 +44,9 @@ class ActionController extends Controller
                 // Публичные ссылки
                 'share.create' => $this->shareCreate($request),
                 'share.delete' => $this->shareDelete($request),
+
+                // Синхронизация: «Синхронизировать эту ветку» из дерева папок
+                'sync.branch' => $this->syncBranch($request),
 
                 default => throw new \InvalidArgumentException("Unknown action: {$action}"),
             };
@@ -157,9 +161,24 @@ class ActionController extends Controller
         return ['folder' => app(FolderController::class)->update($request, $folder)->resolve()];
     }
 
+    private function syncBranch(Request $request): array
+    {
+        $folderId = $request->input('folder_id');
+        if ($folderId !== null) {
+            Folder::where('user_id', $request->user()->id)->findOrFail($folderId);
+        }
+        event(new SyncRequested($request->user()->id, $folderId));
+
+        return ['sent' => true, 'folder_id' => $folderId];
+    }
+
     private function deleteModel(string $class, Request $request): array
     {
-        $model = $class::where('user_id', $request->user()->id)->findOrFail($request->input('id'));
+        $model = $class === Screenshot::class
+            ? $class::where('user_id', $request->user()->id)
+                ->where(fn ($q) => $q->where('uuid', $request->input('id'))->orWhere('id', $request->input('id')))
+                ->firstOrFail()
+            : $class::where('user_id', $request->user()->id)->findOrFail($request->input('id'));
         $ctrl = match ($class) {
             Screenshot::class => ScreenshotController::class,
             StoredFile::class => FileController::class,

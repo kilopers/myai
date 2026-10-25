@@ -64,6 +64,18 @@
         background: #4a6cf7; color: #fff; cursor: pointer;
       }
       #settings-view .hint { color: #777; font-size: 12px; margin-top: 14px; }
+      #settings-view .row { display: flex; gap: 6px; }
+      #settings-view .row input { flex: 1; }
+      #settings-view .row button { margin-top: 0; white-space: nowrap; }
+      #settings-view button.secondary { background: #33333c; }
+      #settings-view a { color: #7aa2ff; }
+      #sync-log {
+        width: 100%; box-sizing: border-box; height: 170px; resize: none;
+        margin-top: 4px; padding: 8px; border-radius: 6px;
+        border: 1px solid #444; background: #101014; color: #9fd0a0;
+        font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace;
+        overflow-y: auto; white-space: pre-wrap;
+      }
       #settings-status { color: #7bd88a; font-size: 12px; margin-top: 8px; }
     </style>
   </head>
@@ -80,8 +92,26 @@
         <input type="checkbox" id="autostart" style="width:auto" />
         Запускать при старте системы
       </label>
+
+      <label>Папка синхронизации</label>
+      <div class="row">
+        <input id="sync-folder" placeholder="Не выбрана" readonly />
+        <button id="pick-folder" class="secondary" type="button">Выбрать…</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="sync-now" class="secondary" type="button">Синхронизировать сейчас</button>
+      </div>
+      <div class="hint" id="macos-perms" style="display:none">
+        macOS: для захвата экрана и доступа к папке нужны разрешения —
+        <a href="#" id="open-privacy">открыть «Конфиденциальность и безопасность»</a>
+      </div>
+
       <button id="save-settings">Сохранить</button>
       <div id="settings-status"></div>
+
+      <label>Журнал синхронизации</label>
+      <textarea id="sync-log" readonly></textarea>
+
       <div class="hint">
         Хоткей: Ctrl+Shift+X — выделение области.<br />
         Токен создаётся в веб-интерфейсе: Настройки → API-токены.

@@ -4,7 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\UploadScreenshotRequest;
 use App\Http\Resources\ScreenshotResource;
+use App\Models\Folder;
 use App\Models\Screenshot;
+use App\Services\TrashService;
+use App\Support\StoragePath;
+use App\Support\SyncHash;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -36,22 +40,31 @@ class ScreenshotController extends Controller
         $file = $request->file('image');
         $uuid = (string) Str::uuid();
         $extension = strtolower($file->guessExtension() ?: 'png');
-        $path = $file->storeAs('screenshots', "{$uuid}.{$extension}", 'public');
+        $filename = "{$uuid}.{$extension}";
+        $path = StoragePath::file($uuid, $extension);
+        Storage::disk('public')->putFileAs(dirname($path), $file, basename($path));
 
         [$width, $height] = getimagesize($file->getRealPath()) ?: [null, null];
 
+        $mtime = $request->integer('mtime') ?: now()->getTimestamp();
+
         $screenshot = $request->user()->screenshots()->create([
             'uuid' => $uuid,
-            'filename' => "{$uuid}.{$extension}",
+            'filename' => $filename,
             'mime_type' => $file->getMimeType(),
             'size' => $file->getSize(),
             'width' => $width,
             'height' => $height,
             'path' => $path,
+            'mtime' => $mtime,
+            'entry_hash' => SyncHash::file($filename, (int) $file->getSize(), $mtime),
             'expires_at' => $request->user()->default_screenshot_ttl_days
                 ? now()->addDays($request->user()->default_screenshot_ttl_days)
                 : null,
         ]);
+
+        // Скриншоты живут в системной папке «Скриншоты» — её dir_hash меняется.
+        SyncHash::refreshFolderChain(Folder::screenshotsFolder($request->user()));
 
         return (new ScreenshotResource($screenshot))
             ->response()
@@ -100,15 +113,15 @@ class ScreenshotController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Удаление — в корзину (soft-delete). Файл остаётся на диске
+     * до автоочистки по users.trash_retention_days.
      */
     public function destroy(Screenshot $screenshot): JsonResponse
     {
         Gate::authorize('delete', $screenshot);
 
-        $screenshot->deleteFile();
-        $screenshot->delete();
+        app(TrashService::class)->trashScreenshot($screenshot);
 
-        return response()->json(['message' => 'Deleted.']);
+        return response()->json(['message' => 'Moved to trash.']);
     }
 }

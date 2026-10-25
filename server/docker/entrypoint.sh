@@ -19,6 +19,9 @@ chown www-data:www-data public
 
 su -s /bin/sh www-data -c "php artisan migrate --force"
 
+# Раскладка хранилища files/{ab}/{cd}/ + хэши синхронизации (идемпотентно)
+su -s /bin/sh www-data -c "php artisan storage:relayout"
+
 if [ "${SEED_ADMIN:-true}" = "true" ]; then
     su -s /bin/sh www-data -c "php artisan db:seed --class=DatabaseSeeder --force"
 fi

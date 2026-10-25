@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Folder;
+use App\Services\TrashService;
+use App\Support\SyncHash;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -32,6 +34,8 @@ class FolderController extends Controller
 
         $folder = $request->user()->folders()->create($validated);
 
+        SyncHash::refreshFolderChain($folder->parent);
+
         return (new JsonResource($folder))->response()->setStatusCode(201);
     }
 
@@ -44,30 +48,33 @@ class FolderController extends Controller
             'default_ttl_days' => ['nullable', 'integer', 'min:1', 'max:36500'],
         ]);
 
+        abort_if(
+            $folder->is_system && isset($validated['name']),
+            422,
+            'Системную папку переименовать нельзя.',
+        );
+
+        $nameChanged = isset($validated['name']) && $validated['name'] !== $folder->name;
         $folder->update($validated);
+
+        if ($nameChanged) {
+            SyncHash::refreshFolderChain($folder->parent);
+        }
 
         return new JsonResource($folder);
     }
 
+    /**
+     * Удаление папки — в корзину со всем содержимым (soft-delete).
+     * Системную папку «Скриншоты» удалить нельзя.
+     */
     public function destroy(Request $request, Folder $folder): JsonResponse
     {
         abort_unless($folder->user_id === $request->user()->id, 403);
+        abort_if($folder->is_system, 422, 'Системную папку удалить нельзя.');
 
-        $this->deleteTree($folder);
+        app(TrashService::class)->trashFolder($folder);
 
-        return response()->json(['message' => 'Deleted.']);
-    }
-
-    private function deleteTree(Folder $folder): void
-    {
-        foreach ($folder->children as $child) {
-            $this->deleteTree($child);
-        }
-        foreach ($folder->files as $file) {
-            $file->shareLinks()->delete();
-            $file->deleteFile();
-        }
-        $folder->shareLinks()->delete();
-        $folder->delete();
+        return response()->json(['message' => 'Moved to trash.']);
     }
 }

@@ -11,11 +11,16 @@ import {
   ListItem,
   ListItemText,
   Snackbar,
+  Tab,
+  Tabs,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+import RestoreIcon from '@mui/icons-material/Restore';
 import client from '../api/client';
 import { useAuth } from '../context/AuthContext';
 
@@ -27,6 +32,9 @@ export default function SettingsPage() {
   const [passwords, setPasswords] = useState({ current_password: '', password: '', password_confirmation: '' });
   const [profile, setProfile] = useState({ name: '', email: '' });
   const [ttls, setTtls] = useState({ screenshot: '', file: '', link: '' });
+  const [trashDays, setTrashDays] = useState('14');
+  const [trash, setTrash] = useState({ files: [], screenshots: [] });
+  const [trashTab, setTrashTab] = useState(0);
   const [message, setMessage] = useState('');
 
   const loadTokens = useCallback(async () => {
@@ -34,8 +42,14 @@ export default function SettingsPage() {
     setTokens(data);
   }, []);
 
+  const loadTrash = useCallback(async () => {
+    const { data } = await client.get('/api/trash');
+    setTrash({ files: data.files ?? [], screenshots: data.screenshots ?? [] });
+  }, []);
+
   useEffect(() => {
     loadTokens();
+    loadTrash();
     if (user) {
       setProfile({ name: user.name, email: user.email });
       setTtls({
@@ -43,8 +57,9 @@ export default function SettingsPage() {
         file: user.default_file_ttl_days ?? '',
         link: user.default_link_ttl_days ?? '',
       });
+      setTrashDays(String(user.trash_retention_days ?? 14));
     }
-  }, [loadTokens, user]);
+  }, [loadTokens, loadTrash, user]);
 
   const createToken = async () => {
     if (!tokenName.trim()) return;
@@ -207,6 +222,105 @@ export default function SettingsPage() {
               Сохранить сроки
             </Button>
           </Box>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Корзина
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Удалённые файлы и скриншоты хранятся в корзине, потом удаляются
+            насовсем. На десктопе корзина не отображается.
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+            <TextField
+              size="small"
+              type="number"
+              label="Хранить удалённые файлы, дней"
+              value={trashDays}
+              onChange={(e) => setTrashDays(e.target.value)}
+              slotProps={{ htmlInput: { min: 0 } }}
+              sx={{ flexGrow: 1 }}
+            />
+            <Button
+              variant="contained"
+              onClick={async () => {
+                const { data } = await client.put('/api/me', {
+                  trash_retention_days: trashDays === '' ? 14 : Number(trashDays),
+                });
+                setUser(data.data ?? data);
+                setMessage('Настройка корзины сохранена');
+              }}
+            >
+              Сохранить
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              disabled={trash.files.length + trash.screenshots.length === 0}
+              onClick={async () => {
+                await client.delete('/api/trash');
+                setMessage('Корзина очищена');
+                loadTrash();
+              }}
+            >
+              Очистить корзину
+            </Button>
+          </Box>
+
+          <Tabs value={trashTab} onChange={(_, v) => setTrashTab(v)} sx={{ mb: 1 }}>
+            <Tab label={`Файлы (${trash.files.length})`} />
+            <Tab label={`Скриншоты (${trash.screenshots.length})`} />
+          </Tabs>
+
+          <List dense>
+            {(trashTab === 0 ? trash.files : trash.screenshots).map((item) => (
+              <ListItem
+                key={item.id}
+                secondaryAction={
+                    <Box>
+                    <Tooltip title="Восстановить">
+                      <IconButton
+                        onClick={async () => {
+                          await client.post(`/api/trash/${trashTab === 0 ? 'file' : 'screenshot'}/${item.id}/restore`);
+                          setMessage(`«${item.name}» восстановлено`);
+                          loadTrash();
+                        }}
+                      >
+                        <RestoreIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Удалить навсегда">
+                      <IconButton
+                        color="error"
+                        onClick={async () => {
+                          await client.delete(`/api/trash/${trashTab === 0 ? 'file' : 'screenshot'}/${item.id}`);
+                          loadTrash();
+                        }}
+                      >
+                        <DeleteForeverIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                }
+              >
+                <ListItemText
+                  primary={item.name}
+                  secondary={
+                    `${item.original_path ?? ''} · ` +
+                    `${item.size > 1048576 ? `${(item.size / 1048576).toFixed(1)} МБ` : `${(item.size / 1024).toFixed(1)} КБ`} · ` +
+                    `в корзине с ${new Date(item.deleted_at).toLocaleString()}`
+                  }
+                />
+              </ListItem>
+            ))}
+            {(trashTab === 0 ? trash.files : trash.screenshots).length === 0 && (
+              <Typography variant="body2" color="text.secondary">Корзина пуста.</Typography>
+            )}
+          </List>
         </CardContent>
       </Card>
 

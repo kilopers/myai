@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   AppBar,
   Box,
@@ -8,6 +8,7 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Snackbar,
   Toolbar,
   Tooltip,
   Typography,
@@ -19,18 +20,50 @@ import FolderIcon from '@mui/icons-material/Folder';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
-import { Outlet, Link as RouterLink, useLocation } from 'react-router-dom';
+import { Outlet, Link as RouterLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import client from '../api/client';
+import FolderTree from './FolderTree';
 
-const DRAWER_WIDTH = 200;
+const DRAWER_WIDTH = 300;
 const COLLAPSED_WIDTH = 56;
 const OPEN_KEY = 'drawer_open';
 
 export default function Layout() {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const isMobile = useMediaQuery((theme) => theme.breakpoints.down('md'));
   const [open, setOpen] = useState(() => localStorage.getItem(OPEN_KEY) !== '0');
+  const [folders, setFolders] = useState([]);
+  const [notice, setNotice] = useState('');
+
+  const isFiles = location.pathname.startsWith('/files');
+  const currentFolderId = isFiles && searchParams.get('folder')
+    ? Number(searchParams.get('folder'))
+    : null;
+
+  const loadFolders = useCallback(async () => {
+    try {
+      const { data } = await client.get('/api/folders');
+      setFolders(data.data ?? data);
+    } catch {
+      /* дерево не критично — не мешаем работе страницы */
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFolders();
+    const onChanged = () => loadFolders();
+    window.addEventListener('folders-changed', onChanged);
+    return () => window.removeEventListener('folders-changed', onChanged);
+  }, [loadFolders]);
+
+  // Обновляем дерево после навигации (удаления/создания с других страниц)
+  useEffect(() => {
+    loadFolders();
+  }, [location.pathname, location.search, loadFolders]);
 
   const toggle = () => {
     setOpen((v) => {
@@ -49,53 +82,67 @@ export default function Layout() {
   ];
 
   const nav = (
-    <List sx={{ px: 0.75, pt: 0.75 }}>
-      {items.map((item) => {
-        const selected = item.to === '/'
-          ? location.pathname === '/'
-          : location.pathname.startsWith(item.to);
-        const btn = (
-          <ListItemButton
-            key={item.to}
-            component={RouterLink}
-            to={item.to}
-            selected={selected}
-            onClick={isMobile ? toggle : undefined}
-            sx={{
-              borderRadius: 1.5,
-              mb: 0.25,
-              py: 0.6,
-              px: 1.5,
-              color: '#303030',
-              justifyContent: open || isMobile ? 'initial' : 'center',
-              '& .MuiListItemIcon-root': { color: '#626168', minWidth: 32 },
-              '&:hover': { bgcolor: '#e4e4ee' },
-              '&.Mui-selected': {
-                bgcolor: '#dcdce9',
-                color: '#1f1e24',
-                fontWeight: 600,
-                '&:hover': { bgcolor: '#d5d5e3' },
-                '& .MuiListItemIcon-root': { color: '#535158' },
-                '& .MuiListItemText-primary': { fontWeight: 600 },
-              },
-            }}
-          >
-            <ListItemIcon sx={{ minWidth: open || isMobile ? 36 : 0, justifyContent: 'center' }}>
-              {item.icon}
-            </ListItemIcon>
-            {(open || isMobile) && (
-              <ListItemText
-                primary={item.label}
-                primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: selected ? 600 : 400 }}
-              />
-            )}
-          </ListItemButton>
-        );
-        return open || isMobile
-          ? btn
-          : <Tooltip key={item.to} title={item.label} placement="right">{btn}</Tooltip>;
-      })}
-    </List>
+    <Box sx={{ overflowY: 'auto', flexGrow: 1 }}>
+      <List sx={{ px: 0.75, pt: 0.75 }}>
+        {items.map((item) => {
+          const selected = item.to === '/'
+            ? location.pathname === '/'
+            : location.pathname.startsWith(item.to);
+          const btn = (
+            <Box key={item.to}>
+              <ListItemButton
+                component={RouterLink}
+                to={item.to}
+                selected={selected && (item.to !== '/files' || !currentFolderId)}
+                onClick={isMobile ? toggle : undefined}
+                sx={{
+                  borderRadius: 1.5,
+                  mb: 0.125,
+                  py: 0.5,
+                  px: 1.25,
+                  color: '#303030',
+                  justifyContent: open || isMobile ? 'initial' : 'center',
+                  '& .MuiListItemIcon-root': { color: '#626168', minWidth: 30 },
+                  '&:hover': { bgcolor: '#e4e4ee' },
+                  '&.Mui-selected': {
+                    bgcolor: '#dcdce9',
+                    color: '#1f1e24',
+                    fontWeight: 600,
+                    '&:hover': { bgcolor: '#d5d5e3' },
+                    '& .MuiListItemIcon-root': { color: '#535158' },
+                    '& .MuiListItemText-primary': { fontWeight: 600 },
+                  },
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: open || isMobile ? 32 : 0, justifyContent: 'center' }}>
+                  {item.icon}
+                </ListItemIcon>
+                {(open || isMobile) && (
+                  <ListItemText
+                    primary={item.label}
+                    primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: selected ? 600 : 400 }}
+                  />
+                )}
+              </ListItemButton>
+              {item.to === '/files' && (open || isMobile) && (
+                <FolderTree
+                  folders={folders}
+                  currentFolderId={currentFolderId}
+                  onNodeClick={(f) => {
+                    navigate(`/files?folder=${f.id}`);
+                    if (isMobile) toggle();
+                  }}
+                  onAction={setNotice}
+                />
+              )}
+            </Box>
+          );
+          return open || isMobile
+            ? btn
+            : <Tooltip key={item.to} title={item.label} placement="right">{btn}</Tooltip>;
+        })}
+      </List>
+    </Box>
   );
 
   return (
@@ -146,7 +193,6 @@ export default function Layout() {
       >
         <Toolbar variant="dense" />
         {nav}
-        <Box sx={{ flexGrow: 1 }} />
         <Typography
           variant="caption"
           sx={{
@@ -161,10 +207,12 @@ export default function Layout() {
         </Typography>
       </Drawer>
 
-      <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, md: 3 } }}>
+      <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, md: 3 }, minWidth: 0 }}>
         <Toolbar variant="dense" />
         <Outlet />
       </Box>
+
+      <Snackbar open={!!notice} autoHideDuration={3500} onClose={() => setNotice('')} message={notice} />
     </Box>
   );
 }
