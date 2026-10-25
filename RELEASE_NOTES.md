@@ -5,6 +5,43 @@
 при больших/ломающих изменениях, главная — по решению владельца.
 Актуальная версия — в файле `VERSION`.
 
+## 1.0.0
+
+Автообновление десктопа + единая версия всех компонентов.
+
+- Версии унифицированы в `1.0.0`: корневой `VERSION` — единственный
+  источник; `tauri.conf.json` наследует версию из `Cargo.toml` (поле
+  `version` удалено), `package.json` web/desktop выровнены.
+- Server: сервис `App\Services\DesktopReleaseSync` + команда
+  `php artisan app:desktop-release-sync {version?}` — скачивает `.msi`/
+  `.exe` (Windows) и `.dmg` (macOS) из GitHub Releases в
+  `storage/app/public/desktop/{version}/`, пишет манифест
+  `desktop/latest.json`, чистит каталоги старых версий. Идемпотентно,
+  при ошибке GitHub API манифест не трогается.
+- Server: публичные endpoints `GET /api/desktop-version` (версия +
+  self-hosted ссылки + notes_url; без манифеста — fallback на VERSION)
+  и `GET /api/desktop-download/{platform}` (раздача файла с нашего
+  сервера, 404 без манифеста/файла).
+- Server: webhook `POST /api/desktop-release/sync` (Bearer
+  `RELEASE_SYNC_TOKEN`, `hash_equals`, иначе 401) →
+  `App\Jobs\DesktopReleaseSyncJob` в очередь → sync + broadcast.
+- Server: событие `App\Events\UpdateAvailable` (ShouldBroadcast,
+  канал `app.updates`, имя `app.update-available`, payload
+  version+downloads+notes_url); повторную рассылку той же версии
+  отсекает кэш `desktop.release_announced`.
+- CI: `release.yml` — новый job `publish` после матрицы сборок:
+  `gh release edit --draft=false` (релиз из черновика) + curl webhook
+  на сервер (секреты `RELEASE_SYNC_URL`, `RELEASE_SYNC_TOKEN`).
+- Desktop: модуль `update.rs` — semver-compare (юнит-тесты), проверка
+  `/api/desktop-version` при каждом (ре)коннекте WS-монитора, подписка
+  на `app.updates` → `app.update-available` → уведомление
+  (notification) + диалог подтверждения (dialog, дедуп по версии).
+  Windows: скачивание инсталлятора с нашего сервера → запуск
+  (msiexec/exe) → выход. macOS: открытие страницы релиза/dmg +
+  подсказка про `xattr -cr`.
+- Конфиг: `RELEASE_SYNC_TOKEN` в `services.release_sync.token`,
+  docker-compose (app-env) и `.env.example`.
+
 ## 0.5.2
 
 Автосинхронизация: FS-watcher + heartbeat корневого хэша.

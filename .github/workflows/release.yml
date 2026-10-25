@@ -58,3 +58,25 @@ jobs:
           # macOS собираем только под arm64 (Apple Silicon) — universal
           # компилирует два бинарника и вдвое дольше.
           args: ''
+
+  # После обеих сборки матрицы: релиз из draft → публичный, затем
+  # webhook на сервер — тот ставит DesktopReleaseSyncJob в очередь,
+  # выкачивает артефакты и рассылает push клиентам.
+  publish:
+    needs: build-desktop
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit ${{ github.ref_name }} -R ${{ github.repository }} --draft=false
+
+      - name: Trigger server release sync
+        env:
+          RELEASE_SYNC_URL: ${{ secrets.RELEASE_SYNC_URL }}
+          RELEASE_SYNC_TOKEN: ${{ secrets.RELEASE_SYNC_TOKEN }}
+        run: |
+          curl -fsS -X POST "$RELEASE_SYNC_URL" \
+            -H "Authorization: Bearer $RELEASE_SYNC_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"version":"${{ github.ref_name }}"}'

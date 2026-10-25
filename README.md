@@ -74,11 +74,29 @@ npm run tauri dev
 
 ## Релизы
 
-Пуш тега `v*` запускает GitHub Actions (`release.yml`): собираются `.exe`/`.msi` (Windows) и `.dmg` (macOS universal: Intel + Apple Silicon) и прикладываются к черновику релиза.
+Единый источник версии — корневой `VERSION` (X.Y.Z); `tauri.conf.json`
+наследует версию из `desktop/src-tauri/Cargo.toml`, веб читает `VERSION`
+через `__APP_VERSION__`. Релизный коммит — «bump to X.Y.Z»: правит
+`VERSION` + `Cargo.toml` + `package.json` (web и desktop) — затем тег:
 
 ```bash
-git tag v0.1.0 && git push origin v0.1.0
+git tag v1.0.0 && git push origin v1.0.0
 ```
+
+Пуш тега `v*` запускает GitHub Actions (`release.yml`): собираются
+`.msi`/`.exe` (Windows) и `.dmg` (macOS, Apple Silicon), прикладываются
+к черновику релиза, затем job `publish` выводит релиз из draft
+(`gh release edit --draft=false`) и дёргает webhook
+`POST {APP_URL}/api/desktop-release/sync` (Bearer `RELEASE_SYNC_TOKEN` —
+секреты `RELEASE_SYNC_URL`/`RELEASE_SYNC_TOKEN` в GitHub Secrets).
+
+Сервер ставит `DesktopReleaseSyncJob` в очередь: артефакты скачиваются из
+GitHub Releases в `storage/app/public/desktop/{version}/` (bind-монт
+`./data`, переживает редеплой), обновляется манифест `desktop/latest.json`,
+клиентам рассылается push `app.update-available` (канал `app.updates`,
+Reverb) — один раз на версию. Клиенты качают инсталляторы с нашего
+сервера: `GET /api/desktop-version` → ссылки `/api/desktop-download/{platform}`;
+ручной прогон — `php artisan app:desktop-release-sync {version?}`.
 
 Сборки неподписанные: на macOS первый запуск — ПКМ → «Открыть»; на Windows — «Подробнее» → «Выполнить в любом случае».
 

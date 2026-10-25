@@ -1,4 +1,5 @@
 mod sync;
+mod update;
 
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use std::io::Cursor;
@@ -390,6 +391,16 @@ async fn ws_connect_once(app: &AppHandle, online: Arc<AtomicBool>) {
         Ok((mut stream, _)) => {
             set_ws_status(app, online.clone(), true);
 
+            // Страховка на случай пропущенного push: сверка версии
+            // по HTTP при каждом (ре)коннекте.
+            {
+                let app3 = app.clone();
+                let base3 = base.clone();
+                tauri::async_runtime::spawn(async move {
+                    update::check_for_update(&app3, &base3).await;
+                });
+            }
+
             // Подписка на канал «Синхронизировать эту ветку» из веба.
             if let Some(uid) = fetch_user_id(app, &base).await {
                 let sub = serde_json::json!({
@@ -398,6 +409,12 @@ async fn ws_connect_once(app: &AppHandle, online: Arc<AtomicBool>) {
                 });
                 let _ = stream.send(Message::Text(sub.to_string().into())).await;
             }
+            // Публичный канал push-уведомлений о новой версии десктопа.
+            let sub = serde_json::json!({
+                "event": "pusher:subscribe",
+                "data": { "channel": "app.updates" },
+            });
+            let _ = stream.send(Message::Text(sub.to_string().into())).await;
 
             while let Some(msg) = stream.next().await {
                 let Ok(Message::Text(text)) = msg else { continue };
@@ -418,6 +435,15 @@ async fn ws_connect_once(app: &AppHandle, online: Arc<AtomicBool>) {
                         let folder_id = data["folder_id"].as_i64();
                         sync::log(app, "событие из веба: синхронизировать ветку".to_string());
                         sync::spawn_sync(app, folder_id);
+                    }
+                    Some("app.update-available") => {
+                        let data = v["data"]
+                            .as_str()
+                            .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok())
+                            .unwrap_or_else(|| v["data"].clone());
+                        if let Some(info) = update::UpdateInfo::from_payload(&data) {
+                            update::prompt_update(app, info);
+                        }
                     }
                     _ => {}
                 }
@@ -547,6 +573,7 @@ pub fn run() {
         .manage(sync::LogBuf(Mutex::new(std::collections::VecDeque::new())))
         .manage(sync::SyncRunning(AtomicBool::new(false)))
         .manage(sync::SyncWatch::default())
+        .manage(update::PromptedVersions::default())
         .invoke_handler(tauri::generate_handler![
             take_capture,
             take_edit,

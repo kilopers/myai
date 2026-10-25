@@ -4,6 +4,7 @@ use App\Http\Controllers\ActionController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\ApiTokenController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DesktopReleaseController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\FolderController;
 use App\Http\Controllers\InviteController;
@@ -25,6 +26,11 @@ Route::get('/ws-config', function () {
         'host' => parse_url(config('app.url'), PHP_URL_HOST) ?: 'localhost',
     ]);
 });
+
+// Автообновление десктопа: версия, раздача инсталляторов, webhook из CI
+Route::get('/desktop-version', [DesktopReleaseController::class, 'version'])->middleware('throttle:60,1');
+Route::get('/desktop-download/{platform}', [DesktopReleaseController::class, 'download'])->middleware('throttle:60,1');
+Route::post('/desktop-release/sync', [DesktopReleaseController::class, 'sync'])->middleware('throttle:10,1');
 
 // Authenticated
 Route::middleware('auth:sanctum')->group(function () {

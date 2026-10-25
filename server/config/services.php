@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    // Webhook POST /api/desktop-release/sync из GitHub Actions (релиз десктопа)
+    'release_sync' => [
+        'token' => env('RELEASE_SYNC_TOKEN'),
+    ],
+
 ];
