@@ -289,6 +289,7 @@ fn open_overlay_windows(app: &AppHandle) -> Result<(), String> {
             .transparent(true)
             .always_on_top(true)
             .skip_taskbar(true)
+            .visible_on_all_workspaces(true)
             .visible(false)
             .build()
             .map_err(|e| e.to_string())?;
@@ -296,6 +297,10 @@ fn open_overlay_windows(app: &AppHandle) -> Result<(), String> {
         // only correct in physical space; logical positions misplace windows.
         let _ = win.set_position(tauri::Position::Physical(pos));
         let _ = win.set_size(tauri::Size::Physical(size));
+        // На macOS нативный фулскрин уносит окно в отдельный Space и при
+        // подходе курсора к верху показывает нативный тайтлбар с кнопками —
+        // вместо него бордерлес-окно поверх всего экрана в текущем Space.
+        #[cfg(not(target_os = "macos"))]
         let _ = win.set_fullscreen(true);
         let _ = win.show();
     }
