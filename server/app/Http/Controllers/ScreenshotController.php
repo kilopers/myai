@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\UploadScreenshotRequest;
 use App\Http\Resources\ScreenshotResource;
-use App\Models\Folder;
 use App\Models\Screenshot;
 use App\Services\TrashService;
 use App\Support\StoragePath;
@@ -62,9 +61,6 @@ class ScreenshotController extends Controller
                 ? now()->addDays($request->user()->default_screenshot_ttl_days)
                 : null,
         ]);
-
-        // Скриншоты живут в системной папке «Скриншоты» — её dir_hash меняется.
-        SyncHash::refreshFolderChain(Folder::screenshotsFolder($request->user()));
 
         return (new ScreenshotResource($screenshot))
             ->response()

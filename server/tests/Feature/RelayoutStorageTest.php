@@ -66,18 +66,15 @@ class RelayoutStorageTest extends TestCase
         Storage::disk('public')->assertExists($shot->path);
         Storage::disk('public')->assertMissing($legacyShot);
 
-        // Системная папка «Скриншоты» создана
-        $this->assertDatabaseHas('folders', [
+        // Системная папка «Скриншоты» больше не создаётся
+        $this->assertDatabaseMissing('folders', [
             'user_id' => $user->id,
-            'name' => Folder::SCREENSHOTS_DIR,
             'is_system' => true,
         ]);
 
         // Идемпотентность: повторный запуск ничего не ломает
         $this->artisan('storage:relayout')->assertSuccessful();
         $this->assertSame($shot->path, $shot->fresh()->path);
-        $this->assertSame(1, Folder::where('user_id', $user->id)
-            ->where('name', Folder::SCREENSHOTS_DIR)->count());
     }
 
     public function test_relayout_computes_dir_hashes(): void
@@ -112,12 +109,10 @@ class RelayoutStorageTest extends TestCase
             ]]),
             $folder->dir_hash,
         );
-        // Корневой хэш: docs + системная «Скриншоты» (создана командой)
-        $sys = Folder::where('user_id', $user->id)->where('name', Folder::SCREENSHOTS_DIR)->first();
+        // Корневой хэш: только docs (скриншотов у юзера нет)
         $this->assertSame(
             SyncHash::dir([
                 ['name' => 'docs', 'hash' => SyncHash::folderEntry('docs', $folder->dir_hash)],
-                ['name' => Folder::SCREENSHOTS_DIR, 'hash' => SyncHash::folderEntry(Folder::SCREENSHOTS_DIR, $sys->dirHash())],
             ]),
             SyncHash::rootHash($user),
         );

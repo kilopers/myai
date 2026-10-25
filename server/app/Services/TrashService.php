@@ -46,12 +46,10 @@ class TrashService
 
     public function trashScreenshot(Screenshot $screenshot): void
     {
-        $this->tombstone($screenshot->user_id, 'screenshot', $screenshot->filename, (int) $screenshot->size, $screenshot->mtime, $screenshot->entryHash(), Folder::SCREENSHOTS_DIR);
-        $screenshot->original_path = Folder::SCREENSHOTS_DIR.'/'.$screenshot->filename;
+        $this->tombstone($screenshot->user_id, 'screenshot', $screenshot->filename, (int) $screenshot->size, $screenshot->mtime, $screenshot->entryHash(), '');
+        $screenshot->original_path = $screenshot->filename;
         $screenshot->saveQuietly();
         $screenshot->delete();
-
-        SyncHash::refreshFolderChain(Folder::screenshotsFolder($screenshot->user));
     }
 
     /**
@@ -120,8 +118,6 @@ class TrashService
         $screenshot->deleted_at = null;
         $screenshot->refreshEntryHash();
         $screenshot->save();
-
-        SyncHash::refreshFolderChain(Folder::screenshotsFolder($screenshot->user));
 
         return $screenshot;
     }

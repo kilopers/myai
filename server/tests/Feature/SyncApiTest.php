@@ -64,9 +64,7 @@ class SyncApiTest extends TestCase
         $r = $this->actingAs($user)->getJson('/api/sync/tree')->assertOk();
 
         $folders = collect($r->json('folders'));
-        $sys = $folders->firstWhere('is_system', true);
-        $this->assertNotNull($sys);
-        $this->assertSame(Folder::SCREENSHOTS_DIR, $sys['name']);
+        $this->assertNull($folders->firstWhere('is_system', true));
 
         $docs = $folders->firstWhere('name', 'Документы');
         $this->assertSame('Документы', $docs['path']);
@@ -75,7 +73,7 @@ class SyncApiTest extends TestCase
         $this->assertSame('a.txt', $entries->firstWhere('kind', 'file')['name']);
         $shotEntry = $entries->firstWhere('kind', 'screenshot');
         $this->assertSame('s.png', $shotEntry['name']);
-        $this->assertSame($sys['id'], $shotEntry['folder_id']);
+        $this->assertNull($shotEntry['folder_id']);
 
         $this->assertSame('gone.txt', $r->json('deleted.0.name'));
         $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $r->json('root_hash'));

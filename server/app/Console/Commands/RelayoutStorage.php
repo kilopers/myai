@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Folder;
 use App\Models\Screenshot;
 use App\Models\StoredFile;
 use App\Models\User;
@@ -14,8 +13,8 @@ use Illuminate\Support\Facades\Storage;
 /**
  * Разовая (идемпотентная) миграция хранилища на единую двухуровневую
  * раскладку files/{ab}/{cd}/{uuid}.{ext}: перекладывает физические
- * файлы и скриншоты, обновляет path, проставляет mtime/entry_hash,
- * создаёт системную папку «Скриншоты» и пересчитывает dir_hash папок.
+ * файлы и скриншоты, обновляет path, проставляет mtime/entry_hash
+ * и пересчитывает dir_hash папок.
  */
 class RelayoutStorage extends Command
 {
@@ -66,27 +65,12 @@ class RelayoutStorage extends Command
         StoredFile::withTrashed()->lazy()->each($migrate);
         Screenshot::withTrashed()->lazy()->each($migrate);
 
-        // Системная папка «Скриншоты» — каждому пользователю со скриншотами
-        // (и не только: создаём всем — десктопная синхронизация ждёт её).
-        $folders = 0;
-        foreach (User::lazy() as $user) {
-            $before = Folder::withTrashed()
-                ->where('user_id', $user->id)
-                ->whereNull('parent_id')
-                ->where('name', Folder::SCREENSHOTS_DIR)
-                ->exists();
-            Folder::screenshotsFolder($user);
-            if (! $before) {
-                $folders++;
-            }
-        }
-
         // dir_hash всех папок снизу вверх
         foreach (User::lazy() as $user) {
             SyncHash::rebuildUserHashes($user);
         }
 
-        $this->info("Moved: {$moved}, updated rows: {$updated}, missing files: {$missing}, screenshots folders: {$folders}.");
+        $this->info("Moved: {$moved}, updated rows: {$updated}, missing files: {$missing}.");
 
         return self::SUCCESS;
     }

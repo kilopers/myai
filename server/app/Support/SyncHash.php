@@ -3,7 +3,6 @@
 namespace App\Support;
 
 use App\Models\Folder;
-use App\Models\Screenshot;
 use App\Models\User;
 
 /**
@@ -45,8 +44,7 @@ class SyncHash
     }
 
     /**
-     * Дети папки для вычисления dir_hash: подпапки + файлы,
-     * у системной папки «Скриншоты» — ещё и сами скриншоты.
+     * Дети папки для вычисления dir_hash: подпапки + файлы.
      *
      * @return list<array{name: string, hash: string}>
      */
@@ -62,12 +60,6 @@ class SyncHash
         }
         foreach ($folder->files as $file) {
             $children[] = ['name' => $file->name, 'hash' => $file->entryHash()];
-        }
-        if ($folder->is_system) {
-            $shots = Screenshot::where('user_id', $folder->user_id)->get();
-            foreach ($shots as $shot) {
-                $children[] = ['name' => $shot->filename, 'hash' => $shot->entryHash()];
-            }
         }
 
         return $children;
@@ -111,6 +103,9 @@ class SyncHash
         foreach ($user->files()->whereNull('folder_id')->get() as $file) {
             $children[] = ['name' => $file->name, 'hash' => $file->entryHash()];
         }
+        foreach ($user->screenshots()->get() as $shot) {
+            $children[] = ['name' => $shot->filename, 'hash' => $shot->entryHash()];
+        }
 
         return self::dir($children);
     }
@@ -137,12 +132,6 @@ class SyncHash
             }
             foreach ($folder->files as $file) {
                 $children[] = ['name' => $file->name, 'hash' => $file->entryHash()];
-            }
-            if ($folder->is_system) {
-                $shots = Screenshot::where('user_id', $folder->user_id)->get();
-                foreach ($shots as $shot) {
-                    $children[] = ['name' => $shot->filename, 'hash' => $shot->entryHash()];
-                }
             }
             $hash = self::dir($children);
             if ($folder->dir_hash !== $hash) {

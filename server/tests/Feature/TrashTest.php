@@ -172,7 +172,7 @@ class TrashTest extends TestCase
         ]);
 
         $this->actingAs($user)->deleteJson("/api/screenshots/{$shot->uuid}")->assertOk();
-        $this->assertSame('Скриншоты/s.png', $shot->fresh()->original_path);
+        $this->assertSame('s.png', $shot->fresh()->original_path);
         $this->assertDatabaseHas('deleted_files', ['kind' => 'screenshot', 'name' => 's.png']);
 
         $this->actingAs($user)->postJson("/api/trash/screenshot/{$shot->uuid}/restore")->assertOk();
@@ -182,7 +182,9 @@ class TrashTest extends TestCase
     public function test_system_screenshots_folder_cannot_be_deleted_or_renamed(): void
     {
         $user = User::factory()->create();
-        $sys = Folder::screenshotsFolder($user);
+        $sys = Folder::create(['user_id' => $user->id, 'name' => Folder::SCREENSHOTS_DIR]);
+        $sys->is_system = true;
+        $sys->save();
 
         $this->actingAs($user)->deleteJson("/api/folders/{$sys->id}")->assertStatus(422);
         $this->actingAs($user)->putJson("/api/folders/{$sys->id}", ['name' => 'Другое'])->assertStatus(422);

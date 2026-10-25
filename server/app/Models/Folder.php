@@ -59,34 +59,4 @@ class Folder extends Model
     {
         return $this->dir_hash ?? hash('sha256', '');
     }
-
-    /**
-     * Системная корневая папка «Скриншоты» пользователя (get-or-create).
-     */
-    public static function screenshotsFolder(User $user): self
-    {
-        $folder = static::withTrashed()
-            ->where('user_id', $user->id)
-            ->whereNull('parent_id')
-            ->where('name', self::SCREENSHOTS_DIR)
-            ->first();
-
-        if ($folder === null) {
-            $folder = new self(['user_id' => $user->id, 'name' => self::SCREENSHOTS_DIR]);
-            $folder->is_system = true;
-            $folder->save();
-
-            return $folder;
-        }
-
-        if ($folder->trashed()) {
-            $folder->restore();
-        }
-        if (! $folder->is_system) {
-            $folder->is_system = true;
-            $folder->saveQuietly();
-        }
-
-        return $folder;
-    }
 }

@@ -14,14 +14,12 @@ class SyncController extends Controller
     /**
      * Полное дерево пользователя для десктопной синхронизации:
      * папки с dir_hash, файлы/скриншоты с entry_hash и tombstones.
-     * Скриншоты представлены файлами внутри системной папки «Скриншоты».
+     * Скриншоты представлены записями верхнего уровня (folder_id = null).
      */
     public function tree(Request $request): JsonResponse
     {
         $user = $request->user();
 
-        // Папка «Скриншоты» нужна дереву всегда — скриншоты лежат в ней.
-        $screenshotsFolder = Folder::screenshotsFolder($user);
         SyncHash::rebuildUserHashes($user);
 
         $folders = $user->folders()->get()->keyBy('id');
@@ -65,7 +63,7 @@ class SyncController extends Controller
             $entries[] = [
                 'id' => $shot->uuid,
                 'kind' => 'screenshot',
-                'folder_id' => $screenshotsFolder->id,
+                'folder_id' => null,
                 'name' => $shot->filename,
                 'size' => (int) $shot->size,
                 'mtime' => $shot->mtime ?? 0,
