@@ -208,23 +208,7 @@ async fn upload_screenshot(
 
     let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
 
-    // Копия скриншота в {sync_root}/Скриншоты/{uuid}.{ext} — участвует
-    // в синхронизации; mtime берём из ответа сервера, чтобы хэши совпали.
-    if let Some(uuid) = json["data"]["id"].as_str() {
-        let mtime = json["data"]["mtime"].as_u64().unwrap_or_else(|| {
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs())
-                .unwrap_or(0)
-        });
-        let ext = json["data"]["url"]
-            .as_str()
-            .and_then(|u| u.rsplit('.').next())
-            .unwrap_or("png")
-            .to_string();
-        sync::save_screenshot_copy(&app, uuid, &bytes, mtime, &ext);
-    }
-
+    // Копию в sync-папку не пишем: скриншоты живут только в вебе.
     json["data"]["url"]
         .as_str()
         .map(str::to_owned)

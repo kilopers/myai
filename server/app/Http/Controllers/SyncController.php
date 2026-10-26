@@ -59,18 +59,8 @@ class SyncController extends Controller
                 'download' => "api/files/{$file->id}/download",
             ];
         }
-        foreach ($user->screenshots()->get() as $shot) {
-            $entries[] = [
-                'id' => $shot->uuid,
-                'kind' => 'screenshot',
-                'folder_id' => null,
-                'name' => $shot->filename,
-                'size' => (int) $shot->size,
-                'mtime' => $shot->mtime ?? 0,
-                'entry_hash' => $shot->entryHash(),
-                'download' => 'i/'.$shot->uuid.'.'.pathinfo($shot->path, PATHINFO_EXTENSION),
-            ];
-        }
+        // Скриншоты в sync-дерево не входят — они живут только в вебе,
+        // на десктопе в sync-папке не появляются.
 
         return response()->json([
             'root_hash' => SyncHash::rootHash($user),

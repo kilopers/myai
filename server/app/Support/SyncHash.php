@@ -103,9 +103,7 @@ class SyncHash
         foreach ($user->files()->whereNull('folder_id')->get() as $file) {
             $children[] = ['name' => $file->name, 'hash' => $file->entryHash()];
         }
-        foreach ($user->screenshots()->get() as $shot) {
-            $children[] = ['name' => $shot->filename, 'hash' => $shot->entryHash()];
-        }
+        // Скриншоты в root_hash не входят — они не синхронизируются.
 
         return self::dir($children);
     }

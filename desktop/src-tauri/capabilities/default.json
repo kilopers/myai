@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Default capabilities for overlay and settings windows",
-  "windows": ["overlay-*", "settings", "editor"],
+  "windows": ["overlay-*", "settings", "editor", "about"],
   "permissions": [
     "core:default",
     "core:window:allow-close",

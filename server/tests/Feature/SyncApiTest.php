@@ -71,9 +71,8 @@ class SyncApiTest extends TestCase
 
         $entries = collect($r->json('entries'));
         $this->assertSame('a.txt', $entries->firstWhere('kind', 'file')['name']);
-        $shotEntry = $entries->firstWhere('kind', 'screenshot');
-        $this->assertSame('s.png', $shotEntry['name']);
-        $this->assertNull($shotEntry['folder_id']);
+        // Скриншоты не синхронизируются — в дереве их нет
+        $this->assertNull($entries->firstWhere('kind', 'screenshot'));
 
         $this->assertSame('gone.txt', $r->json('deleted.0.name'));
         $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $r->json('root_hash'));

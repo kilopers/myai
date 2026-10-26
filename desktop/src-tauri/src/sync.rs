@@ -379,29 +379,6 @@ pub fn spawn_sync(app: &AppHandle, folder_id: Option<i64>) -> bool {
     true
 }
 
-/// Скопировать PNG сделанного скриншота в корень папки синхронизации
-/// ({sync_root}/{uuid}.{ext}) с mtime, присланным сервером — хэши копии
-/// и серверной записи совпадут.
-pub fn save_screenshot_copy(app: &AppHandle, uuid: &str, png: &[u8], mtime: u64, ext: &str) {
-    let Some(root) = sync_root(app) else { return };
-    let dir = Path::new(&root);
-    if let Err(e) = std::fs::create_dir_all(dir) {
-        log(app, format!("нет доступа к папке синхронизации: {e}"));
-        return;
-    }
-    let fname = format!("{uuid}.{ext}");
-    match std::fs::write(dir.join(&fname), png) {
-        Ok(()) => {
-            let _ = filetime::set_file_mtime(
-                dir.join(&fname),
-                filetime::FileTime::from_unix_time(mtime as i64, 0),
-            );
-            log(app, format!("копия скриншота → {fname}"));
-        }
-        Err(e) => log(app, format!("не удалось сохранить копию скриншота: {e}")),
-    }
-}
-
 // ---------- основной цикл ----------
 
 async fn run_sync(app: &AppHandle, only_folder_id: Option<i64>) {
@@ -486,6 +463,10 @@ async fn run_sync(app: &AppHandle, only_folder_id: Option<i64>) {
             Some(p) => format!("{p}/{}", e.name),
             None => e.name.clone(),
         };
+        // Скриншоты в sync-папку не выгружаем — они живут только в вебе.
+        if e.kind == "screenshot" {
+            continue;
+        }
         remote_files.insert(rel, e.clone());
     }
 
@@ -1553,9 +1534,16 @@ pub fn sync_root_hash(app: AppHandle) -> Option<String> {
     {
         return Some(h);
     }
-    open_db(&app)
-        .ok()
-        .and_then(|conn| meta_get(&conn, "local_root_hash"))
+    if let Ok(conn) = open_db(&app) {
+        if let Some(h) = meta_get(&conn, "local_root_hash") {
+            return Some(h);
+        }
+    }
+    // Запасной путь: живой скан sync-папки — бывает, что sync.db
+    // ещё не записан (напр. после первого запуска на Windows).
+    let root = sync_root(&app)?;
+    let mut out = BTreeMap::new();
+    scan_dir(Path::new(&root), "", &mut out).ok()
 }
 
 #[cfg(test)]
