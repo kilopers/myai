@@ -13,6 +13,7 @@ class ApiTokenController extends Controller
     public function index(Request $request): JsonResponse
     {
         $tokens = $request->user()->tokens()
+            ->where('name', '!=', 'web')
             ->latest('id')
             ->get(['id', 'name', 'last_used_at', 'created_at']);
 

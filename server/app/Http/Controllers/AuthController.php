@@ -24,7 +24,7 @@ class AuthController extends Controller
             ]);
         }
 
-        return $this->respondWithToken($user, $request->userAgent());
+        return $this->respondWithToken($user);
     }
 
     public function logout(Request $request): JsonResponse
@@ -88,12 +88,12 @@ class AuthController extends Controller
             'used_at' => now(),
         ]);
 
-        return $this->respondWithToken($user, $request->userAgent(), 201);
+        return $this->respondWithToken($user, 201);
     }
 
-    private function respondWithToken(User $user, ?string $deviceName, int $status = 200): JsonResponse
+    private function respondWithToken(User $user, int $status = 200): JsonResponse
     {
-        $token = $user->createToken($deviceName ?: 'web')->plainTextToken;
+        $token = $user->createToken('web')->plainTextToken;
 
         return response()->json([
             'token' => $token,
