@@ -26,6 +26,8 @@ export default function TrashPage() {
   const [trashDays, setTrashDays] = useState('14');
   const [trash, setTrash] = useState({ files: [], screenshots: [] });
   const [trashTab, setTrashTab] = useState(0);
+  const [log, setLog] = useState([]);
+  const [logLoaded, setLogLoaded] = useState(false);
   const [message, setMessage] = useState('');
 
   const loadTrash = useCallback(async () => {
@@ -33,9 +35,21 @@ export default function TrashPage() {
     setTrash({ files: data.files ?? [], screenshots: data.screenshots ?? [] });
   }, []);
 
+  const loadLog = useCallback(async () => {
+    const { data } = await client.get('/api/trash/log');
+    setLog(data.entries ?? []);
+    setLogLoaded(true);
+  }, []);
+
   useEffect(() => {
     loadTrash();
   }, [loadTrash]);
+
+  useEffect(() => {
+    if (trashTab === 2 && !logLoaded) {
+      loadLog();
+    }
+  }, [trashTab, logLoaded, loadLog]);
 
   useEffect(() => {
     if (user) {
@@ -44,6 +58,7 @@ export default function TrashPage() {
   }, [user]);
 
   const items = trashTab === 0 ? trash.files : trash.screenshots;
+  const kindLabel = { file: 'Файл', screenshot: 'Скриншот', folder: 'Папка' };
 
   return (
     <Box sx={{ maxWidth: 760, mx: 'auto' }}>
@@ -96,8 +111,28 @@ export default function TrashPage() {
           <Tabs value={trashTab} onChange={(_, v) => setTrashTab(v)} sx={{ mb: 1 }}>
             <Tab label={`Файлы (${trash.files.length})`} />
             <Tab label={`Скриншоты (${trash.screenshots.length})`} />
+            <Tab label="Логи" />
           </Tabs>
 
+          {trashTab === 2 ? (
+            <List dense>
+              {log.map((entry) => (
+                <ListItem key={entry.id}>
+                  <ListItemText
+                    primary={`${entry.name} — ${kindLabel[entry.kind] ?? entry.kind}`}
+                    secondary={
+                      `${entry.dir_path || 'корень'} · ` +
+                      `${entry.size > 1048576 ? `${(entry.size / 1048576).toFixed(1)} МБ` : `${(entry.size / 1024).toFixed(1)} КБ`} · ` +
+                      `удалено ${new Date(entry.deleted_at).toLocaleString()}`
+                    }
+                  />
+                </ListItem>
+              ))}
+              {log.length === 0 && (
+                <Typography variant="body2" color="text.secondary">Журнал пуст.</Typography>
+              )}
+            </List>
+          ) : (
           <List dense>
             {items.map((item) => (
               <ListItem
@@ -143,6 +178,7 @@ export default function TrashPage() {
               <Typography variant="body2" color="text.secondary">Корзина пуста.</Typography>
             )}
           </List>
+          )}
         </CardContent>
       </Card>
 

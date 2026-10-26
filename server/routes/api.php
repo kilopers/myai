@@ -52,6 +52,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Корзина
     Route::get('/trash', [TrashController::class, 'index']);
+    Route::get('/trash/log', [TrashController::class, 'log']);
     Route::post('/trash/{type}/{id}/restore', [TrashController::class, 'restore']);
     Route::delete('/trash/{type}/{id}', [TrashController::class, 'destroy']);
     Route::delete('/trash', [TrashController::class, 'clear']);

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DeletedFile;
 use App\Models\Folder;
 use App\Models\Screenshot;
 use App\Models\StoredFile;
@@ -52,6 +53,27 @@ class TrashController extends Controller
         }
 
         return response()->json($data);
+    }
+
+    /**
+     * Журнал удалений: tombstone-записи deleted_files (хранятся 6 месяцев).
+     */
+    public function log(Request $request): JsonResponse
+    {
+        $entries = DeletedFile::where('user_id', $request->user()->id)
+            ->latest('deleted_at')
+            ->limit(500)
+            ->get()
+            ->map(fn (DeletedFile $d) => [
+                'id' => $d->id,
+                'kind' => $d->kind,
+                'name' => $d->name,
+                'dir_path' => $d->dir_path,
+                'size' => $d->size,
+                'deleted_at' => $d->deleted_at->toIso8601String(),
+            ])->values();
+
+        return response()->json(['entries' => $entries]);
     }
 
     public function restore(Request $request, string $type, string $id): JsonResponse

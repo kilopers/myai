@@ -190,4 +190,28 @@ class TrashTest extends TestCase
         $this->actingAs($user)->putJson("/api/folders/{$sys->id}", ['name' => 'Другое'])->assertStatus(422);
         $this->actingAs($user)->putJson("/api/folders/{$sys->id}", ['default_ttl_days' => 7])->assertOk();
     }
+
+    public function test_trash_log_lists_deleted_file_tombstones(): void
+    {
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        Storage::fake('public');
+
+        $file = $this->makeFile($user);
+        Storage::disk('public')->put($file->path, 'x');
+        $this->actingAs($user)->deleteJson("/api/files/{$file->id}")->assertOk();
+
+        $otherFile = $this->makeFile($other, null, ['name' => 'secret.pdf']);
+        Storage::disk('public')->put($otherFile->path, 'x');
+        $this->actingAs($other)->deleteJson("/api/files/{$otherFile->id}")->assertOk();
+
+        $res = $this->actingAs($user)->getJson('/api/trash/log')->assertOk();
+        $entries = collect($res->json('entries'));
+
+        $this->assertCount(1, $entries);
+        $this->assertSame('file', $entries[0]['kind']);
+        $this->assertSame('doc.pdf', $entries[0]['name']);
+        $this->assertArrayHasKey('dir_path', $entries[0]);
+        $this->assertArrayHasKey('deleted_at', $entries[0]);
+    }
 }
