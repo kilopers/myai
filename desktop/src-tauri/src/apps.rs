@@ -139,8 +139,9 @@ pub fn relayout(window: &tauri::Window) {
     let scale = win.scale_factor().unwrap_or(1.0);
     let lw = f64::from(size.width) / scale;
     let lh = f64::from(size.height) / scale;
-    for (label, wv) in win.webviews() {
-        let Some(idx) = label
+    for wv in win.webviews() {
+        let Some(idx) = wv
+            .label()
             .strip_prefix(&format!("app-{id}-"))
             .and_then(|s| s.parse::<usize>().ok())
         else {

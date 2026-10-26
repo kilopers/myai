@@ -7,7 +7,7 @@ use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use std::io::Cursor;
 use std::sync::Mutex;
 use tauri::{
-    menu::{CheckMenuItem, Menu, MenuBuilder, MenuItem, Submenu, SubmenuBuilder},
+    menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, MenuItemKind, PredefinedMenuItem, Submenu},
     tray::TrayIconBuilder,
     AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, Wry,
 };
@@ -707,32 +707,44 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     keepawake::register_menu(app, awake_menu.clone());
 
     // «Мои приложения»: созданные приложения, разделитель, «Настроить…».
-    let mut apps_menu = SubmenuBuilder::new(app, "Мои приложения");
+    let mut app_entries: Vec<MenuItemKind<Wry>> = Vec::new();
     for d in apps::apps_list(app.clone()) {
-        let item = MenuItem::with_id(app, format!("app-{}", d.id), &d.name, true, None::<&str>)?;
-        apps_menu = apps_menu.item(&item);
+        app_entries.push(
+            MenuItem::with_id(app, format!("app-{}", d.id), &d.name, true, None::<&str>)?
+                .into(),
+        );
     }
-    let manage_item = MenuItem::with_id(app, "apps.manage", "Настроить…", true, None::<&str>)?;
-    let apps_menu = apps_menu.separator().item(&manage_item).build()?;
+    app_entries.push(PredefinedMenuItem::separator(app)?.into());
+    app_entries.push(
+        MenuItem::with_id(app, "apps.manage", "Настроить…", true, None::<&str>)?.into(),
+    );
+    let app_refs: Vec<&dyn IsMenuItem> =
+        app_entries.iter().map(|i| i as &dyn IsMenuItem).collect();
+    let apps_menu = Submenu::with_items(app, "Мои приложения", true, &app_refs)?;
 
     let capture_item = MenuItem::with_id(app, "capture", "Сделать скриншот", true, None::<&str>)?;
     let sync_item = MenuItem::with_id(app, "sync", "Синхронизировать", true, None::<&str>)?;
     let settings_item = MenuItem::with_id(app, "settings", "Настройки", true, None::<&str>)?;
     let about_item = MenuItem::with_id(app, "about", "О программе", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
+    let sep1 = PredefinedMenuItem::separator(app)?;
+    let sep2 = PredefinedMenuItem::separator(app)?;
+    let sep3 = PredefinedMenuItem::separator(app)?;
 
-    MenuBuilder::new(app)
-        .item(&capture_item)
-        .separator()
-        .item(&awake_menu)
-        .item(&sync_item)
-        .separator()
-        .item(&apps_menu)
-        .item(&settings_item)
-        .item(&about_item)
-        .separator()
-        .item(&quit_item)
-        .build()
+    let items: Vec<MenuItemKind<Wry>> = vec![
+        capture_item.into(),
+        sep1.into(),
+        awake_menu.into(),
+        sync_item.into(),
+        sep2.into(),
+        apps_menu.into(),
+        settings_item.into(),
+        about_item.into(),
+        sep3.into(),
+        quit_item.into(),
+    ];
+    let refs: Vec<&dyn IsMenuItem> = items.iter().map(|i| i as &dyn IsMenuItem).collect();
+    Menu::with_items(app, &refs)
 }
 
 /// Пересобрать и подставить меню трея — из apps_save/apps_delete.
