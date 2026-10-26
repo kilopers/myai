@@ -5,8 +5,11 @@
 //! ES_CONTINUOUS|ES_DISPLAY_REQUIRED|ES_SYSTEM_REQUIRED.
 
 use std::sync::Mutex;
-use std::time::Duration;
-use tauri::{menu::CheckMenuItem, AppHandle, Manager, Wry};
+use std::time::{Duration, Instant};
+use tauri::{
+    menu::{CheckMenuItem, Submenu},
+    AppHandle, Manager, Wry,
+};
 
 /// Режим запрета сна.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -55,6 +58,10 @@ pub struct KeepAwake {
     mode: Mutex<Mode>,
     generation: Mutex<u64>,
     items: Mutex<Vec<CheckMenuItem<Wry>>>,
+    /// Подменю «Не давать уснуть» — в его заголовок пишем обратный отсчёт.
+    menu: Mutex<Option<Submenu<Wry>>>,
+    /// Момент авто-выключения для режима Minutes (монотонные часы).
+    deadline: Mutex<Option<Instant>>,
     #[cfg(target_os = "macos")]
     child: Mutex<Option<std::process::Child>>,
 }
@@ -65,6 +72,8 @@ impl Default for KeepAwake {
             mode: Mutex::new(Mode::Off),
             generation: Mutex::new(0),
             items: Mutex::new(Vec::new()),
+            menu: Mutex::new(None),
+            deadline: Mutex::new(None),
             #[cfg(target_os = "macos")]
             child: Mutex::new(None),
         }
@@ -78,6 +87,69 @@ pub fn register_items(app: &AppHandle, items: Vec<CheckMenuItem<Wry>>) {
     }
 }
 
+/// Сохранить хэндл подменю — нужен для строки обратного отсчёта.
+pub fn register_menu(app: &AppHandle, menu: Submenu<Wry>) {
+    if let Ok(mut guard) = app.state::<KeepAwake>().menu.lock() {
+        *guard = Some(menu);
+    }
+}
+
+/// Активен ли запрет сна — для молнии-«бейджа» на иконке трея.
+pub fn is_active(app: &AppHandle) -> bool {
+    app.try_state::<KeepAwake>()
+        .and_then(|st| st.mode.lock().ok().map(|m| *m != Mode::Off))
+        .unwrap_or(false)
+}
+
+/// Оставшееся время в «M:SS» / «H:MM:SS», бессрочный режим — «∞».
+fn fmt_remaining(mode: Mode, deadline: Option<Instant>) -> Option<String> {
+    match mode {
+        Mode::Off => None,
+        Mode::Forever => Some("∞".to_string()),
+        Mode::Minutes(_) => {
+            let s = deadline?
+                .saturating_duration_since(Instant::now())
+                .as_secs();
+            Some(if s >= 3600 {
+                format!("{}:{:02}:{:02}", s / 3600, (s % 3600) / 60, s % 60)
+            } else {
+                format!("{}:{:02}", s / 60, s % 60)
+            })
+        }
+    }
+}
+
+/// Обновить текстовые индикаторы режима: заголовок подменю, title
+/// иконки (macOS показывает текст рядом с иконкой) и тултип трея.
+fn update_tray_text(app: &AppHandle) {
+    let st = app.state::<KeepAwake>();
+    let mode = *st.mode.lock().unwrap();
+    let remaining = fmt_remaining(mode, *st.deadline.lock().unwrap());
+    let menu = st.menu.lock().unwrap().clone();
+    drop(st);
+
+    if let Some(m) = menu {
+        let text = match &remaining {
+            Some(t) => format!("Не давать уснуть · {t}"),
+            None => "Не давать уснуть".to_string(),
+        };
+        m.set_text(text);
+    }
+    if let Some(tray) = app.tray_by_id("main-tray") {
+        let hotkey = app
+            .try_state::<crate::CurrentHotkey>()
+            .and_then(|h| h.0.lock().ok().map(|s| s.clone()))
+            .unwrap_or_default();
+        let tip = match &remaining {
+            Some(t) => format!("Мой AI ассистент — {hotkey} · без сна {t}"),
+            None => format!("Мой AI ассистент — {hotkey}"),
+        };
+        tray.set_tooltip(Some(tip)).ok();
+        // Текст рядом с иконкой — виден на macOS; на Windows/Linux no-op.
+        tray.set_title(remaining.map(|t| format!("⚡{t}"))).ok();
+    }
+}
+
 /// Установить режим запрета сна.
 pub fn activate(app: &AppHandle, mode: Mode) {
     let st = app.state::<KeepAwake>();
@@ -88,6 +160,10 @@ pub fn activate(app: &AppHandle, mode: Mode) {
         *g
     };
     *st.mode.lock().unwrap() = mode;
+    *st.deadline.lock().unwrap() = match mode {
+        Mode::Minutes(min) => Some(Instant::now() + Duration::from_secs(min * 60)),
+        _ => None,
+    };
     let active = id_for_mode(mode);
     if let Ok(items) = st.items.lock() {
         for item in items.iter() {
@@ -96,7 +172,30 @@ pub fn activate(app: &AppHandle, mode: Mode) {
     }
     drop(st);
 
+    // Индикаторы: молния на иконке + строка остатка времени.
+    crate::refresh_tray_icon(app);
+    update_tray_text(app);
+
     if let Mode::Minutes(min) = mode {
+        // Тикер обратного отсчёта: раз в 5 с обновляет тексты, пока
+        // поколение режима то же (смена режима завершает тикер).
+        let app_t = app.clone();
+        tauri::async_runtime::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                let st = app_t.state::<KeepAwake>();
+                let fresh = st.generation.lock().map(|g| *g == gen).unwrap_or(false);
+                drop(st);
+                if !fresh {
+                    break;
+                }
+                let app3 = app_t.clone();
+                let _ = app_t.run_on_main_thread(move || {
+                    update_tray_text(&app3);
+                });
+            }
+        });
+
         let app2 = app.clone();
         tauri::async_runtime::spawn(async move {
             tokio::time::sleep(Duration::from_secs(min * 60)).await;

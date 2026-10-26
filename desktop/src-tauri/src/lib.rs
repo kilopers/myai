@@ -33,7 +33,7 @@ struct PendingEdit(Mutex<Option<Capture>>);
 const DEFAULT_HOTKEY: &str = "ctrl+shift+x";
 
 /// Текущий зарегистрированный глобальный хоткей захвата.
-struct CurrentHotkey(Mutex<String>);
+pub(crate) struct CurrentHotkey(pub Mutex<String>);
 
 #[derive(serde::Serialize)]
 struct CapturePayload {
@@ -326,7 +326,49 @@ fn open_overlay_windows(app: &AppHandle) -> Result<(), String> {
 /// Фоновый WS-монитор: держит подключение к Reverb и красит точку
 /// на иконке трея — жёлтая = идёт синхронизация, зелёная = online
 /// (ws + валидный токен), красная = offline.
-fn ws_icon(base: &tauri::image::Image<'_>, color: image::Rgba<u8>) -> tauri::image::Image<'static> {
+/// Молния-«бейдж» в левом нижнем углу иконки — активен режим
+/// «Не давать уснуть». Чуть крупнее точки статуса (w/2 против w/3).
+fn draw_bolt(img: &mut image::RgbaImage) {
+    // Полигон молнии в нормированных координатах [0,1]².
+    const BOLT: &[(f64, f64)] = &[
+        (0.58, 0.00),
+        (0.10, 0.56),
+        (0.42, 0.56),
+        (0.34, 1.00),
+        (0.92, 0.40),
+        (0.60, 0.40),
+    ];
+    let (w, h) = (img.width(), img.height());
+    let d = w / 2;
+    let y0 = h - d;
+    let color = image::Rgba([251, 191, 36, 255]);
+    for y in 0..d {
+        for x in 0..d {
+            // point-in-polygon (ray casting) по нормированным координатам
+            let px = (x as f64 + 0.5) / f64::from(d);
+            let py = (y as f64 + 0.5) / f64::from(d);
+            let mut inside = false;
+            for i in 0..BOLT.len() {
+                let (x1, y1) = BOLT[i];
+                let (x2, y2) = BOLT[(i + 1) % BOLT.len()];
+                if (y1 > py) != (y2 > py)
+                    && px < (x2 - x1) * (py - y1) / (y2 - y1) + x1
+                {
+                    inside = !inside;
+                }
+            }
+            if inside {
+                img.put_pixel(x, y0 + y, color);
+            }
+        }
+    }
+}
+
+fn ws_icon(
+    base: &tauri::image::Image<'_>,
+    color: image::Rgba<u8>,
+    bolt: bool,
+) -> tauri::image::Image<'static> {
     let rgba = base.rgba().to_vec();
     let (w, h) = (base.width(), base.height());
     let mut img = image::RgbaImage::from_raw(w, h, rgba).unwrap_or_default();
@@ -343,11 +385,15 @@ fn ws_icon(base: &tauri::image::Image<'_>, color: image::Rgba<u8>) -> tauri::ima
             }
         }
     }
+    if bolt {
+        draw_bolt(&mut img);
+    }
     tauri::image::Image::new_owned(img.into_raw(), w, h)
 }
 
 /// Перерисовать точку трея по текущим флагам: приоритет у жёлтой
 /// (идёт синхронизация), затем зелёная (online), иначе красная.
+/// Молния слева снизу — активен режим «Не давать уснуть».
 pub fn refresh_tray_icon(app: &AppHandle) {
     let syncing = app
         .try_state::<sync::SyncRunning>()
@@ -368,7 +414,8 @@ pub fn refresh_tray_icon(app: &AppHandle) {
         app.tray_by_id("main-tray"),
         app.default_window_icon().cloned(),
     ) {
-        tray.set_icon(Some(ws_icon(&base, color))).ok();
+        tray.set_icon(Some(ws_icon(&base, color, keepawake::is_active(app))))
+            .ok();
     }
 }
 
@@ -733,6 +780,7 @@ pub fn run() {
                 ],
             )?;
             keepawake::register_items(app.handle(), awake_items);
+            keepawake::register_menu(app.handle(), awake_menu.clone());
 
             let capture_item = MenuItem::with_id(app, "capture", "Сделать скриншот", true, None::<&str>)?;
             let sync_item = MenuItem::with_id(app, "sync", "Синхронизировать", true, None::<&str>)?;
