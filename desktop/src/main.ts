@@ -187,7 +187,7 @@ async function initSettings() {
     if (e.ctrlKey) parts.push('ctrl');
     if (e.shiftKey) parts.push('shift');
     if (e.altKey) parts.push('alt');
-    if (e.metaKey) parts.push('meta');
+    if (e.metaKey) parts.push('cmd');
     // Голая клавиша без модификатора — стреляла бы на каждое нажатие.
     if (parts.length === 0) return;
     parts.push(key);
