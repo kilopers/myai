@@ -33,8 +33,9 @@ docker-compose.yml не нужно.
 ВАЖНО: пакет `myai/server-base` в GHCR приватный и НЕ прилинкован к
 репозиторию — поэтому:
 
-- в `deploy.yml` база собирается локально и передаётся в сборку
-  server через `build-contexts` (тянуть её из registry не нужно);
+- в `deploy.yml` база собирается и пушится тегом в ПРИЛИНКОВАННЫЙ
+  пакет `myai/server` (`server:base-<версия>`), а сборка server
+  получает её через `build-args: BASE_IMAGE=...`;
 - локальный `docker compose up --build` требует `docker login ghcr.io`
   ЛИБО однократной локальной сборки базы:
   `docker build -f server/Dockerfile.base -t ghcr.io/kilopers/myai/server-base:1.0 .` —

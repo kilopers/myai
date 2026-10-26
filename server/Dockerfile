@@ -12,7 +12,11 @@ RUN composer dump-autoload --optimize
 # Базовый образ с системными зависимостями и PHP-расширениями
 # (включая ffmpeg/poppler/LibreOffice для конвертации файлов).
 # Пересборка и пуш — вручную, см. server/docker/README.md.
-FROM ghcr.io/kilopers/myai/server-base:1.0
+# BASE_IMAGE переопределяется в deploy.yml (CI пушит базу тегом
+# в прилинкованный пакет myai/server — локальные сборки берут
+# server-base из GHCR или собранный локально с тем же тегом).
+ARG BASE_IMAGE=ghcr.io/kilopers/myai/server-base:1.0
+FROM ${BASE_IMAGE}
 
 COPY server/docker/php/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
 COPY server/docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini

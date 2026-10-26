@@ -30,18 +30,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Базовый образ (ffmpeg/poppler/LibreOffice) собирается в CI, но
-      # НЕ пушится — пакет ghcr.io/kilopers/myai/server-base:1.0 уже
-      # запушен вручную для локальных сборок; здесь он собирается
-      # локально и подсовывается в сборку server через build-context
-      # (пакет не прилинкован к репо → GITHUB_TOKEN его не тянет).
-      - name: Build server base (ffmpeg/poppler/LibreOffice)
+      # Базовый образ (ffmpeg/poppler/LibreOffice): пакет
+      # myai/server-base в GHCR не прилинкован к репо — GITHUB_TOKEN
+      # его не тянет. Поэтому база пушится тегом в ПРИЛИНКОВАННЫЙ
+      # пакет myai/server (base-<версия Dockerfile.base>), а сборка
+      # server получает её через build-arg BASE_IMAGE.
+      - name: Build & push server base (ffmpeg/poppler/LibreOffice)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: server/Dockerfile.base
-          load: true
-          tags: ghcr.io/kilopers/myai/server-base:1.0
+          push: true
+          tags: ghcr.io/kilopers/myai/server:base-1.0
           cache-from: type=gha,scope=server-base
           cache-to: type=gha,mode=max,scope=server-base
 
@@ -54,8 +54,8 @@ jobs:
           tags: |
             ghcr.io/kilopers/myai/server:latest
             ghcr.io/kilopers/myai/server:${{ github.sha }}
-          build-contexts: |
-            ghcr.io/kilopers/myai/server-base:1.0=docker-image://ghcr.io/kilopers/myai/server-base:1.0
+          build-args: |
+            BASE_IMAGE=ghcr.io/kilopers/myai/server:base-1.0
           cache-from: type=gha,scope=server
           cache-to: type=gha,mode=max,scope=server
 
