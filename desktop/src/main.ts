@@ -165,6 +165,13 @@ async function initSettings() {
   const hotkeyInput = document.getElementById('hotkey') as HTMLInputElement;
   const autostartInput = document.getElementById('autostart') as HTMLInputElement;
   const status = document.getElementById('settings-status')!;
+  // Статус — одна строка справа от кнопки «Сохранить» (не меняет
+  // высоту окна); длинный текст обрезается, полный — в тултипе.
+  const setStatus = (text: string, color = '#7bd88a') => {
+    status.textContent = text;
+    status.title = text;
+    status.style.color = color;
+  };
 
   urlInput.value = (await store.get<string>(STORE_KEYS.serverUrl)) ?? '';
   tokenInput.value = (await store.get<string>(STORE_KEYS.apiToken)) ?? '';
@@ -210,13 +217,11 @@ async function initSettings() {
   document.getElementById('sync-now')!.addEventListener('click', async () => {
     try {
       const started = await invoke<boolean>('sync_now');
-      status.textContent = started ? 'Синхронизация запущена' : 'Синхронизация уже идёт';
-      status.style.color = '#8f8f8f';
+      setStatus(started ? 'Синхронизация запущена' : 'Синхронизация уже идёт', '#8f8f8f');
     } catch (e) {
-      status.textContent = `Ошибка: ${e}`;
-      status.style.color = '#e5534b';
+      setStatus(`Ошибка: ${e}`, '#e5534b');
     }
-    setTimeout(() => { status.textContent = ''; }, 4000);
+    setTimeout(() => setStatus(''), 4000);
   });
 
   // --- хэш корня синхронизируемой папки (для сверки с вебом) ---
@@ -265,7 +270,7 @@ async function initSettings() {
       if (autostartInput.checked) await enableAutostart();
       else await disableAutostart();
     } catch (e) {
-      status.textContent = `Настройки сохранены, автозапуск: ${e}`;
+      setStatus(`Настройки сохранены, автозапуск: ${e}`, '#e5534b');
       return;
     }
     // Хоткей применяем через Rust — регистрация глобального shortcut.
@@ -277,26 +282,23 @@ async function initSettings() {
         await store.save();
         savedHotkey = newHotkey;
       } catch (e) {
-        status.textContent = `Хоткей не применён: ${e}`;
-        status.style.color = '#e5534b';
+        setStatus(`Хоткей не применён: ${e}`, '#e5534b');
         hotkeyInput.value = savedHotkey;
-        setTimeout(() => { status.textContent = ''; }, 6000);
+        setTimeout(() => setStatus(''), 6000);
         return;
       }
     }
     // Сразу показываем состояние подключения: токен проверяем
     // через /api/auth/me — невалидный токен ≠ «подключено».
-    status.textContent = 'Сохранено. Проверяю соединение…';
-    status.style.color = '#8f8f8f';
+    setStatus('Сохранено. Проверяю соединение…', '#8f8f8f');
     try {
       const host = urlInput.value.trim().replace(/\/+$/, '');
       const meResp = await fetch(`${host}/api/auth/me`, {
         headers: { Authorization: `Bearer ${tokenInput.value.trim()}` },
       });
       if (!meResp.ok) {
-        status.textContent = 'Сохранено. ● Токен не принят сервером';
-        status.style.color = '#e5534b';
-        setTimeout(() => { status.textContent = ''; }, 6000);
+        setStatus('Сохранено. ● Токен не принят сервером', '#e5534b');
+        setTimeout(() => setStatus(''), 6000);
         return;
       }
       const cfg = await fetch(`${host}/api/ws-config`).then((r) => r.json());
@@ -310,13 +312,11 @@ async function initSettings() {
       });
       const ok = await done;
       ws.close();
-      status.textContent = ok ? 'Сохранено. ● Подключено' : 'Сохранено. ● Нет соединения';
-      status.style.color = ok ? '#7bd88a' : '#e5534b';
+      setStatus(ok ? 'Сохранено. ● Подключено' : 'Сохранено. ● Нет соединения', ok ? '#7bd88a' : '#e5534b');
     } catch {
-      status.textContent = 'Сохранено. ● Нет соединения';
-      status.style.color = '#e5534b';
+      setStatus('Сохранено. ● Нет соединения', '#e5534b');
     }
-    setTimeout(() => { status.textContent = ''; }, 4000);
+    setTimeout(() => setStatus(''), 4000);
   });
 }
 

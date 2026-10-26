@@ -76,7 +76,11 @@
         font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace;
         overflow-y: auto; white-space: pre-wrap;
       }
-      #settings-status { color: #7bd88a; font-size: 12px; margin-top: 8px; }
+      #settings-status {
+        color: #7bd88a; font-size: 12px; flex: 1; min-width: 0;
+        text-align: right; white-space: nowrap;
+        overflow: hidden; text-overflow: ellipsis;
+      }
     </style>
   </head>
   <body>
@@ -112,8 +116,10 @@
         <a href="#" id="open-privacy">открыть «Конфиденциальность и безопасность»</a>
       </div>
 
-      <button id="save-settings">Сохранить</button>
-      <div id="settings-status"></div>
+      <div class="row" style="margin-top:8px; align-items:center">
+        <button id="save-settings">Сохранить</button>
+        <div id="settings-status"></div>
+      </div>
 
       <div class="hint" id="sync-hash" style="margin-top:8px"></div>
 
