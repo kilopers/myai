@@ -65,7 +65,8 @@ fn find(app: &AppHandle, id: &str) -> Option<AppDef> {
 }
 
 fn persist(app: &AppHandle) {
-    let Ok(list) = app.state::<AppsState>().list.lock() else {
+    let st = app.state::<AppsState>();
+    let Ok(list) = st.list.lock() else {
         return;
     };
     if let Ok(store) = app.store("settings.json") {

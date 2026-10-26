@@ -5,6 +5,12 @@
 при больших/ломающих изменениях, главная — по решению владельца.
 Актуальная версия — в файле `VERSION`.
 
+## 1.4.3
+
+- fix(desktop): сборка — в setup `apps::load`/`refresh_hotkeys`
+  вызывались с `&mut App` вместо `&AppHandle` (через `app.handle()`);
+  `MutexGuard` в `persist` переживал временный `State` (E0716).
+
 ## 1.4.2
 
 - fix(desktop): сборка всё ещё падала — `add_child`/`webviews`/

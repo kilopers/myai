@@ -886,8 +886,8 @@ pub fn run() {
 
             // «Мои приложения» — список из settings.json и регистрация
             // всех хоткеев (перерегистрирует и захват).
-            *app.state::<apps::AppsState>().list.lock().unwrap() = apps::load(app);
-            apps::refresh_hotkeys(app);
+            *app.state::<apps::AppsState>().list.lock().unwrap() = apps::load(app.handle());
+            apps::refresh_hotkeys(app.handle());
 
             // Трей-меню со статическими пунктами, разделителями и
             // подменю «Мои приложения» из текущего списка.
