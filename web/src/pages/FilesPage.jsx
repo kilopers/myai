@@ -63,6 +63,39 @@ function fileIcon(mime) {
 const fmtSize = (n) =>
   n > 1048576 ? `${(n / 1048576).toFixed(1)} МБ` : `${(n / 1024).toFixed(1)} КБ`;
 
+// Миниатюра для файлов-картинок: файл приватный, поэтому грузим blob'ом.
+function FileThumb({ f }) {
+  const [url, setUrl] = useState(null);
+
+  useEffect(() => {
+    if (!f.mime_type?.startsWith('image/')) return undefined;
+    let obj;
+    client
+      .get(`/api/files/${f.id}/download`, { responseType: 'blob' })
+      .then(({ data }) => {
+        obj = URL.createObjectURL(data);
+        setUrl(obj);
+      })
+      .catch(() => {});
+    return () => {
+      if (obj) URL.revokeObjectURL(obj);
+    };
+  }, [f.id, f.mime_type]);
+
+  if (url) {
+    return (
+      <Box
+        component="img"
+        src={url}
+        alt={f.name}
+        loading="lazy"
+        sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+      />
+    );
+  }
+  return fileIcon(f.mime_type);
+}
+
 export default function FilesPage() {
   const [folders, setFolders] = useState([]);
   const [files, setFiles] = useState([]);
@@ -373,10 +406,11 @@ export default function FilesPage() {
                 justifyContent: 'center',
                 cursor: 'pointer',
                 bgcolor: 'action.hover',
+                overflow: 'hidden',
                 '& svg': { fontSize: 40 },
               }}
             >
-              {fileIcon(f.mime_type)}
+              <FileThumb f={f} />
             </Box>
             <CardContent sx={{ p: 1, '&:last-child': { pb: 1 }, flexGrow: 1 }}>
               <Tooltip title={f.name}>
