@@ -219,6 +219,18 @@ export default function FilesPage() {
     };
   }, [folderId, load, watch]);
 
+  // Подстраховка: если ws-событие file.conversion не дошло (обрыв или
+  // мёртвый сокет), прогресс всё равно двигается — периодически
+  // перечитываем список, пока есть файлы в конвертации.
+  const hasConverting = files.some(
+    (f) => f.conversion_status === 'pending' || f.conversion_status === 'processing',
+  );
+  useEffect(() => {
+    if (!hasConverting) return undefined;
+    const t = setInterval(load, 2000);
+    return () => clearInterval(t);
+  }, [hasConverting, load]);
+
   const fmtSpeed = (bps) =>
     bps >= 1048576 ? `${(bps / 1048576).toFixed(1)} МБ/с` : `${Math.max(1, Math.round(bps / 1024))} КБ/с`;
 
