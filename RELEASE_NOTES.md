@@ -5,6 +5,12 @@
 при больших/ломающих изменениях, главная — по решению владельца.
 Актуальная версия — в файле `VERSION`.
 
+## 1.4.4
+
+- fix(desktop): `Submenu::set_text` в tauri 2.12 возвращает
+  `Result` — игнорируем через `let _ =` (unused_must_use при
+  `-D warnings` в CI).
+
 ## 1.4.3
 
 - fix(desktop): сборка — в setup `apps::load`/`refresh_hotkeys`

@@ -133,7 +133,7 @@ fn update_tray_text(app: &AppHandle) {
             Some(t) => format!("Не давать уснуть · {t}"),
             None => "Не давать уснуть".to_string(),
         };
-        m.set_text(text);
+        let _ = m.set_text(text);
     }
     if let Some(tray) = app.tray_by_id("main-tray") {
         let hotkey = app
