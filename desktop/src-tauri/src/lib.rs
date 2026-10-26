@@ -709,17 +709,26 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     // «Мои приложения»: созданные приложения, разделитель, «Настроить…».
     let mut app_entries: Vec<MenuItemKind<Wry>> = Vec::new();
     for d in apps::apps_list(app.clone()) {
-        app_entries.push(
-            MenuItem::with_id(app, format!("app-{}", d.id), &d.name, true, None::<&str>)?
-                .into(),
-        );
+        app_entries.push(MenuItemKind::MenuItem(MenuItem::with_id(
+            app,
+            format!("app-{}", d.id),
+            &d.name,
+            true,
+            None::<&str>,
+        )?));
     }
-    app_entries.push(PredefinedMenuItem::separator(app)?.into());
-    app_entries.push(
-        MenuItem::with_id(app, "apps.manage", "Настроить…", true, None::<&str>)?.into(),
-    );
-    let app_refs: Vec<&dyn IsMenuItem> =
-        app_entries.iter().map(|i| i as &dyn IsMenuItem).collect();
+    app_entries.push(MenuItemKind::Predefined(PredefinedMenuItem::separator(
+        app,
+    )?));
+    app_entries.push(MenuItemKind::MenuItem(MenuItem::with_id(
+        app,
+        "apps.manage",
+        "Настроить…",
+        true,
+        None::<&str>,
+    )?));
+    let app_refs: Vec<&dyn IsMenuItem<Wry>> =
+        app_entries.iter().map(|i| i as &dyn IsMenuItem<Wry>).collect();
     let apps_menu = Submenu::with_items(app, "Мои приложения", true, &app_refs)?;
 
     let capture_item = MenuItem::with_id(app, "capture", "Сделать скриншот", true, None::<&str>)?;
@@ -732,18 +741,19 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let sep3 = PredefinedMenuItem::separator(app)?;
 
     let items: Vec<MenuItemKind<Wry>> = vec![
-        capture_item.into(),
-        sep1.into(),
-        awake_menu.into(),
-        sync_item.into(),
-        sep2.into(),
-        apps_menu.into(),
-        settings_item.into(),
-        about_item.into(),
-        sep3.into(),
-        quit_item.into(),
+        MenuItemKind::MenuItem(capture_item),
+        MenuItemKind::Predefined(sep1),
+        MenuItemKind::Submenu(awake_menu),
+        MenuItemKind::MenuItem(sync_item),
+        MenuItemKind::Predefined(sep2),
+        MenuItemKind::Submenu(apps_menu),
+        MenuItemKind::MenuItem(settings_item),
+        MenuItemKind::MenuItem(about_item),
+        MenuItemKind::Predefined(sep3),
+        MenuItemKind::MenuItem(quit_item),
     ];
-    let refs: Vec<&dyn IsMenuItem> = items.iter().map(|i| i as &dyn IsMenuItem).collect();
+    let refs: Vec<&dyn IsMenuItem<Wry>> =
+        items.iter().map(|i| i as &dyn IsMenuItem<Wry>).collect();
     Menu::with_items(app, &refs)
 }
 

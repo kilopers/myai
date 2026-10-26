@@ -99,7 +99,7 @@ fn panel_count(layout: &str) -> usize {
 }
 
 /// Расставить дочерние вебвью по текущему размеру окна.
-fn layout_children(win: &tauri::WebviewWindow, def: &AppDef) {
+fn layout_children(win: &tauri::Window, def: &AppDef) {
     let Ok(size) = win.inner_size() else { return };
     let scale = win.scale_factor().unwrap_or(1.0);
     let lw = f64::from(size.width) / scale;
@@ -130,7 +130,7 @@ pub fn relayout(window: &tauri::Window) {
     let Some(def) = find(app, id) else {
         return;
     };
-    let Some(win) = app.get_webview_window(&format!("app-{id}")) else {
+    let Some(win) = app.get_window(&format!("app-{id}")) else {
         return;
     };
     let Ok(size) = win.inner_size() else {
@@ -192,10 +192,13 @@ fn open_window(app: &AppHandle, def: &AppDef) {
     if let (Some(x), Some(y)) = (def.x, def.y) {
         b = b.position(x, y);
     }
-    let Ok(win) = b.build() else {
+    if b.build().is_err() {
+        return;
+    }
+    let Some(window) = app.get_window(&label) else {
         return;
     };
-    layout_children(&win, def);
+    layout_children(&window, def);
 }
 
 /// Открыть или скрыть окно приложения.

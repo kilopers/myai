@@ -5,6 +5,15 @@
 при больших/ломающих изменениях, главная — по решению владельца.
 Актуальная версия — в файле `VERSION`.
 
+## 1.4.2
+
+- fix(desktop): сборка всё ещё падала — `add_child`/`webviews`/
+  `WebviewBuilder` доступны только с cargo-фичей `unstable`
+  и являются методами `tauri::Window`, а не `WebviewWindow`;
+  у `MenuItemKind` нет `From`-конверсий — элементы меню
+  конструируются вариантами (`MenuItemKind::MenuItem` и т.д.),
+  `IsMenuItem` требует параметр `IsMenuItem<Wry>`.
+
 ## 1.4.1
 
 - fix(desktop): падала сборка Rust после v1.4.0 — `webviews()`
