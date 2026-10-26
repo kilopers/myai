@@ -25,10 +25,20 @@ docker build -f server/Dockerfile.base -t ghcr.io/kilopers/myai/server-base:1.0 
 docker push ghcr.io/kilopers/myai/server-base:1.0
 ```
 
-После пуша нового тега обновить `FROM` в `server/Dockerfile`.
+После пуша нового тега обновить `FROM` в `server/Dockerfile` и тег
+в шаге «Build server base» в `.github/workflows/deploy.yml`.
 Образ единый для сервисов `app`, `queue` и `reverb` — менять
 docker-compose.yml не нужно.
 
-GHCR пакет вложенный (`kilopers/myai/server-base`) — создаётся первым
-пушем; чтобы он прилинковался к репозиторию, пушь из GitHub Actions
-(`GITHUB_TOKEN`) или вручную добавь связь в настройках пакета.
+ВАЖНО: пакет `myai/server-base` в GHCR приватный и НЕ прилинкован к
+репозиторию — поэтому:
+
+- в `deploy.yml` база собирается локально и передаётся в сборку
+  server через `build-contexts` (тянуть её из registry не нужно);
+- локальный `docker compose up --build` требует `docker login ghcr.io`
+  ЛИБО однократной локальной сборки базы:
+  `docker build -f server/Dockerfile.base -t ghcr.io/kilopers/myai/server-base:1.0 .` —
+  buildkit возьмёт локальный образ для `FROM`;
+- при желании прилинкуй пакет к репо в настройках пакета на GitHub
+  (видимость тогда можно поднять до public — тогда база тянется
+  без логина вообще).
