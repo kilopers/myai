@@ -87,7 +87,7 @@ export default function Layout() {
 
   const nav = (
     <Box sx={{ overflowY: 'auto', flexGrow: 1 }}>
-      <List sx={{ px: 0.75, pt: 0.75 }}>
+      <List sx={{ px: 0.5, pt: 0.5 }}>
         {items.map((item) => {
           const selected = item.to === '/'
             ? location.pathname === '/'
@@ -102,11 +102,12 @@ export default function Layout() {
                 sx={{
                   borderRadius: 1.5,
                   mb: 0.125,
-                  py: 0.5,
-                  px: 1.25,
+                  py: 0.375,
+                  px: 0.75,
                   color: '#303030',
                   justifyContent: open || isMobile ? 'initial' : 'center',
-                  '& .MuiListItemIcon-root': { color: '#626168', minWidth: 30 },
+                  '& .MuiListItemIcon-root': { color: '#626168', minWidth: 38 },
+                  '& .MuiListItemIcon-root svg': { fontSize: 18 },
                   '&:hover': { bgcolor: '#e4e4ee' },
                   '&.Mui-selected': {
                     bgcolor: '#dcdce9',
@@ -118,7 +119,7 @@ export default function Layout() {
                   },
                 }}
               >
-                <ListItemIcon sx={{ minWidth: open || isMobile ? 32 : 0, justifyContent: 'center' }}>
+                <ListItemIcon sx={{ minWidth: open || isMobile ? 38 : 0, justifyContent: 'center' }}>
                   {item.icon}
                 </ListItemIcon>
                 {(open || isMobile) && (
