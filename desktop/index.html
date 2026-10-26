@@ -88,6 +88,12 @@
       <input id="server-url" placeholder="https://shots.example.com" />
       <label>API-токен</label>
       <input id="api-token" placeholder="1|abcdef..." />
+      <label>Горячая клавиша скриншота</label>
+      <input id="hotkey" placeholder="ctrl+shift+x" readonly />
+      <div class="hint" style="margin-top:4px">
+        Кликните по полю и нажмите сочетание — обязателен модификатор
+        (Ctrl/Shift/Alt/Cmd).
+      </div>
       <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer">
         <input type="checkbox" id="autostart" style="width:auto" />
         Запускать при старте системы
@@ -115,7 +121,6 @@
       <textarea id="sync-log" readonly></textarea>
 
       <div class="hint">
-        Хоткей: Ctrl+Shift+X — выделение области.<br />
         Токен создаётся в веб-интерфейсе: Настройки → API-токены.
       </div>
 
@@ -126,7 +131,7 @@
       <h1 style="font-size:20px;margin:0 0 8px">Мой AI ассистент</h1>
       <div class="hint" id="about-version" style="color:#aaa;font-size:13px"></div>
       <div class="hint" style="color:#777;font-size:12px;margin-top:16px">
-        Скриншоты по Ctrl+Shift+X
+        Скриншоты по горячей клавише (меняется в настройках)
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

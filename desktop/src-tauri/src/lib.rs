@@ -1,3 +1,4 @@
+mod keepawake;
 mod sync;
 mod update;
 
@@ -5,11 +6,11 @@ use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use std::io::Cursor;
 use std::sync::Mutex;
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{CheckMenuItem, Menu, MenuItem, Submenu},
     tray::TrayIconBuilder,
     AppHandle, Manager, WebviewUrl, WebviewWindowBuilder,
 };
-use tauri_plugin_global_shortcut::ShortcutState;
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_plugin_store::StoreExt;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use futures_util::{SinkExt, StreamExt};
@@ -28,6 +29,11 @@ struct PendingCapture(Mutex<Vec<Option<Capture>>>);
 
 // Кроп выделенной области — его забирает окно редактора.
 struct PendingEdit(Mutex<Option<Capture>>);
+
+const DEFAULT_HOTKEY: &str = "ctrl+shift+x";
+
+/// Текущий зарегистрированный глобальный хоткей захвата.
+struct CurrentHotkey(Mutex<String>);
 
 #[derive(serde::Serialize)]
 struct CapturePayload {
@@ -520,6 +526,51 @@ fn ws_status(state: tauri::State<'_, Arc<AtomicBool>>) -> bool {
     state.load(Ordering::SeqCst)
 }
 
+/// Текущий хоткей захвата — для показа в настройках.
+#[tauri::command]
+fn get_hotkey(app: AppHandle) -> String {
+    app.state::<CurrentHotkey>()
+        .0
+        .lock()
+        .map(|s| s.clone())
+        .unwrap_or_else(|_| DEFAULT_HOTKEY.to_string())
+}
+
+/// Смена глобального хоткея захвата из окна настроек.
+#[tauri::command]
+fn set_hotkey(app: AppHandle, accel: String) -> Result<(), String> {
+    let accel = accel.trim().to_string();
+    if accel.is_empty() {
+        return Err("пустая комбинация".into());
+    }
+    // Валидация до снятия старого хоткея.
+    accel
+        .parse::<Shortcut>()
+        .map_err(|_| "некорректная комбинация клавиш".to_string())?;
+    let prev = app
+        .state::<CurrentHotkey>()
+        .0
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone();
+    if prev == accel {
+        return Ok(());
+    }
+    let gs = app.global_shortcut();
+    let _ = gs.unregister_all();
+    if let Err(e) = gs.register(accel.as_str()) {
+        // Занято другим приложением или ОС — возвращаем прежний хоткей.
+        if !prev.is_empty() {
+            let _ = gs.register(prev.as_str());
+        }
+        return Err(format!("не удалось зарегистрировать: {e}"));
+    }
+    if let Ok(mut cur) = app.state::<CurrentHotkey>().0.lock() {
+        *cur = accel;
+    }
+    Ok(())
+}
+
 /// Окно «О программе» — версия приложения.
 fn open_about_window(app: &AppHandle) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("about") {
@@ -589,8 +640,6 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_shortcut("ctrl+shift+x")
-                .expect("invalid shortcut")
                 .with_handler(|app, _shortcut, event| {
                     if event.state == ShortcutState::Pressed {
                         trigger_capture(app);
@@ -613,6 +662,8 @@ pub fn run() {
         .manage(sync::SyncRunning(AtomicBool::new(false)))
         .manage(sync::SyncWatch::default())
         .manage(update::PromptedVersions::default())
+        .manage(keepawake::KeepAwake::default())
+        .manage(CurrentHotkey(Mutex::new(String::new())))
         .invoke_handler(tauri::generate_handler![
             take_capture,
             take_edit,
@@ -629,23 +680,78 @@ pub fn run() {
             sync::get_sync_folder,
             sync::set_sync_folder,
             sync::os_name,
-            sync::open_privacy_settings
+            sync::open_privacy_settings,
+            get_hotkey,
+            set_hotkey
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
+            // Хоткей захвата — из настроек, дефолт ctrl+shift+x. Если
+            // сохранённый не регистрируется (занят/невалиден) — дефолт.
+            let hotkey = app
+                .store("settings.json")
+                .ok()
+                .and_then(|s| s.get("hotkey"))
+                .and_then(|v| v.as_str().map(str::to_owned))
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or_else(|| DEFAULT_HOTKEY.to_string());
+            let gs = app.global_shortcut();
+            let registered = if gs.register(hotkey.as_str()).is_ok() {
+                hotkey
+            } else {
+                let _ = gs.register(DEFAULT_HOTKEY);
+                DEFAULT_HOTKEY.to_string()
+            };
+            *app.state::<CurrentHotkey>().0.lock().unwrap() = registered.clone();
+
+            // Подменю «Не давать уснуть» — галочки режимов + «Выключить».
+            let mut awake_items: Vec<CheckMenuItem<_>> = Vec::new();
+            for (id, label) in keepawake::MENU {
+                let checked = *id == keepawake::OFF_ID;
+                awake_items.push(CheckMenuItem::with_id(
+                    app,
+                    *id,
+                    *label,
+                    true,
+                    checked,
+                    None::<&str>,
+                )?);
+            }
+            let awake_menu = Submenu::with_items(
+                app,
+                "Не давать уснуть",
+                true,
+                &[
+                    &awake_items[0],
+                    &awake_items[1],
+                    &awake_items[2],
+                    &awake_items[3],
+                    &awake_items[4],
+                    &awake_items[5],
+                ],
+            )?;
+            keepawake::register_items(app.handle(), awake_items);
 
             let capture_item = MenuItem::with_id(app, "capture", "Сделать скриншот", true, None::<&str>)?;
             let sync_item = MenuItem::with_id(app, "sync", "Синхронизировать", true, None::<&str>)?;
             let settings_item = MenuItem::with_id(app, "settings", "Настройки", true, None::<&str>)?;
             let about_item = MenuItem::with_id(app, "about", "О программе", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&capture_item, &sync_item, &settings_item, &about_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[
+                &capture_item,
+                &awake_menu,
+                &sync_item,
+                &settings_item,
+                &about_item,
+                &quit_item,
+            ])?;
 
             TrayIconBuilder::with_id("main-tray")
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
-                .tooltip("Мой AI ассистент — Ctrl+Shift+X")
+                .tooltip(format!("Мой AI ассистент — {registered}"))
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "capture" => trigger_capture(app),
                     "sync" => {
@@ -662,6 +768,7 @@ pub fn run() {
                         }
                     }
                     "quit" => app.exit(0),
+                    id if id.starts_with("awake-") => keepawake::menu_event(app, id),
                     _ => {}
                 })
                 .build(app)?;

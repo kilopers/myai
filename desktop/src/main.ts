@@ -127,6 +127,31 @@ async function uploadPng(base64: string): Promise<string | null> {
   }
 }
 
+// KeyboardEvent.code → имя клавиши для global-hotkey (см. parse_key).
+function codeToAccel(code: string): string | null {
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3).toLowerCase();
+  if (/^Digit\d$/.test(code)) return code.slice(5);
+  if (/^F\d{1,2}$/.test(code)) return code.toLowerCase();
+  if (/^Numpad\d$/.test(code)) return `num${code.slice(6)}`;
+  const named: Record<string, string> = {
+    Space: 'space', ArrowUp: 'up', ArrowDown: 'down',
+    ArrowLeft: 'left', ArrowRight: 'right', Tab: 'tab', Enter: 'enter',
+    Escape: 'escape', Backspace: 'backspace', Delete: 'delete',
+    Insert: 'insert', Home: 'home', End: 'end',
+    PageUp: 'pageup', PageDown: 'pagedown', CapsLock: 'capslock',
+    NumLock: 'numlock', PrintScreen: 'printscreen', ScrollLock: 'scrolllock',
+    Pause: 'pause', Minus: 'minus', Equal: 'equal',
+    BracketLeft: 'bracketleft', BracketRight: 'bracketright',
+    Semicolon: 'semicolon', Quote: 'quote', Comma: 'comma',
+    Period: 'period', Slash: 'slash', Backslash: 'backslash',
+    Backquote: 'backquote', NumpadAdd: 'numadd', NumpadSubtract: 'numsubtract',
+    NumpadMultiply: 'nummultiply', NumpadDivide: 'numdivide',
+    NumpadDecimal: 'numdecimal', NumpadEnter: 'numenter',
+    NumpadEqual: 'numequal',
+  };
+  return named[code] ?? null;
+}
+
 // ---------- settings view ----------
 async function initSettings() {
   const view = document.getElementById('settings-view')!;
@@ -137,12 +162,37 @@ async function initSettings() {
   const store = await Store.load('settings.json');
   const urlInput = document.getElementById('server-url') as HTMLInputElement;
   const tokenInput = document.getElementById('api-token') as HTMLInputElement;
+  const hotkeyInput = document.getElementById('hotkey') as HTMLInputElement;
   const autostartInput = document.getElementById('autostart') as HTMLInputElement;
   const status = document.getElementById('settings-status')!;
 
   urlInput.value = (await store.get<string>(STORE_KEYS.serverUrl)) ?? '';
   tokenInput.value = (await store.get<string>(STORE_KEYS.apiToken)) ?? '';
   autostartInput.checked = await isAutostartEnabled();
+
+  // --- горячая клавиша захвата: поле ловит нажатую комбинацию ---
+  let savedHotkey = (await store.get<string>('hotkey')) ?? 'ctrl+shift+x';
+  try {
+    // Авторитет — реально зарегистрированный в Rust хоткей.
+    savedHotkey = await invoke<string>('get_hotkey');
+  } catch { /* команда недоступна — остаётся стор */ }
+  hotkeyInput.value = savedHotkey;
+  const MODIFIERS = new Set(['Control', 'Shift', 'Alt', 'Meta']);
+  hotkeyInput.addEventListener('keydown', (e) => {
+    e.preventDefault();
+    if (MODIFIERS.has(e.key)) return;
+    const key = codeToAccel(e.code);
+    if (!key) return;
+    const parts: string[] = [];
+    if (e.ctrlKey) parts.push('ctrl');
+    if (e.shiftKey) parts.push('shift');
+    if (e.altKey) parts.push('alt');
+    if (e.metaKey) parts.push('meta');
+    // Голая клавиша без модификатора — стреляла бы на каждое нажатие.
+    if (parts.length === 0) return;
+    parts.push(key);
+    hotkeyInput.value = parts.join('+');
+  });
 
   // --- папка синхронизации ---
   const folderInput = document.getElementById('sync-folder') as HTMLInputElement;
@@ -217,6 +267,22 @@ async function initSettings() {
     } catch (e) {
       status.textContent = `Настройки сохранены, автозапуск: ${e}`;
       return;
+    }
+    // Хоткей применяем через Rust — регистрация глобального shortcut.
+    const newHotkey = hotkeyInput.value.trim();
+    if (newHotkey !== savedHotkey) {
+      try {
+        await invoke('set_hotkey', { accel: newHotkey });
+        await store.set('hotkey', newHotkey);
+        await store.save();
+        savedHotkey = newHotkey;
+      } catch (e) {
+        status.textContent = `Хоткей не применён: ${e}`;
+        status.style.color = '#e5534b';
+        hotkeyInput.value = savedHotkey;
+        setTimeout(() => { status.textContent = ''; }, 6000);
+        return;
+      }
     }
     // Сразу показываем состояние подключения: токен проверяем
     // через /api/auth/me — невалидный токен ≠ «подключено».
