@@ -36,5 +36,8 @@ RUN apk add --no-cache \
     # Каждый вызов в конце удаляет /usr/src/php (маркер .docker-delete-me):
     # цикл по одному ext затирал сконфигурированный Makefile gd и
     # пересобирал его с дефолтными флагами — gd выходил без JPEG/WebP.
-    && docker-php-ext-install -j"$(nproc)" bcmath gd intl opcache pcntl pdo_mysql zip \
+    # opcache НЕ ставим: в PHP 8.5 он встроен в ядро и не отключается —
+    # попытка собрать его как shared-ext даёт пустой Makefile и
+    # `cp: can't stat 'modules/*'` на этапе install.
+    && docker-php-ext-install -j"$(nproc)" bcmath gd intl pcntl pdo_mysql zip \
     && rm -rf /var/cache/apk/*
