@@ -46,7 +46,12 @@ class DesktopReleaseController extends Controller
         $path = DesktopReleaseSync::DIR."/{$version}/{$file}";
         abort_unless(Storage::disk('public')->exists($path), 404);
 
-        return Storage::disk('public')->download($path, $file);
+        // GitHub режет имена ассетов до ASCII («AI._1.1.3_…») — при отдаче
+        // подменяем имя на читаемое «Мой AI ассистент_1.1.3_<suffix>».
+        $suffix = preg_replace('/^.*?_?\d+\.\d+\.\d+_/', '', $file) ?: $file;
+        $downloadName = "Мой AI ассистент_{$version}_{$suffix}";
+
+        return Storage::disk('public')->download($path, $downloadName);
     }
 
     /**
