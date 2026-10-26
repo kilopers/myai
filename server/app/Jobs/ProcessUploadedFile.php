@@ -27,7 +27,9 @@ class ProcessUploadedFile implements ShouldQueue
 
     public function handle(): void
     {
-        $file = StoredFile::find($this->fileId);
+        // withTrashed: файл может быть в корзине к моменту обработки —
+        // производные всё равно нужны (при restore они остаются).
+        $file = StoredFile::withTrashed()->find($this->fileId);
         if ($file === null) {
             return;
         }
@@ -81,7 +83,7 @@ class ProcessUploadedFile implements ShouldQueue
      */
     public function failed(\Throwable $e): void
     {
-        $file = StoredFile::find($this->fileId);
+        $file = StoredFile::withTrashed()->find($this->fileId);
         if ($file === null) {
             return;
         }

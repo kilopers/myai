@@ -33,9 +33,9 @@ class OfficeProcessor extends FileProcessor
         try {
             // www-data без домашнего каталога — профиль LO держим в tmp.
             $this->runner->run([
-                'soffice', '--headless', '--convert-to', 'pdf',
+                'soffice', '-env:UserInstallation=file://'.$tmp.'/lo-profile',
+                '--headless', '--convert-to', 'pdf',
                 '--outdir', $tmp, $this->sourcePath($file),
-                '-env:UserInstallation=file://'.$tmp.'/lo-profile',
             ], timeout: 600);
 
             $pdfs = glob($tmp.'/*.pdf') ?: [];
