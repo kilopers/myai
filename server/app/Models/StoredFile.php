@@ -6,11 +6,12 @@ use App\Support\SyncHash;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
 
-#[Fillable(['user_id', 'folder_id', 'uuid', 'name', 'filename', 'mime_type', 'size', 'path', 'expires_at', 'original_path', 'mtime', 'entry_hash'])]
+#[Fillable(['user_id', 'folder_id', 'uuid', 'name', 'filename', 'mime_type', 'size', 'path', 'expires_at', 'original_path', 'mtime', 'entry_hash', 'conversion_status', 'conversion_progress', 'pages_total', 'pages_done', 'conversion_error'])]
 class StoredFile extends Model
 {
     use SoftDeletes;
@@ -19,7 +20,14 @@ class StoredFile extends Model
 
     protected function casts(): array
     {
-        return ['expires_at' => 'datetime', 'size' => 'integer', 'mtime' => 'integer'];
+        return [
+            'expires_at' => 'datetime',
+            'size' => 'integer',
+            'mtime' => 'integer',
+            'conversion_progress' => 'integer',
+            'pages_total' => 'integer',
+            'pages_done' => 'integer',
+        ];
     }
 
     /** @return BelongsTo<User, $this> */
@@ -38,6 +46,12 @@ class StoredFile extends Model
     public function shareLinks(): MorphMany
     {
         return $this->morphMany(ShareLink::class, 'linkable');
+    }
+
+    /** @return HasMany<FileDerivative, $this> */
+    public function derivatives(): HasMany
+    {
+        return $this->hasMany(FileDerivative::class, 'file_id');
     }
 
     /**

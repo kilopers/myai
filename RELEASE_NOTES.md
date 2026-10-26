@@ -5,6 +5,39 @@
 при больших/ломающих изменениях, главная — по решению владельца.
 Актуальная версия — в файле `VERSION`.
 
+## 1.3.0
+
+- files: фоновая пост-обработка загруженных файлов по типу — реестр
+  процессоров `App\Services\Conversion` (Job `ProcessUploadedFile`,
+  очередь database): изображения → jpeg-миниатюра (GD), PDF → все
+  страницы в картинки (poppler pdfinfo/pdftoppm) + миниатюра, видео →
+  mp4 H.264/AAC faststart (ffmpeg) + poster-кадр, doc/docx → PDF
+  (LibreOffice headless) + страницы тем же движком
+- db: таблица `file_derivatives` (kind thumbnail|page|video|pdf|poster,
+  page_number, path, размеры); у `files` — `conversion_status`
+  (none|pending|processing|done|failed), `conversion_progress`,
+  `pages_total/done`, `conversion_error`. Производные в
+  `derivatives/{ab}/{cd}/{uuid}/`, в sync-хэши и tombstone'ы не входят
+- live: событие `file.conversion` на канале `sync.user.{id}` —
+  `{file_id, status, progress, pages_done, pages_total}`; в карточке
+  файла прогресс-бар обновляется по WS без перезагрузки
+- api: `GET /api/files/{f}/thumbnail` (для видео — poster), `/pages`
+  ({count}), `/pages/{n}`, `/converted` (mp4/pdf, HTTP Range) —
+  авторизация как у download; в StoredFileResource и files.state —
+  поля конвертации
+- web: встроенный просмотрщик `FileViewerDialog` — лайтбокс для
+  изображений, постраничный просмотр ‹ › с счётчиком и стрелками
+  клавиатуры для PDF/Word, HTML5-плеер для видео; кнопка «Скачать
+  оригинал» всегда отдаёт исходник; карточка показывает «Конвертация…
+  стр. N из M» / проценты и маркер ошибки при failed
+- trash: корзина (soft-delete) сохраняет производные — restore
+  работает с ними; окончательное удаление (purgeFile и все пути
+  через него) чистит файлы производных и каталог derivatives/{uuid}
+- infra: `server/Dockerfile.base` — базовый образ
+  `ghcr.io/kilopers/myai/server-base:1.0` с ffmpeg/poppler/LibreOffice
+  (собран и запушен разово, пересборка — по server/docker/README.md);
+  `server/Dockerfile` переключён на него (FROM base), compose не менялся
+
 ## 1.2.0
 
 - live: живое обновление /files и галереи через Reverb-WebSocket —

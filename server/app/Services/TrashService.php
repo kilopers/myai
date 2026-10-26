@@ -7,7 +7,9 @@ use App\Models\Folder;
 use App\Models\Screenshot;
 use App\Models\StoredFile;
 use App\Models\User;
+use App\Support\StoragePath;
 use App\Support\SyncHash;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Корзина: любое удаление файла/скриншота/папки переводит запись в
@@ -128,11 +130,19 @@ class TrashService
     }
 
     /**
-     * Удаление насовсем: физический файл + запись. Tombstone уже был
-     * записан при помещении в корзину — повторно не пишем.
+     * Удаление насовсем: физический файл + файлы производных конвертации
+     * + запись. Tombstone уже был записан при помещении в корзину —
+     * повторно не пишем (и для производных не пишем вовсе — они не
+     * участвуют в синхронизации).
      */
     public function purgeFile(StoredFile $file): void
     {
+        foreach ($file->derivatives()->get() as $derivative) {
+            $derivative->deleteFile();
+        }
+        if ($file->derivatives()->exists()) {
+            Storage::disk('public')->deleteDirectory(StoragePath::derivativeDir($file->uuid));
+        }
         $file->deleteFile();
         $file->forceDelete();
     }

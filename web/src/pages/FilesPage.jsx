@@ -41,6 +41,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import client from '../api/client';
 import { onWsEvent } from '../api/ws';
 import { notifyFoldersChanged } from '../components/FolderTree';
+import FileViewerDialog, { isOfficeMime, viewMode } from '../components/FileViewerDialog';
 
 const TTL_OPTIONS = [
   { value: '', label: 'По умолчанию' },
@@ -64,15 +65,35 @@ function fileIcon(mime) {
 const fmtSize = (n) =>
   n > 1048576 ? `${(n / 1048576).toFixed(1)} МБ` : `${(n / 1024).toFixed(1)} КБ`;
 
-// Миниатюра для файлов-картинок: файл приватный, поэтому грузим blob'ом.
+// У типов с конвертацией после done есть производная-миниатюра
+// (/thumbnail; у видео — poster-кадр). Картинки без производных
+// (загружены до фичи или ещё в обработке) — полный файл, как раньше.
+function thumbEndpoint(f) {
+  const mime = f.mime_type || '';
+  // В обработке и при ошибке — иконка типа (+ прогресс/маркер в карточке).
+  if (f.conversion_status && f.conversion_status !== 'done' && f.conversion_status !== 'none') {
+    return null;
+  }
+  if (f.conversion_status === 'done') {
+    if (mime.startsWith('image/') || mime === 'application/pdf' || isOfficeMime(mime) || mime.startsWith('video/')) {
+      return 'thumbnail';
+    }
+    return null;
+  }
+  // conversion_status === 'none' — легаси-файлы без обработки.
+  return mime.startsWith('image/') ? 'download' : null;
+}
+
+// Миниатюра в карточке: файл приватный, грузим blob'ом.
 function FileThumb({ f }) {
   const [url, setUrl] = useState(null);
 
   useEffect(() => {
-    if (!f.mime_type?.startsWith('image/')) return undefined;
+    const endpoint = thumbEndpoint(f);
+    if (!endpoint) return undefined;
     let obj;
     client
-      .get(`/api/files/${f.id}/download`, { responseType: 'blob' })
+      .get(`/api/files/${f.id}/${endpoint}`, { responseType: 'blob' })
       .then(({ data }) => {
         obj = URL.createObjectURL(data);
         setUrl(obj);
@@ -81,7 +102,7 @@ function FileThumb({ f }) {
     return () => {
       if (obj) URL.revokeObjectURL(obj);
     };
-  }, [f.id, f.mime_type]);
+  }, [f.id, f.mime_type, f.conversion_status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (url) {
     return (
@@ -115,6 +136,7 @@ export default function FilesPage() {
   const [shareResult, setShareResult] = useState('');
   const [editFile, setEditFile] = useState(null);
   const [editFileTtl, setEditFileTtl] = useState('');
+  const [viewerFile, setViewerFile] = useState(null);
   const inputRef = useRef(null);
   const isMobile = useMediaQuery((theme) => theme.breakpoints.down('sm'));
 
@@ -172,9 +194,28 @@ export default function FilesPage() {
       if ((data?.dirs ?? []).length > 0) notifyFoldersChanged();
     });
     const offReconnect = onWsEvent('ws.connected', () => watch());
+    // Live-прогресс конвертации: точечно обновляем карточку файла.
+    const offConversion = onWsEvent('file.conversion', (d) => {
+      if (!d?.file_id) return;
+      setFiles((list) =>
+        list.map((f) =>
+          f.id === d.file_id
+            ? {
+                ...f,
+                conversion_status: d.status ?? f.conversion_status,
+                conversion_progress: d.progress ?? f.conversion_progress,
+                pages_done: d.pages_done ?? f.pages_done,
+                pages_total: d.pages_total ?? f.pages_total,
+                has_derivatives: d.has_derivatives ?? f.has_derivatives,
+              }
+            : f,
+        ),
+      );
+    });
     return () => {
       offChanged();
       offReconnect();
+      offConversion();
     };
   }, [folderId, load, watch]);
 
@@ -296,6 +337,12 @@ export default function FilesPage() {
   };
 
   const openFile = async (f) => {
+    // Типы с встроенным просмотрщиком — диалог; прочие — оригинал
+    // в новой вкладке, как раньше.
+    if (viewMode(f)) {
+      setViewerFile(f);
+      return;
+    }
     const { data } = await client.get(`/api/files/${f.id}/download`, { responseType: 'blob' });
     const url = URL.createObjectURL(new Blob([data], { type: f.mime_type }));
     window.open(url, '_blank');
@@ -469,6 +516,25 @@ export default function FilesPage() {
               <Typography variant="caption" color="text.secondary" display="block">
                 {fmtSize(f.size)} · {expiryText(f.expires_at)}
               </Typography>
+              {(f.conversion_status === 'pending' || f.conversion_status === 'processing') && (
+                <Box sx={{ mt: 0.5 }}>
+                  <Typography variant="caption" color="primary" display="block">
+                    {f.pages_total
+                      ? `Конвертация… стр. ${f.pages_done ?? 0} из ${f.pages_total}`
+                      : `Конвертация… ${f.conversion_progress ?? 0}%`}
+                  </Typography>
+                  <LinearProgress
+                    variant={(f.conversion_progress ?? 0) > 0 ? 'determinate' : 'indeterminate'}
+                    value={f.conversion_progress ?? 0}
+                    sx={{ mt: 0.5 }}
+                  />
+                </Box>
+              )}
+              {f.conversion_status === 'failed' && (
+                <Typography variant="caption" color="error.main" display="block" sx={{ mt: 0.5 }}>
+                  Ошибка конвертации — доступен оригинал
+                </Typography>
+              )}
             </CardContent>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 0.5, pb: 0.5 }}>
               <IconButton size="small" title="Ссылка" onClick={() => { setShareDialog({ type: 'file', id: f.id, name: f.name }); setShareResult(''); }}>
@@ -577,6 +643,9 @@ export default function FilesPage() {
       </Dialog>
 
       <Snackbar open={!!message} autoHideDuration={4000} onClose={() => setMessage('')} message={message} />
+
+      {/* Встроенный просмотрщик файла */}
+      {viewerFile && <FileViewerDialog file={viewerFile} onClose={() => setViewerFile(null)} />}
     </Box>
   );
 }

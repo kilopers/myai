@@ -15,4 +15,20 @@ class StoragePath
 
         return 'files/'.substr($clean, 0, 2).'/'.substr($clean, 2, 2).'/'.$uuid.'.'.$extension;
     }
+
+    /**
+     * Каталог производных файла конвертации:
+     * derivatives/{ab}/{cd}/{uuid}/ — миниатюры, страницы, mp4, pdf.
+     */
+    public static function derivativeDir(string $uuid): string
+    {
+        $clean = str_replace('-', '', $uuid);
+
+        return 'derivatives/'.substr($clean, 0, 2).'/'.substr($clean, 2, 2).'/'.$uuid;
+    }
+
+    public static function derivative(string $uuid, string $filename): string
+    {
+        return self::derivativeDir($uuid).'/'.$filename;
+    }
 }

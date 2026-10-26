@@ -1,0 +1,36 @@
+# syntax=docker/dockerfile:1
+
+# Базовый образ сервера: PHP-FPM + все системные зависимости и
+# PHP-расширения проекта + бинарники фоновой конвертации файлов
+# (ffmpeg/ffprobe, poppler pdfinfo/pdftoppm, LibreOffice soffice).
+# Собирается редко и пушится в GHCR вручную (см. server/docker/README.md):
+#   docker build -f server/Dockerfile.base \
+#     -t ghcr.io/kilopers/myai/server-base:1.0 .
+#   docker push ghcr.io/kilopers/myai/server-base:1.0
+# server/Dockerfile собирается ПОВЕРХ этого образа (FROM .../server-base).
+FROM php:8.5.12-fpm-alpine3.24
+
+# Привязка GHCR-пакета к репозиторию — иначе GITHUB_TOKEN деплоя
+# не сможет тянуть базовый образ при сборке server/Dockerfile.
+LABEL org.opencontainers.image.source="https://github.com/kilopers/myai"
+
+RUN apk add --no-cache \
+        # зависимости PHP-расширений (dev-пакеты тянут runtime-библиотеки)
+        freetype-dev \
+        icu-dev \
+        libjpeg-turbo-dev \
+        libpng-dev \
+        libzip-dev \
+        oniguruma-dev \
+        # конвертация файлов: видео, растрирование pdf, Word→pdf
+        ffmpeg \
+        poppler-utils \
+        libreoffice \
+        ghostscript \
+        fontconfig \
+        ttf-dejavu \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && for ext in bcmath gd intl opcache pcntl pdo_mysql zip; do \
+         docker-php-ext-install -j"$(nproc)" "$ext"; \
+       done \
+    && rm -rf /var/cache/apk/*

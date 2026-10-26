@@ -47,6 +47,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('folders', FolderController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('files', FileController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::get('/files/{file}/download', [FileController::class, 'download']);
+    // Производные файла фоновой конвертации (v1.3.0)
+    Route::get('/files/{file}/thumbnail', [FileController::class, 'thumbnail']);
+    Route::get('/files/{file}/pages', [FileController::class, 'pages']);
+    Route::get('/files/{file}/pages/{page}', [FileController::class, 'page']);
+    Route::get('/files/{file}/converted', [FileController::class, 'converted']);
     Route::post('/share-links', [ShareLinkController::class, 'store']);
     Route::delete('/share-links/{shareLink}', [ShareLinkController::class, 'destroy']);
 

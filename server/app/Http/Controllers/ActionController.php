@@ -118,7 +118,7 @@ class ActionController extends Controller
                 Folder::where('user_id', $userId)->where('parent_id', $folder?->id)->withCount('files')->orderBy('name')->get()
             )->resolve(),
             'files' => StoredFileResource::collection(
-                StoredFile::where('user_id', $userId)->where('folder_id', $folder?->id)->latest()->get()
+                StoredFile::where('user_id', $userId)->where('folder_id', $folder?->id)->latest()->withCount('derivatives')->get()
             )->resolve(),
             'breadcrumbs' => $this->breadcrumbs($folder),
             'dir_hash' => $folder?->dirHash() ?? SyncHash::rootHash($request->user()),

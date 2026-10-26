@@ -9,20 +9,10 @@ COPY server/ .
 RUN composer dump-autoload --optimize
 
 # ---------- runtime ----------
-FROM php:8.5.12-fpm-alpine3.24
-
-RUN apk add --no-cache \
-        freetype-dev \
-        icu-dev \
-        libjpeg-turbo-dev \
-        libpng-dev \
-        libzip-dev \
-        oniguruma-dev \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && for ext in bcmath gd intl opcache pcntl pdo_mysql zip; do \
-         docker-php-ext-install -j"$(nproc)" "$ext"; \
-       done \
-    && rm -rf /var/cache/apk/*
+# Базовый образ с системными зависимостями и PHP-расширениями
+# (включая ffmpeg/poppler/LibreOffice для конвертации файлов).
+# Пересборка и пуш — вручную, см. server/docker/README.md.
+FROM ghcr.io/kilopers/myai/server-base:1.0
 
 COPY server/docker/php/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
 COPY server/docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini

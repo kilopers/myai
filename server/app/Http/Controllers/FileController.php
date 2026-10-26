@@ -3,8 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\StoredFileResource;
+use App\Jobs\ProcessUploadedFile;
+use App\Models\FileDerivative;
 use App\Models\Folder;
 use App\Models\StoredFile;
+use App\Services\Conversion\ProcessorRegistry;
 use App\Services\TrashService;
 use App\Support\StoragePath;
 use App\Support\SyncHash;
@@ -13,13 +16,14 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FileController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
-        $query = $request->user()->files()->latest();
+        $query = $request->user()->files()->latest()->withCount('derivatives');
 
         if ($request->has('folder_id')) {
             $query->where('folder_id', $request->integer('folder_id'));
@@ -67,6 +71,7 @@ class FileController extends Controller
         ]);
 
         SyncHash::refreshFolderChain($folder, $request->user());
+        $this->queueConversion($file);
 
         return (new StoredFileResource($file))->response()->setStatusCode(201);
     }
@@ -135,8 +140,107 @@ class FileController extends Controller
         ]);
 
         SyncHash::refreshFolderChain($folder, $request->user());
+        $this->queueConversion($file);
 
         return (new StoredFileResource($file))->response()->setStatusCode(201);
+    }
+
+    /**
+     * Постановка файла на фоновую пост-обработку. Файлу без подходящего
+     * процессора остаётся conversion_status=none.
+     * В режиме sync-очереди джоба выполняется инлайн — её исключение
+     * не должно ломать успешный ответ загрузки.
+     */
+    private function queueConversion(StoredFile $file): void
+    {
+        if (app(ProcessorRegistry::class)->for($file->mime_type) === null) {
+            return;
+        }
+        $file->forceFill([
+            'conversion_status' => 'pending',
+            'conversion_progress' => 0,
+            'pages_done' => null,
+            'pages_total' => null,
+            'conversion_error' => null,
+        ])->save();
+
+        try {
+            ProcessUploadedFile::dispatch($file->id);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    /**
+     * Миниатюра карточки: kind=thumbnail, для видео — poster-кадр.
+     * 404 → фронт показывает иконку типа.
+     */
+    public function thumbnail(Request $request, StoredFile $file): BinaryFileResponse
+    {
+        $this->authorizeFile($request, $file);
+        $derivative = $file->derivatives()
+            ->whereIn('kind', [FileDerivative::KIND_THUMBNAIL, FileDerivative::KIND_POSTER])
+            ->orderByRaw("kind = '".FileDerivative::KIND_POSTER."'") // thumbnail предпочтительнее
+            ->first();
+        abort_if($derivative === null, 404);
+
+        return $this->derivativeResponse($derivative);
+    }
+
+    /**
+     * Число отрендеренных страниц (pdf/word после конвертации).
+     */
+    public function pages(Request $request, StoredFile $file): JsonResponse
+    {
+        $this->authorizeFile($request, $file);
+
+        return response()->json([
+            'count' => $file->derivatives()->where('kind', FileDerivative::KIND_PAGE)->count(),
+        ]);
+    }
+
+    public function page(Request $request, StoredFile $file, int $page): BinaryFileResponse
+    {
+        $this->authorizeFile($request, $file);
+        $derivative = $file->derivatives()
+            ->where('kind', FileDerivative::KIND_PAGE)
+            ->where('page_number', $page)
+            ->first();
+        abort_if($derivative === null, 404);
+
+        return $this->derivativeResponse($derivative);
+    }
+
+    /**
+     * Сконвертированная версия: mp4 для видео, pdf для Word.
+     * BinaryFileResponse — с поддержкой HTTP Range (мотание в плеере).
+     */
+    public function converted(Request $request, StoredFile $file): BinaryFileResponse
+    {
+        $this->authorizeFile($request, $file);
+        $derivative = $file->derivatives()
+            ->whereIn('kind', [FileDerivative::KIND_VIDEO, FileDerivative::KIND_PDF])
+            ->orderByRaw("kind = '".FileDerivative::KIND_PDF."'") // video предпочтительнее
+            ->first();
+        abort_if($derivative === null, 404);
+
+        return $this->derivativeResponse($derivative);
+    }
+
+    /** Проверка владельца — так же, как в download. */
+    private function authorizeFile(Request $request, StoredFile $file): void
+    {
+        abort_unless($file->user_id === $request->user()->id, 403);
+    }
+
+    private function derivativeResponse(FileDerivative $derivative): BinaryFileResponse
+    {
+        abort_unless(Storage::disk('public')->exists($derivative->path), 404);
+
+        return response()->file(Storage::disk('public')->path($derivative->path), [
+            'Content-Type' => $derivative->mime_type ?: 'application/octet-stream',
+            'Cache-Control' => 'private, max-age=3600',
+        ]);
     }
 
     public function update(Request $request, StoredFile $file): StoredFileResource
