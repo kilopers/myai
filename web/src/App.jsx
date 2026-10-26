@@ -6,6 +6,8 @@ import LoginPage from './pages/LoginPage';
 import InviteRegisterPage from './pages/InviteRegisterPage';
 import GalleryPage from './pages/GalleryPage';
 import FilesPage from './pages/FilesPage';
+import TrashPage from './pages/TrashPage';
+import ReleasesPage from './pages/ReleasesPage';
 import SettingsPage from './pages/SettingsPage';
 import AdminPage from './pages/AdminPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
@@ -52,6 +54,8 @@ export default function App() {
       >
         <Route path="/" element={<GalleryPage />} />
         <Route path="/files" element={<FilesPage />} />
+        <Route path="/trash" element={<TrashPage />} />
+        <Route path="/releases" element={<ReleasesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route
           path="/admin"

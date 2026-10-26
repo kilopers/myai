@@ -20,6 +20,8 @@ import FolderIcon from '@mui/icons-material/Folder';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
+import DeleteIcon from '@mui/icons-material/Delete';
+import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
 import { Outlet, Link as RouterLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import client from '../api/client';
@@ -75,6 +77,8 @@ export default function Layout() {
   const items = [
     { to: '/', label: 'Скриншоты', icon: <ImageIcon /> },
     { to: '/files', label: 'Файлы', icon: <FolderIcon /> },
+    { to: '/trash', label: 'Корзина', icon: <DeleteIcon /> },
+    { to: '/releases', label: 'Релизы', icon: <SystemUpdateAltIcon /> },
     ...(user?.is_admin
       ? [{ to: '/admin', label: 'Админка', icon: <AdminPanelSettingsIcon /> }]
       : []),
