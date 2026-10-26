@@ -41,7 +41,7 @@ jobs:
           context: .
           file: server/Dockerfile.base
           push: true
-          tags: ghcr.io/kilopers/myai/server:base-1.0
+          tags: ghcr.io/kilopers/myai/server:base-1.1
           cache-from: type=gha,scope=server-base
           cache-to: type=gha,mode=max,scope=server-base
 
@@ -55,7 +55,7 @@ jobs:
             ghcr.io/kilopers/myai/server:latest
             ghcr.io/kilopers/myai/server:${{ github.sha }}
           build-args: |
-            BASE_IMAGE=ghcr.io/kilopers/myai/server:base-1.0
+            BASE_IMAGE=ghcr.io/kilopers/myai/server:base-1.1
           cache-from: type=gha,scope=server
           cache-to: type=gha,mode=max,scope=server
 

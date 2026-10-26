@@ -21,8 +21,8 @@
 
 ```bash
 # версию тега поднимать при каждой пересборке: :1.0 → :1.1 → …
-docker build -f server/Dockerfile.base -t ghcr.io/kilopers/myai/server-base:1.0 .
-docker push ghcr.io/kilopers/myai/server-base:1.0
+docker build -f server/Dockerfile.base -t ghcr.io/kilopers/myai/server-base:1.1 .
+docker push ghcr.io/kilopers/myai/server-base:1.1
 ```
 
 После пуша нового тега обновить `FROM` в `server/Dockerfile` и тег
@@ -38,7 +38,7 @@ docker-compose.yml не нужно.
   получает её через `build-args: BASE_IMAGE=...`;
 - локальный `docker compose up --build` требует `docker login ghcr.io`
   ЛИБО однократной локальной сборки базы:
-  `docker build -f server/Dockerfile.base -t ghcr.io/kilopers/myai/server-base:1.0 .` —
+  `docker build -f server/Dockerfile.base -t ghcr.io/kilopers/myai/server-base:1.1 .` —
   buildkit возьмёт локальный образ для `FROM`;
 - при желании прилинкуй пакет к репо в настройках пакета на GitHub
   (видимость тогда можно поднять до public — тогда база тянется

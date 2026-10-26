@@ -2,7 +2,7 @@
 
 # Базовый runtime-образ (глобальный ARG — для FROM; в CI
 # переопределяется через build-args BASE_IMAGE, см. deploy.yml).
-ARG BASE_IMAGE=ghcr.io/kilopers/myai/server-base:1.0
+ARG BASE_IMAGE=ghcr.io/kilopers/myai/server-base:1.1
 
 # ---------- vendor stage ----------
 FROM composer:2 AS vendor

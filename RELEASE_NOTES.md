@@ -5,6 +5,20 @@
 при больших/ломающих изменениях, главная — по решению владельца.
 Актуальная версия — в файле `VERSION`.
 
+## 1.3.4
+
+- fix(server): конвертация файлов падала с «Не удалось декодировать
+  изображение (GD)» — GD в базовом образе собирался без JPEG/WebP/AVIF/
+  FreeType. Причина: в Dockerfile.base расширения ставились циклом по
+  одному `docker-php-ext-install`, а каждый вызов в конце удаляет
+  /usr/src/php — к моменту сборки gd сконфигурированный
+  `docker-php-ext-configure` Makefile был стёрт и gd пересобирался с
+  дефолтными флагами. Теперь все ext ставятся ОДНИМ вызовом + добавлены
+  `--with-webp --with-avif` (libwebp-dev/libavif-dev). Базовый образ
+  bump: server-base:1.0 → 1.1 (Dockerfile/ARG, deploy.yml,
+  docker/README.md). Уже упавшие файлы остаются failed — можно
+  перезапустить через `ProcessUploadedFile::dispatch($id)` в tinker.
+
 ## 1.3.3
 
 - desktop: в трей добавлено подменю «Не давать уснуть» — запрет

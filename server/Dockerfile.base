@@ -5,8 +5,8 @@
 # (ffmpeg/ffprobe, poppler pdfinfo/pdftoppm, LibreOffice soffice).
 # Собирается редко и пушится в GHCR вручную (см. server/docker/README.md):
 #   docker build -f server/Dockerfile.base \
-#     -t ghcr.io/kilopers/myai/server-base:1.0 .
-#   docker push ghcr.io/kilopers/myai/server-base:1.0
+#     -t ghcr.io/kilopers/myai/server-base:1.1 .
+#   docker push ghcr.io/kilopers/myai/server-base:1.1
 # server/Dockerfile собирается ПОВЕРХ этого образа (FROM .../server-base).
 FROM php:8.5.12-fpm-alpine3.24
 
@@ -18,8 +18,10 @@ RUN apk add --no-cache \
         # зависимости PHP-расширений (dev-пакеты тянут runtime-библиотеки)
         freetype-dev \
         icu-dev \
+        libavif-dev \
         libjpeg-turbo-dev \
         libpng-dev \
+        libwebp-dev \
         libzip-dev \
         oniguruma-dev \
         # конвертация файлов: видео, растрирование pdf, Word→pdf
@@ -29,8 +31,10 @@ RUN apk add --no-cache \
         ghostscript \
         fontconfig \
         ttf-dejavu \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && for ext in bcmath gd intl opcache pcntl pdo_mysql zip; do \
-         docker-php-ext-install -j"$(nproc)" "$ext"; \
-       done \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp --with-avif \
+    # ВАЖНО: все расширения — ОДНИМ вызовом docker-php-ext-install.
+    # Каждый вызов в конце удаляет /usr/src/php (маркер .docker-delete-me):
+    # цикл по одному ext затирал сконфигурированный Makefile gd и
+    # пересобирал его с дефолтными флагами — gd выходил без JPEG/WebP.
+    && docker-php-ext-install -j"$(nproc)" bcmath gd intl opcache pcntl pdo_mysql zip \
     && rm -rf /var/cache/apk/*
