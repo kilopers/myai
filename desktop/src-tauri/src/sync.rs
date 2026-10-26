@@ -128,7 +128,7 @@ struct LocalNode {
 /// Полный обход: только stat() на каждый элемент.
 fn scan_local(root: &Path) -> Result<(BTreeMap<String, LocalNode>, String), String> {
     let mut out = BTreeMap::new();
-    let root_hash = scan_dir(root, "", &mut out)?;
+    let root_hash = scan_dir(root, "", &mut out, false)?;
     Ok((out, root_hash))
 }
 
@@ -152,7 +152,12 @@ fn local_tree(app: &AppHandle, root: &Path) -> Result<(BTreeMap<String, LocalNod
 
 /// Рекурсивно заполняет `out` детьми `dir` (rel — относительный путь
 /// самого dir, '' для корня). Возвращает dir_hash этой папки.
-fn scan_dir(dir: &Path, rel: &str, out: &mut BTreeMap<String, LocalNode>) -> Result<String, String> {
+fn scan_dir(
+    dir: &Path,
+    rel: &str,
+    out: &mut BTreeMap<String, LocalNode>,
+    tolerant: bool,
+) -> Result<String, String> {
     let mut children: Vec<(String, String)> = Vec::new();
     let rd = std::fs::read_dir(dir).map_err(|e| format!("нет доступа к {}: {e}", dir.display()))?;
 
@@ -172,7 +177,20 @@ fn scan_dir(dir: &Path, rel: &str, out: &mut BTreeMap<String, LocalNode>) -> Res
             Err(_) => continue,
         };
         if meta.is_dir() {
-            let dh = scan_dir(&entry.path(), &child_rel, out)?;
+            // В терпимом режиме нечитаемая подпапка пропускается —
+            // один такой каталог не должен ломать хэш всего дерева.
+            // В строгом (синк) ошибку пробрасываем: иначе недоступная
+            // папка выглядела бы как локально удалённая и ушла бы в
+            // удаление на сервере.
+            let dh = match scan_dir(&entry.path(), &child_rel, out, tolerant) {
+                Ok(dh) => dh,
+                Err(e) => {
+                    if tolerant {
+                        continue;
+                    }
+                    return Err(e);
+                }
+            };
             let eh = folder_hash(&name, &dh);
             children.push((name, eh.clone()));
             out.insert(
@@ -860,12 +878,13 @@ async fn run_sync(app: &AppHandle, only_folder_id: Option<i64>) {
     }
 
     // Финальный локальный хэш → новый remote_root_hash; живое дерево — обновить
+    // Финальный скан не удался — не затираем хороший хэш пустым.
     let new_root = match scan_local(&root) {
         Ok((map, h)) => {
             store_live_tree(app, map, &h);
             h
         }
-        Err(_) => String::new(),
+        Err(_) => meta_get(&conn, "local_root_hash").unwrap_or_default(),
     };
     finish(app, &conn, &new_root, &new_root);
     log(app, format!(
@@ -1221,7 +1240,7 @@ fn apply_dirty(app: &AppHandle, root: &Path, st: &mut WatchState) {
                 // события на её содержимое не приходят.
                 let prefix = format!("{rel}/");
                 map.retain(|k, _| k == &rel || !k.starts_with(&prefix));
-                match scan_dir(&full, &rel, map) {
+                match scan_dir(&full, &rel, map, false) {
                     Ok(dh) => {
                         map.insert(
                             rel.clone(),
@@ -1535,15 +1554,18 @@ pub fn sync_root_hash(app: AppHandle) -> Option<String> {
         return Some(h);
     }
     if let Ok(conn) = open_db(&app) {
-        if let Some(h) = meta_get(&conn, "local_root_hash") {
+        // Пустая строка — не хэш: пишется при неудачном финальном
+        // скане, пробуем остальные источники.
+        if let Some(h) = meta_get(&conn, "local_root_hash").filter(|h| !h.is_empty()) {
             return Some(h);
         }
     }
     // Запасной путь: живой скан sync-папки — бывает, что sync.db
     // ещё не записан (напр. после первого запуска на Windows).
+    // Терпимый режим: нечитаемая подпапка не должна уронить весь скан.
     let root = sync_root(&app)?;
     let mut out = BTreeMap::new();
-    scan_dir(Path::new(&root), "", &mut out).ok()
+    scan_dir(Path::new(&root), "", &mut out, true).ok()
 }
 
 #[cfg(test)]
