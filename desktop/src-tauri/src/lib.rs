@@ -1,3 +1,4 @@
+mod apps;
 mod keepawake;
 mod sync;
 mod update;
@@ -6,9 +7,9 @@ use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use std::io::Cursor;
 use std::sync::Mutex;
 use tauri::{
-    menu::{CheckMenuItem, Menu, MenuItem, Submenu},
+    menu::{CheckMenuItem, Menu, MenuBuilder, MenuItem, Submenu, SubmenuBuilder},
     tray::TrayIconBuilder,
-    AppHandle, Manager, WebviewUrl, WebviewWindowBuilder,
+    AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, Wry,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_plugin_store::StoreExt;
@@ -30,7 +31,7 @@ struct PendingCapture(Mutex<Vec<Option<Capture>>>);
 // Кроп выделенной области — его забирает окно редактора.
 struct PendingEdit(Mutex<Option<Capture>>);
 
-const DEFAULT_HOTKEY: &str = "ctrl+shift+x";
+pub(crate) const DEFAULT_HOTKEY: &str = "ctrl+shift+x";
 
 /// Текущий зарегистрированный глобальный хоткей захвата.
 pub(crate) struct CurrentHotkey(pub Mutex<String>);
@@ -603,17 +604,19 @@ fn set_hotkey(app: AppHandle, accel: String) -> Result<(), String> {
     if prev == accel {
         return Ok(());
     }
-    let gs = app.global_shortcut();
-    let _ = gs.unregister_all();
-    if let Err(e) = gs.register(accel.as_str()) {
-        // Занято другим приложением или ОС — возвращаем прежний хоткей.
-        if !prev.is_empty() {
-            let _ = gs.register(prev.as_str());
-        }
-        return Err(format!("не удалось зарегистрировать: {e}"));
-    }
     if let Ok(mut cur) = app.state::<CurrentHotkey>().0.lock() {
-        *cur = accel;
+        *cur = accel.clone();
+    }
+    // Перерегистрация всех хоткеев (захват + приложения) единым путём.
+    // Если новый занят — refresh зарегистрирует дефолтный, восстановим prev.
+    apps::refresh_hotkeys(&app);
+    let now = get_hotkey(app.clone());
+    if now != accel {
+        if let Ok(mut cur) = app.state::<CurrentHotkey>().0.lock() {
+            *cur = prev.clone();
+        }
+        apps::refresh_hotkeys(&app);
+        return Err("не удалось зарегистрировать комбинацию".to_string());
     }
     Ok(())
 }
@@ -659,6 +662,86 @@ fn open_settings_window(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Окно «Мои приложения» — список кубиков и настройка приложения.
+fn open_apps_window(app: &AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("apps") {
+        let _ = win.unminimize();
+        win.show().map_err(|e| e.to_string())?;
+        win.set_focus().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    WebviewWindowBuilder::new(app, "apps", WebviewUrl::App("index.html#apps".into()))
+        .title("Мои приложения")
+        .inner_size(780.0, 560.0)
+        .min_inner_size(560.0, 380.0)
+        .build()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Трей-меню: скриншот │ keep-awake, синхронизация │ приложения,
+/// настройки, о программе │ выход. Пересобирается при изменении
+/// списка «Мои приложения» (apps::apps_save/apps_delete).
+fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
+    let mut awake_items: Vec<CheckMenuItem<_>> = Vec::new();
+    for (id, label) in keepawake::MENU {
+        let checked = *id == keepawake::OFF_ID;
+        awake_items.push(CheckMenuItem::with_id(
+            app, *id, *label, true, checked, None::<&str>,
+        )?);
+    }
+    let awake_menu = Submenu::with_items(
+        app,
+        "Не давать уснуть",
+        true,
+        &[
+            &awake_items[0],
+            &awake_items[1],
+            &awake_items[2],
+            &awake_items[3],
+            &awake_items[4],
+            &awake_items[5],
+        ],
+    )?;
+    keepawake::register_items(app, awake_items);
+    keepawake::register_menu(app, awake_menu.clone());
+
+    // «Мои приложения»: созданные приложения, разделитель, «Настроить…».
+    let mut apps_menu = SubmenuBuilder::new(app, "Мои приложения");
+    for d in apps::apps_list(app.clone()) {
+        let item = MenuItem::with_id(app, format!("app-{}", d.id), &d.name, true, None::<&str>)?;
+        apps_menu = apps_menu.item(&item);
+    }
+    let manage_item = MenuItem::with_id(app, "apps.manage", "Настроить…", true, None::<&str>)?;
+    let apps_menu = apps_menu.separator().item(&manage_item).build()?;
+
+    let capture_item = MenuItem::with_id(app, "capture", "Сделать скриншот", true, None::<&str>)?;
+    let sync_item = MenuItem::with_id(app, "sync", "Синхронизировать", true, None::<&str>)?;
+    let settings_item = MenuItem::with_id(app, "settings", "Настройки", true, None::<&str>)?;
+    let about_item = MenuItem::with_id(app, "about", "О программе", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
+
+    MenuBuilder::new(app)
+        .item(&capture_item)
+        .separator()
+        .item(&awake_menu)
+        .item(&sync_item)
+        .separator()
+        .item(&apps_menu)
+        .item(&settings_item)
+        .item(&about_item)
+        .separator()
+        .item(&quit_item)
+        .build()
+}
+
+/// Пересобрать и подставить меню трея — из apps_save/apps_delete.
+pub fn rebuild_tray(app: &AppHandle) {
+    if let (Some(tray), Ok(menu)) = (app.tray_by_id("main-tray"), build_menu(app)) {
+        tray.set_menu(Some(menu)).ok();
+    }
+}
+
 fn notify(app: &AppHandle, title: &str, body: &str) {
     use tauri_plugin_notification::NotificationExt;
     let _ = app.notification().builder().title(title).body(body).show();
@@ -687,19 +770,40 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _shortcut, event| {
-                    if event.state == ShortcutState::Pressed {
-                        trigger_capture(app);
+                .with_handler(|app, shortcut, event| {
+                    if event.state != ShortcutState::Pressed {
+                        return;
                     }
+                    // Хоткей захвата — по id шортката из CurrentHotkey,
+                    // иначе ищем приложение «Мои приложения» с таким же id.
+                    let cap_id = app
+                        .try_state::<CurrentHotkey>()
+                        .and_then(|h| h.0.lock().ok().and_then(|s| s.parse::<Shortcut>().ok()))
+                        .map(|s| s.id());
+                    if Some(shortcut.id()) == cap_id {
+                        trigger_capture(app);
+                        return;
+                    }
+                    apps::hotkey_toggle(app, shortcut.id());
                 })
                 .build(),
         )
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if !window.label().starts_with("overlay") {
-                    api.prevent_close();
-                    let _ = window.hide();
+            match event {
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    if !window.label().starts_with("overlay") {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    }
                 }
+                // Окна «Мои приложения»: перестроить вебвью по новому
+                // размеру и запомнить геометрию.
+                tauri::WindowEvent::Resized(_) => {
+                    if window.label().starts_with("app-") {
+                        apps::relayout(window);
+                    }
+                }
+                _ => {}
             }
         })
         .manage(PendingCapture(Mutex::new(Vec::new())))
@@ -710,6 +814,7 @@ pub fn run() {
         .manage(sync::SyncWatch::default())
         .manage(update::PromptedVersions::default())
         .manage(keepawake::KeepAwake::default())
+        .manage(apps::AppsState::default())
         .manage(CurrentHotkey(Mutex::new(String::new())))
         .invoke_handler(tauri::generate_handler![
             take_capture,
@@ -729,7 +834,11 @@ pub fn run() {
             sync::os_name,
             sync::open_privacy_settings,
             get_hotkey,
-            set_hotkey
+            set_hotkey,
+            apps::apps_list,
+            apps::apps_save,
+            apps::apps_delete,
+            apps::app_toggle
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -753,48 +862,14 @@ pub fn run() {
             };
             *app.state::<CurrentHotkey>().0.lock().unwrap() = registered.clone();
 
-            // Подменю «Не давать уснуть» — галочки режимов + «Выключить».
-            let mut awake_items: Vec<CheckMenuItem<_>> = Vec::new();
-            for (id, label) in keepawake::MENU {
-                let checked = *id == keepawake::OFF_ID;
-                awake_items.push(CheckMenuItem::with_id(
-                    app,
-                    *id,
-                    *label,
-                    true,
-                    checked,
-                    None::<&str>,
-                )?);
-            }
-            let awake_menu = Submenu::with_items(
-                app,
-                "Не давать уснуть",
-                true,
-                &[
-                    &awake_items[0],
-                    &awake_items[1],
-                    &awake_items[2],
-                    &awake_items[3],
-                    &awake_items[4],
-                    &awake_items[5],
-                ],
-            )?;
-            keepawake::register_items(app.handle(), awake_items);
-            keepawake::register_menu(app.handle(), awake_menu.clone());
+            // «Мои приложения» — список из settings.json и регистрация
+            // всех хоткеев (перерегистрирует и захват).
+            *app.state::<apps::AppsState>().list.lock().unwrap() = apps::load(app);
+            apps::refresh_hotkeys(app);
 
-            let capture_item = MenuItem::with_id(app, "capture", "Сделать скриншот", true, None::<&str>)?;
-            let sync_item = MenuItem::with_id(app, "sync", "Синхронизировать", true, None::<&str>)?;
-            let settings_item = MenuItem::with_id(app, "settings", "Настройки", true, None::<&str>)?;
-            let about_item = MenuItem::with_id(app, "about", "О программе", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[
-                &capture_item,
-                &awake_menu,
-                &sync_item,
-                &settings_item,
-                &about_item,
-                &quit_item,
-            ])?;
+            // Трей-меню со статическими пунктами, разделителями и
+            // подменю «Мои приложения» из текущего списка.
+            let menu = build_menu(app.handle())?;
 
             TrayIconBuilder::with_id("main-tray")
                 .icon(app.default_window_icon().unwrap().clone())
@@ -816,7 +891,13 @@ pub fn run() {
                         }
                     }
                     "quit" => app.exit(0),
+                    "apps.manage" => {
+                        if let Err(e) = open_apps_window(app) {
+                            eprintln!("apps window error: {e}");
+                        }
+                    }
                     id if id.starts_with("awake-") => keepawake::menu_event(app, id),
+                    id if id.starts_with("app-") => apps::toggle(app, &id[4..]),
                     _ => {}
                 })
                 .build(app)?;

@@ -673,12 +673,194 @@ async function initAbout() {
 }
 
 // ---------- entry ----------
+// ---------- «Мои приложения»: менеджер кубиков ----------
+interface AppDef {
+  id: string; name: string; layout: string; urls: string[]; hotkey: string;
+  width?: number; height?: number; x?: number; y?: number;
+}
+
+// Доли окна (x, y, w, h) — должны совпадать с layout_rects в apps.rs.
+const LAYOUT_RECTS: Record<string, [number, number, number, number][]> = {
+  one: [[0, 0, 1, 1]],
+  two: [[0, 0, 0.5, 1], [0.5, 0, 0.5, 1]],
+  twoPlusOne: [[0, 0, 0.5, 0.5], [0.5, 0, 0.5, 0.5], [0, 0.5, 1, 0.5]],
+  grid: [[0, 0, 0.5, 0.5], [0.5, 0, 0.5, 0.5], [0, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]],
+};
+const LAYOUT_NAMES: Record<string, string> = {
+  one: '1 экран', two: '2 рядом', twoPlusOne: '2 + 1', grid: '2 × 2',
+};
+
+function layoutPreview(layout: string): HTMLElement {
+  const box = document.createElement('div');
+  box.className = 'app-preview';
+  for (const [x, y, w, h] of LAYOUT_RECTS[layout] ?? LAYOUT_RECTS.one) {
+    const p = document.createElement('div');
+    p.className = 'pane';
+    p.style.left = `${x * 100}%`;
+    p.style.top = `${y * 100}%`;
+    p.style.width = `${w * 100}%`;
+    p.style.height = `${h * 100}%`;
+    box.appendChild(p);
+  }
+  return box;
+}
+
+async function initApps() {
+  const view = document.getElementById('apps-view')!;
+  view.style.display = 'block';
+  const grid = document.getElementById('apps-grid')!;
+  const edit = document.getElementById('app-edit')!;
+  const editStatus = document.getElementById('app-edit-status')!;
+  const nameInput = document.getElementById('app-name') as HTMLInputElement;
+  const hotkeyInput = document.getElementById('app-hotkey-input') as HTMLInputElement;
+  const urlsBox = document.getElementById('app-urls')!;
+  const layoutOpts = document.getElementById('layout-opts')!;
+
+  let current: AppDef | null = null;
+  let layout = 'one';
+
+  const renderLayoutOpts = () => {
+    layoutOpts.innerHTML = '';
+    for (const key of Object.keys(LAYOUT_NAMES)) {
+      const opt = document.createElement('div');
+      opt.className = `layout-opt${key === layout ? ' active' : ''}`;
+      opt.appendChild(layoutPreview(key));
+      const t = document.createElement('div');
+      t.textContent = LAYOUT_NAMES[key];
+      opt.appendChild(t);
+      opt.onclick = () => {
+        layout = key;
+        renderLayoutOpts();
+        renderUrls();
+      };
+      layoutOpts.appendChild(opt);
+    }
+  };
+
+  const renderUrls = () => {
+    const n = LAYOUT_RECTS[layout].length;
+    while ((current?.urls.length ?? 0) < n) current?.urls.push('');
+    if (current && current.urls.length > n) current.urls = current.urls.slice(0, n);
+    urlsBox.innerHTML = '<label style="display:block;margin-top:12px;font-size:12px;color:#aaa;text-transform:uppercase">Ссылки — по панели, сверху-вниз, слева-направо</label>';
+    for (let i = 0; i < n; i++) {
+      const inp = document.createElement('input');
+      inp.placeholder = `https://… — панель ${i + 1}`;
+      inp.value = current?.urls[i] ?? '';
+      inp.oninput = () => { if (current) current.urls[i] = inp.value; };
+      urlsBox.appendChild(inp);
+    }
+  };
+
+  const openEditor = (def: AppDef) => {
+    current = def;
+    layout = LAYOUT_RECTS[def.layout] ? def.layout : 'one';
+    nameInput.value = def.name;
+    hotkeyInput.value = def.hotkey;
+    renderLayoutOpts();
+    renderUrls();
+    edit.style.display = 'block';
+    grid.style.display = 'none';
+    editStatus.textContent = '';
+  };
+
+  const closeEditor = () => {
+    current = null;
+    edit.style.display = 'none';
+    grid.style.display = 'grid';
+  };
+
+  hotkeyInput.addEventListener('keydown', (e) => {
+    e.preventDefault();
+    const MODS = new Set(['Control', 'Shift', 'Alt', 'Meta']);
+    if (MODS.has(e.key)) return;
+    const key = codeToAccel(e.code);
+    if (!key) return;
+    const parts: string[] = [];
+    if (e.ctrlKey) parts.push('ctrl');
+    if (e.shiftKey) parts.push('shift');
+    if (e.altKey) parts.push('alt');
+    if (e.metaKey) parts.push('cmd');
+    if (parts.length === 0) return;
+    parts.push(key);
+    hotkeyInput.value = parts.join('+');
+  });
+
+  document.getElementById('app-save')!.onclick = async () => {
+    if (!current) return;
+    const def: AppDef = {
+      ...current,
+      name: nameInput.value.trim() || 'Приложение',
+      layout,
+      hotkey: hotkeyInput.value.trim(),
+    };
+    try {
+      await invoke('apps_save', { def });
+      editStatus.style.color = '#7bd88a';
+      editStatus.textContent = 'Сохранено';
+      closeEditor();
+      await render();
+    } catch (e) {
+      editStatus.style.color = '#e5534b';
+      editStatus.textContent = String(e);
+    }
+  };
+  document.getElementById('app-delete')!.onclick = async () => {
+    if (!current) return;
+    await invoke('apps_delete', { id: current.id });
+    closeEditor();
+    await render();
+  };
+  document.getElementById('app-cancel')!.onclick = closeEditor;
+
+  const render = async () => {
+    const apps = await invoke<AppDef[]>('apps_list');
+    grid.innerHTML = '';
+    // Первый кубик — «+», создаёт приложение по умолчанию.
+    const add = document.createElement('div');
+    add.className = 'app-tile add';
+    add.textContent = '+';
+    add.title = 'Добавить приложение';
+    add.onclick = () => {
+      openEditor({
+        id: crypto.randomUUID(),
+        name: `Приложение ${apps.length + 1}`,
+        layout: 'one',
+        urls: [''],
+        hotkey: '',
+      });
+    };
+    grid.appendChild(add);
+    for (const a of apps) {
+      const tile = document.createElement('div');
+      tile.className = 'app-tile';
+      tile.appendChild(layoutPreview(a.layout));
+      const name = document.createElement('div');
+      name.className = 'app-name';
+      name.textContent = a.name;
+      tile.appendChild(name);
+      if (a.hotkey) {
+        const hk = document.createElement('div');
+        hk.className = 'app-hotkey';
+        hk.textContent = a.hotkey;
+        tile.appendChild(hk);
+      }
+      tile.onclick = () => openEditor(a);
+      grid.appendChild(tile);
+    }
+  };
+  await render();
+}
+
 if (location.hash === '#settings' || location.search.includes('view=settings')) {
   initSettings();
 } else if (location.hash === '#editor') {
   initEditor();
 } else if (location.hash === '#about') {
   void initAbout();
+} else if (location.hash === '#apps') {
+  void initApps();
+} else if (location.hash === '#blank') {
+  // Пустая страница — холст под дочерние вебвью окон «Мои приложения».
 } else {
   initOverlay();
 }
