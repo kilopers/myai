@@ -180,7 +180,7 @@ fn close_overlays(app: AppHandle) {
 
 #[tauri::command]
 async fn upload_screenshot(
-    app: AppHandle,
+    _app: AppHandle,
     server_url: String,
     token: String,
     png_base64: String,
