@@ -500,7 +500,7 @@ async function initEditor() {
     { id: 'undo', icon: 'undo', title: 'Отменить (Ctrl+Z)' },
     { id: 'colors', icon: '', title: '' },
     { id: 'sep', icon: '', title: '' },
-    { id: 'upload', icon: 'send', title: 'Загрузить и скопировать ссылку', cls: 'primary', text: 'Отправить' },
+    { id: 'upload', icon: 'send', title: 'Загрузить и скопировать ссылку', cls: 'primary', text: 'Получить ссылку' },
     { id: 'copy', icon: 'copy', title: 'Скопировать картинку в буфер', text: 'Копировать' },
     { id: 'spacer', icon: '', title: '' },
     { id: 'close', icon: 'close', title: 'Закрыть (Esc)' },
@@ -642,6 +642,7 @@ async function initEditor() {
       await invoke('copy_screenshot', { pngBase64: base64 });
       if (!(await isPermissionGranted())) await requestPermission();
       await sendNotification({ title: 'Мой AI ассистент', body: 'Картинка скопирована в буфер обмена' });
+      await invoke('hide_editor');
     } catch (err) {
       alert(`Ошибка копирования: ${err}`);
     }
