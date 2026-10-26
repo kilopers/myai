@@ -31,6 +31,9 @@ services:
       dockerfile: web/Dockerfile.dev
     ports:
       - "5173:5173"
+    environment:
+      # Reverb внутри docker-сети — vite-прокси /app на сервис reverb
+      VITE_WS_TARGET: ws://reverb:8080
     volumes:
       - ./web:/app:cached
       - /app/node_modules

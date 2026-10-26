@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\UploadScreenshotRequest;
 use App\Http\Resources\ScreenshotResource;
 use App\Models\Screenshot;
+use App\Services\DirChangeTracker;
 use App\Services\TrashService;
 use App\Support\StoragePath;
 use App\Support\SyncHash;
@@ -62,6 +63,8 @@ class ScreenshotController extends Controller
                 : null,
         ]);
 
+        app(DirChangeTracker::class)->markScreenshots($request->user()->id);
+
         return (new ScreenshotResource($screenshot))
             ->response()
             ->setStatusCode(201);
@@ -104,6 +107,8 @@ class ScreenshotController extends Controller
         ]);
 
         $screenshot->update($validated);
+
+        app(DirChangeTracker::class)->markScreenshots($request->user()->id);
 
         return new ScreenshotResource($screenshot);
     }

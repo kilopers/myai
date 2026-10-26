@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   AppBar,
   Box,
+  CircularProgress,
   Drawer,
   IconButton,
   List,
@@ -25,6 +26,7 @@ import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
 import { Outlet, Link as RouterLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import client from '../api/client';
+import { onWsStatus } from '../api/ws';
 import FolderTree from './FolderTree';
 
 const DRAWER_WIDTH = 300;
@@ -40,6 +42,9 @@ export default function Layout() {
   const [open, setOpen] = useState(() => localStorage.getItem(OPEN_KEY) !== '0');
   const [folders, setFolders] = useState([]);
   const [notice, setNotice] = useState('');
+  const [wsState, setWsState] = useState('disconnected');
+
+  useEffect(() => onWsStatus(setWsState), []);
 
   const isFiles = location.pathname.startsWith('/files');
   const currentFolderId = isFiles && searchParams.get('folder')
@@ -164,10 +169,35 @@ export default function Layout() {
             variant="h6"
             component={RouterLink}
             to="/"
-            sx={{ color: 'inherit', textDecoration: 'none', flexGrow: 1 }}
+            sx={{ color: 'inherit', textDecoration: 'none' }}
           >
             Мой AI ассистент
           </Typography>
+          <Tooltip
+            title={
+              wsState === 'connected'
+                ? 'Живое обновление подключено'
+                : wsState === 'connecting'
+                  ? 'Подключаемся к живому обновлению…'
+                  : 'Нет соединения — обновления в реальном времени недоступны'
+            }
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', mx: 1.5 }}>
+              {wsState === 'connecting' ? (
+                <CircularProgress size={12} sx={{ color: 'inherit', opacity: 0.8 }} />
+              ) : (
+                <Box
+                  sx={{
+                    width: 9,
+                    height: 9,
+                    borderRadius: '50%',
+                    bgcolor: wsState === 'connected' ? '#7bd88a' : '#e5534b',
+                  }}
+                />
+              )}
+            </Box>
+          </Tooltip>
+          <Box sx={{ flexGrow: 1 }} />
           <Typography variant="body2" sx={{ mr: 1, opacity: 0.85 }}>
             {user?.name}
           </Typography>

@@ -39,6 +39,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import client from '../api/client';
+import { onWsEvent } from '../api/ws';
 import { notifyFoldersChanged } from '../components/FolderTree';
 
 const TTL_OPTIONS = [
@@ -118,22 +119,64 @@ export default function FilesPage() {
   const isMobile = useMediaQuery((theme) => theme.breakpoints.down('sm'));
 
   const folderId = searchParams.get('folder');
+  const dirHashRef = useRef(null); // хэш открытой директории из files.state
+
   const load = useCallback(async () => {
-    const r = await client.post('/api/action', {
-      action: 'files.state',
-      folder_id: folderId ? Number(folderId) : null,
-      page,
-    });
-    setFolders(r.data.state.folders);
-    setFiles(r.data.state.files);
-    setFolder(r.data.state.folder);
-    setCrumbs(r.data.state.breadcrumbs ?? []);
-    setMeta(r.data.state.meta ?? null);
-  }, [folderId, page]);
+    try {
+      const r = await client.post('/api/action', {
+        action: 'files.state',
+        folder_id: folderId ? Number(folderId) : null,
+        page,
+      });
+      setFolders(r.data.state.folders);
+      setFiles(r.data.state.files);
+      setFolder(r.data.state.folder);
+      setCrumbs(r.data.state.breadcrumbs ?? []);
+      setMeta(r.data.state.meta ?? null);
+      dirHashRef.current = r.data.state.dir_hash ?? null;
+    } catch (e) {
+      // Открытая папка удалена (в т.ч. из другой вкладки) — уходим в корень.
+      if (e.response?.status === 404 && folderId) setSearchParams({});
+    }
+  }, [folderId, page, setSearchParams]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // «Наблюдаем» за открытой директорией: сервер сверяет хэш и говорит,
+  // разошлись ли данные (покрывает разрыв сокета — зовём на реконнект).
+  const watch = useCallback(async () => {
+    try {
+      const { data } = await client.post('/api/action', {
+        action: 'dir.watch',
+        folder_id: folderId ? Number(folderId) : null,
+        dir_hash: dirHashRef.current ?? '',
+      });
+      if (data.result?.diverged) await load();
+    } catch {
+      /* офлайн — следующий реконнект повторит */
+    }
+  }, [folderId, load]);
+
+  // Push-обновления: сервер шлёт dirs.changed со списком изменённых
+  // dir_hash; перезагружаемся только если изменилась именно открытая
+  // папка (или корень, когда мы в нём).
+  useEffect(() => {
+    const offChanged = onWsEvent('dirs.changed', (data) => {
+      const cur = folderId ? Number(folderId) : null;
+      const hit = (data?.dirs ?? []).some(
+        (d) => d.folder_id === cur && d.dir_hash !== dirHashRef.current,
+      );
+      if (hit) load();
+      if ((data?.dirs ?? []).length > 0) notifyFoldersChanged();
+    });
+    const offReconnect = onWsEvent('ws.connected', () => watch());
+    return () => {
+      offChanged();
+      offReconnect();
+    };
+  }, [folderId, load, watch]);
 
   const fmtSpeed = (bps) =>
     bps >= 1048576 ? `${(bps / 1048576).toFixed(1)} МБ/с` : `${Math.max(1, Math.round(bps / 1024))} КБ/с`;

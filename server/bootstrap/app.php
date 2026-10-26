@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\BroadcastDirChanges;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -18,6 +19,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // Прод живёт за reverse-proxy (Traefik) — доверяем X-Forwarded-*,
         // чтобы HTTPS-запросы распознавались корректно
         $middleware->trustProxies(at: '*');
+        // Рассылка dirs.changed по итогам запроса (живое обновление веба).
+        $middleware->api(append: [BroadcastDirChanges::class]);
         $middleware->alias([
             'admin' => EnsureUserIsAdmin::class,
         ]);

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import client, { clearToken, getToken, setToken } from '../api/client';
+import { wsConnect, wsDisconnect } from '../api/ws';
 
 const AuthContext = createContext(null);
 
@@ -15,6 +16,12 @@ export function AuthProvider({ children }) {
       .catch(() => clearToken())
       .finally(() => setLoading(false));
   }, []);
+
+  // Живое обновление: ws-канал sync.user.<id> живёт пока залогинен.
+  useEffect(() => {
+    if (user?.id) wsConnect(user.id);
+    else wsDisconnect();
+  }, [user?.id]);
 
   const login = useCallback(async (email, password) => {
     const { data } = await client.post('/api/auth/login', { email, password });

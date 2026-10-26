@@ -41,7 +41,7 @@ class TrashService
         $file->saveQuietly();
         $file->delete();
 
-        SyncHash::refreshFolderChain($file->folder);
+        SyncHash::refreshFolderChain($file->folder, $file->user);
     }
 
     public function trashScreenshot(Screenshot $screenshot): void
@@ -50,6 +50,8 @@ class TrashService
         $screenshot->original_path = $screenshot->filename;
         $screenshot->saveQuietly();
         $screenshot->delete();
+
+        app(DirChangeTracker::class)->markScreenshots($screenshot->user_id);
     }
 
     /**
@@ -83,8 +85,9 @@ class TrashService
             self::dirPath($folder->parent),
         );
         $folder->delete();
+        app(DirChangeTracker::class)->markFolderDeleted($folder);
 
-        SyncHash::refreshFolderChain($folder->parent);
+        SyncHash::refreshFolderChain($folder->parent, $folder->user);
     }
 
     /**
@@ -104,7 +107,7 @@ class TrashService
         $file->refreshEntryHash();
         $file->save();
 
-        SyncHash::refreshFolderChain($folder);
+        SyncHash::refreshFolderChain($folder, $file->user);
 
         return $file;
     }
@@ -118,6 +121,8 @@ class TrashService
         $screenshot->deleted_at = null;
         $screenshot->refreshEntryHash();
         $screenshot->save();
+
+        app(DirChangeTracker::class)->markScreenshots($screenshot->user_id);
 
         return $screenshot;
     }
@@ -152,6 +157,7 @@ class TrashService
             $this->purgeFile($file);
         }
         $folder->forceDelete();
+        app(DirChangeTracker::class)->markFolderDeleted($folder);
     }
 
     private function tombstone(int $userId, string $kind, string $name, int $size, ?int $mtime, string $entryHash, string $dirPath): void

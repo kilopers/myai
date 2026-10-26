@@ -7,6 +7,7 @@ use App\Models\Folder;
 use App\Models\Screenshot;
 use App\Models\ShareLink;
 use App\Models\StoredFile;
+use App\Services\DirChangeTracker;
 use App\Services\TrashService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Storage;
@@ -82,6 +83,10 @@ class PruneExpiredUploads extends Command
                 }
             }
         }
+
+        // Live-обновление веба: ушедшие в корзину/удалённые записи меняют
+        // dir_hash — рассылаем dirs.changed одним событием на юзера.
+        app(DirChangeTracker::class)->flushAll();
 
         $this->info("Expired → trash: {$screenshots->count()} shots, {$files->count()} files. "
             ."Purged: {$purgedShots} shots, {$purgedFiles} files, {$purgedFolders} folders. "

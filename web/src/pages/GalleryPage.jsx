@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -17,22 +17,55 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteIcon from '@mui/icons-material/Delete';
 import UploadIcon from '@mui/icons-material/Upload';
 import client from '../api/client';
+import { onWsEvent } from '../api/ws';
 
 export default function GalleryPage() {
   const [items, setItems] = useState([]);
   const [meta, setMeta] = useState(null);
   const [page, setPage] = useState(1);
   const [preview, setPreview] = useState(null);
+  const dirHashRef = useRef(null); // хэш галереи из screenshots.state
 
   const load = useCallback(async (p = 1) => {
     const { data } = await client.post('/api/action', { action: 'screenshots.state', page: p });
-    if (data.state) { setItems(data.state.screenshots); setMeta(data.state.meta); return; }
+    if (data.state) {
+      setItems(data.state.screenshots);
+      setMeta(data.state.meta);
+      dirHashRef.current = data.state.dir_hash ?? null;
+      return;
+    }
     setItems(data.data);
     setMeta(data.meta);
   }, []);
 
   useEffect(() => {
     load(page);
+  }, [page, load]);
+
+  // Живое обновление: dirs.changed несёт screenshots_hash; после
+  // реконнекта сверяем хэш через dir.watch (scope=screenshots).
+  useEffect(() => {
+    const offChanged = onWsEvent('dirs.changed', (data) => {
+      if (data?.screenshots_hash && data.screenshots_hash !== dirHashRef.current) {
+        load(page);
+      }
+    });
+    const offReconnect = onWsEvent('ws.connected', async () => {
+      try {
+        const { data } = await client.post('/api/action', {
+          action: 'dir.watch',
+          scope: 'screenshots',
+          dir_hash: dirHashRef.current ?? '',
+        });
+        if (data.result?.diverged) load(page);
+      } catch {
+        /* офлайн */
+      }
+    });
+    return () => {
+      offChanged();
+      offReconnect();
+    };
   }, [page, load]);
 
   const onUpload = async (e) => {

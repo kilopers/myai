@@ -3,7 +3,9 @@
 namespace App\Support;
 
 use App\Models\Folder;
+use App\Models\Screenshot;
 use App\Models\User;
+use App\Services\DirChangeTracker;
 
 /**
  * Хэши дерева синхронизации. Содержимое файлов не читается — только
@@ -73,14 +75,22 @@ class SyncHash
     /**
      * Пересчитать dir_hash папки и всех предков до корня. Вызывается
      * после любой мутации (создание/переименование/перенос/удаление).
+     * Изменённые папки и мутации в корне ($folder = null, нужен $user)
+     * отмечаются в DirChangeTracker — в конце запроса по ним уходит
+     * событие dirs.changed.
      */
-    public static function refreshFolderChain(?Folder $folder): void
+    public static function refreshFolderChain(?Folder $folder, ?User $user = null): void
     {
+        $tracker = app(DirChangeTracker::class);
+        if ($folder === null && $user !== null) {
+            $tracker->markRoot($user->id);
+        }
         while ($folder !== null) {
             $hash = self::computeDirHash($folder);
             if ($folder->dir_hash !== $hash) {
                 $folder->dir_hash = $hash;
                 $folder->saveQuietly();
+                $tracker->markFolder($folder);
             }
             $folder = $folder->parent;
         }
@@ -106,6 +116,22 @@ class SyncHash
         // Скриншоты в root_hash не входят — они не синхронизируются.
 
         return self::dir($children);
+    }
+
+    /**
+     * Хэш галереи скриншотов (скриншоты в sync-хэши не входят — отдельная
+     * формула): sha256 от entry_hash|updated_at видимой выборки. Нужен
+     * для живого обновления страницы «Скриншоты» в вебе.
+     */
+    public static function screenshotsHash(User $user): string
+    {
+        $parts = $user->screenshots()
+            ->orderBy('id')
+            ->get(['entry_hash', 'updated_at'])
+            ->map(fn (Screenshot $s) => ($s->entry_hash ?? '').'|'.($s->updated_at?->getTimestamp() ?? 0))
+            ->implode('|');
+
+        return hash('sha256', $parts);
     }
 
     /**

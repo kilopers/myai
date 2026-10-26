@@ -66,7 +66,7 @@ class FileController extends Controller
             'expires_at' => $ttl ? now()->addDays($ttl) : null,
         ]);
 
-        SyncHash::refreshFolderChain($folder);
+        SyncHash::refreshFolderChain($folder, $request->user());
 
         return (new StoredFileResource($file))->response()->setStatusCode(201);
     }
@@ -134,7 +134,7 @@ class FileController extends Controller
             'expires_at' => $ttl ? now()->addDays($ttl) : null,
         ]);
 
-        SyncHash::refreshFolderChain($folder);
+        SyncHash::refreshFolderChain($folder, $request->user());
 
         return (new StoredFileResource($file))->response()->setStatusCode(201);
     }
@@ -164,8 +164,8 @@ class FileController extends Controller
             $file->saveQuietly();
         }
         if ($nameChanged || $file->folder_id !== $oldFolder?->id) {
-            SyncHash::refreshFolderChain($file->folder);
-            SyncHash::refreshFolderChain($oldFolder);
+            SyncHash::refreshFolderChain($file->folder, $request->user());
+            SyncHash::refreshFolderChain($oldFolder, $request->user());
         }
 
         return new StoredFileResource($file);

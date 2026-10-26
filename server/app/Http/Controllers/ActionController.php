@@ -10,6 +10,7 @@ use App\Models\Folder;
 use App\Models\Screenshot;
 use App\Models\ShareLink;
 use App\Models\StoredFile;
+use App\Support\SyncHash;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -47,6 +48,9 @@ class ActionController extends Controller
 
                 // Синхронизация: «Синхронизировать эту ветку» из дерева папок
                 'sync.branch' => $this->syncBranch($request),
+
+                // «Наблюдатель» директории: сверка хэша после реконнекта
+                'dir.watch' => $this->dirWatch($request),
 
                 default => throw new \InvalidArgumentException("Unknown action: {$action}"),
             };
@@ -98,6 +102,7 @@ class ActionController extends Controller
         return [
             'screenshots' => ScreenshotResource::collection($shots)->resolve(),
             'meta' => ['page' => $shots->currentPage(), 'last_page' => $shots->lastPage(), 'total' => $shots->total()],
+            'dir_hash' => SyncHash::screenshotsHash($request->user()),
         ];
     }
 
@@ -116,7 +121,42 @@ class ActionController extends Controller
                 StoredFile::where('user_id', $userId)->where('folder_id', $folder?->id)->latest()->get()
             )->resolve(),
             'breadcrumbs' => $this->breadcrumbs($folder),
+            'dir_hash' => $folder?->dirHash() ?? SyncHash::rootHash($request->user()),
         ];
+    }
+
+    /**
+     * «Я смотрю эту директорию с таким хэшем» — сервер сверяет хэш с
+     * актуальным и отвечает diverged; после реконнекта клиент ловит
+     * пропущенные push-обновления. scope=screenshots — галерея.
+     */
+    private function dirWatch(Request $request): array
+    {
+        $user = $request->user();
+        $clientHash = (string) $request->input('dir_hash', '');
+
+        if ($request->input('scope') === 'screenshots') {
+            $current = SyncHash::screenshotsHash($user);
+
+            return ['diverged' => $clientHash !== '' && ! hash_equals($current, $clientHash), 'dir_hash' => $current];
+        }
+
+        $folderId = $request->input('folder_id');
+        if ($folderId === null) {
+            $current = SyncHash::rootHash($user);
+
+            return ['diverged' => $clientHash !== '' && ! hash_equals($current, $clientHash), 'dir_hash' => $current];
+        }
+
+        $folder = Folder::where('user_id', $user->id)->find($folderId);
+        if ($folder === null) {
+            // Папка удалена/в корзине — клиенту надо перезагрузиться.
+            return ['diverged' => true, 'gone' => true, 'dir_hash' => null];
+        }
+
+        $current = $folder->dirHash();
+
+        return ['diverged' => $clientHash !== '' && ! hash_equals($current, $clientHash), 'dir_hash' => $current];
     }
 
     private function breadcrumbs(?Folder $folder): array

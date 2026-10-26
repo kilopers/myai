@@ -34,7 +34,7 @@ class FolderController extends Controller
 
         $folder = $request->user()->folders()->create($validated);
 
-        SyncHash::refreshFolderChain($folder->parent);
+        SyncHash::refreshFolderChain($folder->parent, $request->user());
 
         return (new JsonResource($folder))->response()->setStatusCode(201);
     }
@@ -58,7 +58,7 @@ class FolderController extends Controller
         $folder->update($validated);
 
         if ($nameChanged) {
-            SyncHash::refreshFolderChain($folder->parent);
+            SyncHash::refreshFolderChain($folder->parent, $request->user());
         }
 
         return new JsonResource($folder);
