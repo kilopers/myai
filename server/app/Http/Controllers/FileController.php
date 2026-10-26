@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\FileConversionUpdated;
 use App\Http\Resources\StoredFileResource;
 use App\Jobs\ProcessUploadedFile;
 use App\Models\FileDerivative;
@@ -163,6 +164,19 @@ class FileController extends Controller
             'pages_total' => null,
             'conversion_error' => null,
         ])->save();
+
+        // Событие pending идёт сразу, не дожидаясь старта джобы: пока
+        // воркер занят (напр. длинное видео), открытая папка на других
+        // устройствах может получить файл только по этому событию —
+        // dirs.changed мог не дойти.
+        event(new FileConversionUpdated($file->user_id, [
+            'file_id' => $file->id,
+            'status' => 'pending',
+            'progress' => 0,
+            'pages_done' => null,
+            'pages_total' => null,
+            'has_derivatives' => false,
+        ]));
 
         try {
             ProcessUploadedFile::dispatch($file->id);

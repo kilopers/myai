@@ -142,6 +142,15 @@ export default function FilesPage() {
 
   const folderId = searchParams.get('folder');
   const dirHashRef = useRef(null); // хэш открытой директории из files.state
+  const filesRef = useRef([]); // актуальный список для ws-обработчиков
+  // file_id, по которым уже догружали список после file.conversion
+  const missedConversionIds = useRef(new Set());
+  useEffect(() => {
+    filesRef.current = files;
+  }, [files]);
+  useEffect(() => {
+    missedConversionIds.current.clear();
+  }, [folderId]);
 
   const load = useCallback(async () => {
     try {
@@ -195,8 +204,18 @@ export default function FilesPage() {
     });
     const offReconnect = onWsEvent('ws.connected', () => watch());
     // Live-прогресс конвертации: точечно обновляем карточку файла.
+    // Если файла нет в списке (загружен с другого устройства, а
+    // dirs.changed не дошёл) — один раз перечитываем папку, чтобы
+    // карточка появилась сразу, а не по окончании конвертации.
     const offConversion = onWsEvent('file.conversion', (d) => {
       if (!d?.file_id) return;
+      if (
+        !filesRef.current.some((f) => f.id === d.file_id) &&
+        !missedConversionIds.current.has(d.file_id)
+      ) {
+        missedConversionIds.current.add(d.file_id);
+        load();
+      }
       setFiles((list) =>
         list.map((f) =>
           f.id === d.file_id
