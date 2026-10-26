@@ -1,5 +1,9 @@
 # syntax=docker/dockerfile:1
 
+# Базовый runtime-образ (глобальный ARG — для FROM; в CI
+# переопределяется через build-args BASE_IMAGE, см. deploy.yml).
+ARG BASE_IMAGE=ghcr.io/kilopers/myai/server-base:1.0
+
 # ---------- vendor stage ----------
 FROM composer:2 AS vendor
 WORKDIR /app
@@ -15,7 +19,6 @@ RUN composer dump-autoload --optimize
 # BASE_IMAGE переопределяется в deploy.yml (CI пушит базу тегом
 # в прилинкованный пакет myai/server — локальные сборки берут
 # server-base из GHCR или собранный локально с тем же тегом).
-ARG BASE_IMAGE=ghcr.io/kilopers/myai/server-base:1.0
 FROM ${BASE_IMAGE}
 
 COPY server/docker/php/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
