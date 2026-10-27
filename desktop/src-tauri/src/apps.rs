@@ -547,17 +547,23 @@ pub fn app_term_run(app: AppHandle, id: String, index: usize) -> Result<(), Stri
     let app2 = app.clone();
     let label2 = label.clone();
     // По потоку на stdout и stderr — события идут в одну панель.
-    for pipe in [out, err].into_iter().flatten() {
-        let app3 = app2.clone();
-        let label3 = label2.clone();
-        std::thread::spawn(move || {
-            use std::io::{BufRead, BufReader};
-            for line in BufReader::new(pipe).lines() {
-                let Ok(line) = line else { break };
-                let _ = app3.emit(&format!("term-out-{label3}"), line);
+    macro_rules! pipe_reader {
+        ($pipe:expr) => {{
+            let app3 = app2.clone();
+            let label3 = label2.clone();
+            if let Some(pipe) = $pipe {
+                std::thread::spawn(move || {
+                    use std::io::{BufRead, BufReader};
+                    for line in BufReader::new(pipe).lines() {
+                        let Ok(line) = line else { break };
+                        let _ = app3.emit(&format!("term-out-{label3}"), line);
+                    }
+                });
             }
-        });
+        }};
     }
+    pipe_reader!(out);
+    pipe_reader!(err);
     std::thread::spawn(move || {
         // Ждём завершения процесса через try_wait по живому Child
         // в мапе; пропал из мапы — убит перезапуском/удалением.
