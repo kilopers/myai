@@ -514,7 +514,7 @@ pub fn app_term_run(app: AppHandle, id: String, index: usize) -> Result<(), Stri
                 let _ = c.kill();
                 let _ = c.wait();
             }
-        }
+        };
     }
 
     #[cfg(target_os = "windows")]
@@ -541,7 +541,7 @@ pub fn app_term_run(app: AppHandle, id: String, index: usize) -> Result<(), Stri
         let st = app.state::<TermState>();
         if let Ok(mut m) = st.procs.lock() {
             m.insert(label.clone(), child);
-        }
+        };
     }
 
     let app2 = app.clone();
