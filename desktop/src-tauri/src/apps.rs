@@ -531,10 +531,11 @@ pub fn app_term_run(app: AppHandle, id: String, index: usize) -> Result<(), Stri
     };
     let mut child = cmd
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::stdout())
+        .stderr(std::process::Stdio::piped())
         .spawn()
         .map_err(|e| e.to_string())?;
     let out = child.stdout.take();
+    let err = child.stderr.take();
 
     {
         let st = app.state::<TermState>();
@@ -544,19 +545,42 @@ pub fn app_term_run(app: AppHandle, id: String, index: usize) -> Result<(), Stri
     }
 
     let app2 = app.clone();
-    std::thread::spawn(move || {
-        use std::io::{BufRead, BufReader};
-        if let Some(o) = out {
-            for line in BufReader::new(o).lines() {
+    let label2 = label.clone();
+    // По потоку на stdout и stderr — события идут в одну панель.
+    for pipe in [out, err].into_iter().flatten() {
+        let app3 = app2.clone();
+        let label3 = label2.clone();
+        std::thread::spawn(move || {
+            use std::io::{BufRead, BufReader};
+            for line in BufReader::new(pipe).lines() {
                 let Ok(line) = line else { break };
-                let _ = app2.emit(format!("term-out-{label}"), line);
+                let _ = app3.emit(&format!("term-out-{label3}"), line);
             }
-        }
-        let _ = app2.emit(format!("term-out-{label}"), "\u{2014} процесс завершён \u{2014}".to_string());
-        if let Some(st) = app2.try_state::<TermState>() {
-            if let Ok(mut m) = st.procs.lock() {
-                m.remove(&label);
+        });
+    }
+    std::thread::spawn(move || {
+        // Ждём завершения процесса через try_wait по живому Child
+        // в мапе; пропал из мапы — убит перезапуском/удалением.
+        let st = app2.state::<TermState>();
+        loop {
+            let done = {
+                let Ok(mut m) = st.procs.lock() else { return };
+                match m.get_mut(&label2) {
+                    Some(c) => !matches!(c.try_wait(), Ok(None)),
+                    None => return,
+                }
+            };
+            if done {
+                if let Ok(mut m) = st.procs.lock() {
+                    m.remove(&label2);
+                }
+                let _ = app2.emit(
+                    &format!("term-out-{label2}"),
+                    "\u{2014} процесс завершён \u{2014}",
+                );
+                return;
             }
+            std::thread::sleep(std::time::Duration::from_millis(500));
         }
     });
     Ok(())
@@ -576,5 +600,5 @@ fn kill_terms(app: &AppHandle, app_id: &str) {
                 let _ = c.wait();
             }
         }
-    }
+    };
 }
