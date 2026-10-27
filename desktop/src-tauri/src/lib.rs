@@ -1,4 +1,6 @@
 mod apps;
+#[cfg(target_os = "macos")]
+mod capture_macos;
 mod keepawake;
 mod sync;
 mod update;
@@ -222,48 +224,73 @@ async fn upload_screenshot(
         .ok_or_else(|| "Unexpected server response".to_string())
 }
 
+/// Снимок монитора через xcap: матч по позиции+размеру, на Retina размеры
+/// в pt/px расходятся — фолбэки: только по позиции, затем по индексу.
+fn xcap_monitor_image(
+    xcap_monitors: &[xcap::Monitor],
+    tmon: &tauri::window::Monitor,
+    index: usize,
+) -> Option<image::RgbaImage> {
+    let pos = tmon.position();
+    let size = tmon.size();
+    xcap_monitors
+        .iter()
+        .find(|m| {
+            (m.x().unwrap_or(i32::MIN) - pos.x).abs() <= 4
+                && (m.y().unwrap_or(i32::MIN) - pos.y).abs() <= 4
+                && m.width().unwrap_or(0) == size.width
+                && m.height().unwrap_or(0) == size.height
+        })
+        .or_else(|| {
+            xcap_monitors.iter().find(|m| {
+                (m.x().unwrap_or(i32::MIN) - pos.x).abs() <= 8
+                    && (m.y().unwrap_or(i32::MIN) - pos.y).abs() <= 8
+            })
+        })
+        .or_else(|| xcap_monitors.get(index))
+        .and_then(|m| m.capture_image().ok())
+}
+
 fn open_overlay_windows(app: &AppHandle) -> Result<(), String> {
     let mut monitors = app.available_monitors().map_err(|e| e.to_string())?;
     if monitors.is_empty() {
         monitors = app.primary_monitor().map_err(|e| e.to_string())?.into_iter().collect();
     }
-    let xcap_monitors = xcap::Monitor::all().map_err(|e| e.to_string())?;
+    // macOS: предпочитаем ScreenCaptureKit (постоянный грант, без
+    // ежемесячных напоминаний macOS 15+); xcap — фолбэк для macOS < 14
+    // и на случай ошибки SCK.
+    #[cfg(target_os = "macos")]
+    let use_sck = capture_macos::available() && capture_macos::ensure_permission();
+    // xcap-список мониторов строим лениво: при работающем SCK вызовы
+    // устаревшего CGWindowList API вообще не нужны.
+    let mut xcap_monitors: Option<Vec<xcap::Monitor>> = None;
 
     // Capture BEFORE the overlay windows cover the screens. Index in `captures`
     // matches the Tauri monitor index and the `overlay-{i}` window label.
     let mut captures: Vec<Option<Capture>> = Vec::with_capacity(monitors.len());
     for (mi, tmon) in monitors.iter().enumerate() {
-        let pos = tmon.position();
-        let size = tmon.size();
-        // Строгий матч по позиции+размеру, на Retina размеры в pt/px
-        // расходятся — фолбэки: только по позиции, затем по индексу.
-        let xmon = xcap_monitors
-            .iter()
-            .find(|m| {
-                (m.x().unwrap_or(i32::MIN) - pos.x).abs() <= 4
-                    && (m.y().unwrap_or(i32::MIN) - pos.y).abs() <= 4
-                    && m.width().unwrap_or(0) == size.width
-                    && m.height().unwrap_or(0) == size.height
+        #[cfg(target_os = "macos")]
+        let sck_img = use_sck.then(|| capture_macos::capture_monitor(tmon).ok()).flatten();
+        #[cfg(not(target_os = "macos"))]
+        let sck_img: Option<image::RgbaImage> = None;
+
+        let img = if sck_img.is_some() {
+            sck_img
+        } else {
+            let xm = xcap_monitors.get_or_insert_with(|| xcap::Monitor::all().unwrap_or_default());
+            xcap_monitor_image(xm, tmon, mi)
+        };
+
+        let capture = img.and_then(|img| {
+            let mut png = Vec::new();
+            img.write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png).ok()?;
+            Some(Capture {
+                png,
+                width: img.width(),
+                height: img.height(),
+                scale_factor: tmon.scale_factor(),
             })
-            .or_else(|| {
-                xcap_monitors.iter().find(|m| {
-                    (m.x().unwrap_or(i32::MIN) - pos.x).abs() <= 8
-                        && (m.y().unwrap_or(i32::MIN) - pos.y).abs() <= 8
-                })
-            })
-            .or_else(|| xcap_monitors.get(mi));
-        let capture = xmon
-            .and_then(|m| m.capture_image().ok())
-            .and_then(|img| {
-                let mut png = Vec::new();
-                img.write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png).ok()?;
-                Some(Capture {
-                    png,
-                    width: img.width(),
-                    height: img.height(),
-                    scale_factor: tmon.scale_factor(),
-                })
-            });
+        });
         captures.push(capture);
     }
 

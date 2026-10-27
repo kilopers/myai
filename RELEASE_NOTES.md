@@ -5,6 +5,17 @@
 при больших/ломающих изменениях, главная — по решению владельца.
 Актуальная версия — в файле `VERSION`.
 
+## 1.5.0
+
+- feat(desktop): macOS — захват экрана переведён на ScreenCaptureKit
+  (`SCScreenshotManager.captureImageInRect`, macOS 14+) вместо
+  устаревшего CGWindowList через xcap. SCK использует постоянный
+  TCC-грант «Запись экрана» — исчезают ежемесячные системные
+  напоминания macOS 15+. На macOS < 14 и при ошибке SCK автоматически
+  отрабатывает прежний xcap-фолбэк. Зависимости: block2,
+  objc2-screen-capture-kit и смежные objc2-фреймворки (только для
+  macOS-таргета).
+
 ## 1.4.9
 
 - fix(desktop): сборка — временный `State` из `state::<TermState>()`
