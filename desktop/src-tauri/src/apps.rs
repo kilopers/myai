@@ -30,6 +30,10 @@ pub struct AppDef {
     pub x: Option<f64>,
     #[serde(default)]
     pub y: Option<f64>,
+    /// Позиции разделителей в долях окна (0..1): [вертикальный,
+    /// горизонтальный]. None — раскладка пополам.
+    #[serde(default)]
+    pub splits: Option<Vec<f64>>,
 }
 
 #[derive(Default)]
@@ -75,28 +79,86 @@ fn persist(app: &AppHandle) {
     }
 }
 
+/// Толщина полосы-разделителя между панелями, логические px.
+const DIV_PX: f64 = 6.0;
+
+/// Позиции разделителей приложения: [вертикальный, горизонтальный]
+/// в долях окна; дефолт 0.5, зажаты в разумные пределы.
+fn splits_of(def: &AppDef) -> Vec<f64> {
+    let need = match def.layout.as_str() {
+        "twoPlusOne" | "grid" => 2,
+        "two" => 1,
+        _ => 0,
+    };
+    (0..need)
+        .map(|i| {
+            def.splits
+                .as_ref()
+                .and_then(|s| s.get(i))
+                .copied()
+                .unwrap_or(0.5)
+                .clamp(0.15, 0.85)
+        })
+        .collect()
+}
+
 /// Раскладки: доли окна (x, y, w, h) для каждого вебвью по порядку url'ов.
-fn layout_rects(layout: &str) -> &'static [(f64, f64, f64, f64)] {
-    match layout {
-        "two" => &[(0.0, 0.0, 0.5, 1.0), (0.5, 0.0, 0.5, 1.0)],
-        "twoPlusOne" => &[
-            (0.0, 0.0, 0.5, 0.5),
-            (0.5, 0.0, 0.5, 0.5),
-            (0.0, 0.5, 1.0, 0.5),
+fn layout_rects(def: &AppDef) -> Vec<(f64, f64, f64, f64)> {
+    let s = splits_of(def);
+    match def.layout.as_str() {
+        "two" => vec![(0.0, 0.0, s[0], 1.0), (s[0], 0.0, 1.0 - s[0], 1.0)],
+        "twoPlusOne" => vec![
+            (0.0, 0.0, s[0], s[1]),
+            (s[0], 0.0, 1.0 - s[0], s[1]),
+            (0.0, s[1], 1.0, 1.0 - s[1]),
         ],
-        "grid" => &[
-            (0.0, 0.0, 0.5, 0.5),
-            (0.5, 0.0, 0.5, 0.5),
-            (0.0, 0.5, 0.5, 0.5),
-            (0.5, 0.5, 0.5, 0.5),
+        "grid" => vec![
+            (0.0, 0.0, s[0], s[1]),
+            (s[0], 0.0, 1.0 - s[0], s[1]),
+            (0.0, s[1], s[0], 1.0 - s[1]),
+            (s[0], s[1], 1.0 - s[0], 1.0 - s[1]),
         ],
-        _ => &[(0.0, 0.0, 1.0, 1.0)],
+        _ => vec![(0.0, 0.0, 1.0, 1.0)],
+    }
+}
+
+/// Полосы-разделители: (индекс split, x, y, w, h) в долях окна.
+/// w=0 — вертикальная полоса толщиной DIV_PX на x-фракции;
+/// h=0 — горизонтальная на y-фракции.
+fn divider_rects(def: &AppDef) -> Vec<(usize, f64, f64, f64, f64)> {
+    let s = splits_of(def);
+    match def.layout.as_str() {
+        "two" => vec![(0, s[0], 0.0, 0.0, 1.0)],
+        "twoPlusOne" => vec![(0, s[0], 0.0, 0.0, s[1]), (1, 0.0, s[1], 1.0, 0.0)],
+        "grid" => vec![(0, s[0], 0.0, 0.0, 1.0), (1, 0.0, s[1], 1.0, 0.0)],
+        _ => Vec::new(),
+    }
+}
+
+/// Геометрия полосы-разделителя в логических пикселях.
+fn divider_px(d: &(usize, f64, f64, f64, f64), lw: f64, lh: f64) -> (LogicalPosition<f64>, LogicalSize<f64>) {
+    let (_, x, y, w, h) = *d;
+    if w == 0.0 {
+        (
+            LogicalPosition::new(x * lw - DIV_PX / 2.0, y * lh),
+            LogicalSize::new(DIV_PX, h * lh),
+        )
+    } else {
+        (
+            LogicalPosition::new(x * lw, y * lh - DIV_PX / 2.0),
+            LogicalSize::new(w * lw, DIV_PX),
+        )
     }
 }
 
 /// Количество панелей в раскладке — для валидации числа url'ов.
 fn panel_count(layout: &str) -> usize {
-    layout_rects(layout).len()
+    match layout {
+        "two" => 2,
+        "twoPlusOne" => 3,
+        "grid" => 4,
+        _ => 1,
+    }
 }
 
 /// Расставить дочерние вебвью по текущему размеру окна.
@@ -105,8 +167,9 @@ fn layout_children(win: &tauri::Window, def: &AppDef) {
     let scale = win.scale_factor().unwrap_or(1.0);
     let lw = f64::from(size.width) / scale;
     let lh = f64::from(size.height) / scale;
+    let rects = layout_rects(def);
     for (i, url) in def.urls.iter().enumerate() {
-        let Some(r) = layout_rects(&def.layout).get(i) else {
+        let Some(r) = rects.get(i) else {
             break;
         };
         let Ok(url) = tauri::Url::parse(url) else {
@@ -118,6 +181,15 @@ fn layout_children(win: &tauri::Window, def: &AppDef) {
         );
         let pos = LogicalPosition::new(r.0 * lw, r.1 * lh);
         let sz = LogicalSize::new(r.2 * lw, r.3 * lh);
+        let _ = win.add_child(wv, pos, sz);
+    }
+    // Разделители — последними, чтобы быть поверх панелей и ловить drag.
+    for d in divider_rects(def) {
+        let wv = tauri::webview::WebviewBuilder::new(
+            format!("{}-div-{}", win.label(), d.0),
+            WebviewUrl::App("index.html#divider".into()),
+        );
+        let (pos, sz) = divider_px(&d, lw, lh);
         let _ = win.add_child(wv, pos, sz);
     }
 }
@@ -140,24 +212,33 @@ pub fn relayout(window: &tauri::Window) {
     let scale = win.scale_factor().unwrap_or(1.0);
     let lw = f64::from(size.width) / scale;
     let lh = f64::from(size.height) / scale;
+    let rects = layout_rects(&def);
+    let divs = divider_rects(&def);
     for wv in win.webviews() {
-        let Some(idx) = wv
-            .label()
-            .strip_prefix(&format!("app-{id}-"))
+        let Some(suffix) = wv.label().strip_prefix(&format!("app-{id}-")) else {
+            continue;
+        };
+        if let Some(d) = suffix
+            .strip_prefix("div-")
             .and_then(|s| s.parse::<usize>().ok())
-        else {
-            continue;
-        };
-        let Some(r) = layout_rects(&def.layout).get(idx) else {
-            continue;
-        };
-        let _ = wv.set_position(LogicalPosition::new(r.0 * lw, r.1 * lh));
-        let _ = wv.set_size(LogicalSize::new(r.2 * lw, r.3 * lh));
+            .and_then(|i| divs.get(i))
+        {
+            let (pos, sz) = divider_px(d, lw, lh);
+            let _ = wv.set_position(pos);
+            let _ = wv.set_size(sz);
+        } else if let Some(r) = suffix
+            .parse::<usize>()
+            .ok()
+            .and_then(|i| rects.get(i))
+        {
+            let _ = wv.set_position(LogicalPosition::new(r.0 * lw, r.1 * lh));
+            let _ = wv.set_size(LogicalSize::new(r.2 * lw, r.3 * lh));
+        }
     }
 }
 
 /// Запомнить размер и позицию окна в описании приложения.
-fn save_geometry(win: &tauri::WebviewWindow, id: &str) {
+pub(crate) fn save_geometry(win: &tauri::Window, id: &str) {
     let app = win.app_handle();
     let (Ok(size), Ok(pos)) = (win.outer_size(), win.outer_position()) else {
         return;
@@ -205,7 +286,9 @@ fn open_window(app: &AppHandle, def: &AppDef) {
 /// Открыть или скрыть окно приложения.
 pub fn toggle(app: &AppHandle, id: &str) {
     let label = format!("app-{id}");
-    if let Some(win) = app.get_webview_window(&label) {
+    // get_window, а не get_webview_window: с дочерними вебвью окно
+    // перестаёт считаться WebviewWindow и «теряется» навсегда.
+    if let Some(win) = app.get_window(&label) {
         if win.is_visible().unwrap_or(false) {
             save_geometry(&win, id);
             let _ = win.hide();
@@ -308,7 +391,7 @@ pub fn apps_save(app: AppHandle, def: AppDef) -> Result<(), String> {
 
 #[tauri::command]
 pub fn apps_delete(app: AppHandle, id: String) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window(&format!("app-{id}")) {
+    if let Some(win) = app.get_window(&format!("app-{id}")) {
         let _ = win.destroy();
     }
     let st = app.state::<AppsState>();
@@ -325,4 +408,50 @@ pub fn apps_delete(app: AppHandle, id: String) -> Result<(), String> {
 #[tauri::command]
 pub fn app_toggle(app: AppHandle, id: String) {
     toggle(&app, &id);
+}
+
+/// Перетаскивание полосы-разделителя: `client` — смещение курсора
+/// внутри полосы (px) по оси движения. Полоса всегда следует за
+/// курсором, поэтому достаточно её позиции + смещения внутри неё.
+#[tauri::command]
+pub fn app_divider_move(app: AppHandle, id: String, index: usize, client: f64) {
+    let Some(win) = app.get_window(&format!("app-{id}")) else {
+        return;
+    };
+    let Some(def) = find(&app, &id) else {
+        return;
+    };
+    let Ok(size) = win.inner_size() else {
+        return;
+    };
+    let scale = win.scale_factor().unwrap_or(1.0);
+    let len = if index == 0 {
+        f64::from(size.width) / scale
+    } else {
+        f64::from(size.height) / scale
+    };
+    let Some(cur) = splits_of(&def).get(index).copied() else {
+        return;
+    };
+    let frac = ((cur * len - DIV_PX / 2.0 + client) / len).clamp(0.15, 0.85);
+    let st = app.state::<AppsState>();
+    if let Ok(mut list) = st.list.lock() {
+        if let Some(d) = list.iter_mut().find(|d| d.id == id) {
+            let splits = d.splits.get_or_insert_with(Vec::new);
+            if splits.len() <= index {
+                splits.resize(index + 1, 0.5);
+            }
+            splits[index] = frac;
+        }
+    }
+    drop(st);
+    relayout(&win);
+}
+
+/// Конец перетаскивания разделителя — сохранить splits в settings.json.
+#[tauri::command]
+pub fn app_divider_done(app: AppHandle, id: String) {
+    if find(&app, &id).is_some() {
+        persist(&app);
+    }
 }

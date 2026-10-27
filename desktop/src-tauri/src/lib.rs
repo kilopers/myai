@@ -126,8 +126,8 @@ fn show_editor(app: &AppHandle, width: u32, height: u32) -> Result<(), String> {
         })
         .unwrap_or((1400.0, 800.0));
     // Минимум окна — чтобы гарантированно влезал вся панель
-    // (инструменты + цвета + Отправить/Копировать + закрытие ≈ 700px).
-    const MIN_W: f64 = 720.0;
+    // (инструменты + цвета + Получить ссылку/Копировать + закрытие ≈ 950px).
+    const MIN_W: f64 = 960.0;
     const MIN_H: f64 = 420.0;
     let ratio = (max_w / logical_w.max(1.0))
         .min(max_h / logical_h.max(1.0))
@@ -815,6 +815,9 @@ pub fn run() {
                 tauri::WindowEvent::CloseRequested { api, .. } => {
                     if !window.label().starts_with("overlay") {
                         api.prevent_close();
+                        if let Some(id) = window.label().strip_prefix("app-") {
+                            apps::save_geometry(window, id);
+                        }
                         let _ = window.hide();
                     }
                 }
@@ -860,7 +863,9 @@ pub fn run() {
             apps::apps_list,
             apps::apps_save,
             apps::apps_delete,
-            apps::app_toggle
+            apps::app_toggle,
+            apps::app_divider_move,
+            apps::app_divider_done
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -925,7 +930,27 @@ pub fn run() {
                 .build(app)?;
 
             // Show settings on first launch so the user can configure server + token.
-            open_settings_window(app.handle()).ok();
+            // «Тихий запуск»: при включённой галочке и настроенном
+            // подключении окно настроек не открываем — только трей.
+            let (silent, configured) = app
+                .store("settings.json")
+                .ok()
+                .map(|s| {
+                    let filled = |k: &str| {
+                        s.get(k)
+                            .and_then(|v| v.as_str().map(str::to_owned))
+                            .is_some_and(|v| !v.is_empty())
+                    };
+                    let silent = s
+                        .get("silent_start")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    (silent, filled("server_url") && filled("api_token"))
+                })
+                .unwrap_or((false, false));
+            if !(silent && configured) {
+                open_settings_window(app.handle()).ok();
+            }
             spawn_ws_monitor(app.handle());
             spawn_update_poller(app.handle());
             // FS-монитор sync-папки + heartbeat корневого хэша

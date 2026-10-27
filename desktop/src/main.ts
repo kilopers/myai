@@ -164,6 +164,7 @@ async function initSettings() {
   const tokenInput = document.getElementById('api-token') as HTMLInputElement;
   const hotkeyInput = document.getElementById('hotkey') as HTMLInputElement;
   const autostartInput = document.getElementById('autostart') as HTMLInputElement;
+  const silentInput = document.getElementById('silent-start') as HTMLInputElement;
   const status = document.getElementById('settings-status')!;
   // Статус — одна строка справа от кнопки «Сохранить» (не меняет
   // высоту окна); длинный текст обрезается, полный — в тултипе.
@@ -176,6 +177,7 @@ async function initSettings() {
   urlInput.value = (await store.get<string>(STORE_KEYS.serverUrl)) ?? '';
   tokenInput.value = (await store.get<string>(STORE_KEYS.apiToken)) ?? '';
   autostartInput.checked = await isAutostartEnabled();
+  silentInput.checked = (await store.get<boolean>('silent_start')) ?? false;
 
   // --- горячая клавиша захвата: поле ловит нажатую комбинацию ---
   let savedHotkey = (await store.get<string>('hotkey')) ?? 'ctrl+shift+x';
@@ -265,6 +267,7 @@ async function initSettings() {
   document.getElementById('save-settings')!.addEventListener('click', async () => {
     await store.set(STORE_KEYS.serverUrl, urlInput.value.trim().replace(/\/+$/, ''));
     await store.set(STORE_KEYS.apiToken, tokenInput.value.trim());
+    await store.set('silent_start', silentInput.checked);
     await store.save();
     try {
       if (autostartInput.checked) await enableAutostart();
@@ -708,6 +711,8 @@ function layoutPreview(layout: string): HTMLElement {
 async function initApps() {
   const view = document.getElementById('apps-view')!;
   view.style.display = 'block';
+  // Без этого пустой <canvas> (300×150) висит сверху и даёт «разрыв».
+  document.getElementById('canvas')!.style.display = 'none';
   const grid = document.getElementById('apps-grid')!;
   const edit = document.getElementById('app-edit')!;
   const editStatus = document.getElementById('app-edit-status')!;
@@ -851,6 +856,47 @@ async function initApps() {
   await render();
 }
 
+// ---------- полоса-разделитель панелей окна «Мои приложения» ----------
+// Тонкое дочернее вебвью (6px) поверх стыка панелей: pointer-события
+// уходят в Rust, который двигает splits и перестраивает панели.
+async function initDivider() {
+  const { getCurrentWebview } = await import('@tauri-apps/api/webview');
+  const m = /^app-(.+)-div-(\d+)$/.exec(getCurrentWebview().label);
+  if (!m) return;
+  const appId = m[1];
+  const index = Number(m[2]);
+  const vertical = index === 0;
+  // <canvas> из общего index.html перекрыл бы полосу и её курсор.
+  document.getElementById('canvas')!.style.display = 'none';
+
+  const body = document.body;
+  body.style.cssText = `margin:0;background:#15151a;cursor:${vertical ? 'col-resize' : 'row-resize'};overflow:hidden`;
+  const line = document.createElement('div');
+  line.style.cssText = vertical
+    ? 'position:fixed;left:2px;top:0;bottom:0;width:2px;background:rgba(255,255,255,.16)'
+    : 'position:fixed;top:2px;left:0;right:0;height:2px;background:rgba(255,255,255,.16)';
+  body.appendChild(line);
+
+  body.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const move = (ev: PointerEvent) => {
+      void invoke('app_divider_move', {
+        id: appId,
+        index,
+        client: vertical ? ev.clientX : ev.clientY,
+      });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      void invoke('app_divider_done', { id: appId });
+    };
+    // capture — события идут и когда курсор вне 6px-полосы.
+    body.setPointerCapture(e.pointerId);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up, { once: true });
+  });
+}
+
 if (location.hash === '#settings' || location.search.includes('view=settings')) {
   initSettings();
 } else if (location.hash === '#editor') {
@@ -859,6 +905,8 @@ if (location.hash === '#settings' || location.search.includes('view=settings')) 
   void initAbout();
 } else if (location.hash === '#apps') {
   void initApps();
+} else if (location.hash === '#divider') {
+  void initDivider();
 } else if (location.hash === '#blank') {
   // Пустая страница — холст под дочерние вебвью окон «Мои приложения».
 } else {
