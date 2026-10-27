@@ -654,7 +654,7 @@ fn open_settings_window(app: &AppHandle) -> Result<(), String> {
         WebviewUrl::App("index.html#settings".into()),
     )
     .title("Мой AI ассистент — настройки")
-    .inner_size(520.0, 840.0)
+    .inner_size(520.0, 900.0)
     .resizable(true)
     .build()
     .map_err(|e| e.to_string())?;
@@ -840,6 +840,7 @@ pub fn run() {
         .manage(update::PromptedVersions::default())
         .manage(keepawake::KeepAwake::default())
         .manage(apps::AppsState::default())
+        .manage(apps::TermState::default())
         .manage(CurrentHotkey(Mutex::new(String::new())))
         .invoke_handler(tauri::generate_handler![
             take_capture,
@@ -865,7 +866,8 @@ pub fn run() {
             apps::apps_delete,
             apps::app_toggle,
             apps::app_divider_move,
-            apps::app_divider_done
+            apps::app_divider_done,
+            apps::app_term_run
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]

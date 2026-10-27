@@ -746,7 +746,7 @@ async function initApps() {
     const n = LAYOUT_RECTS[layout].length;
     while ((current?.urls.length ?? 0) < n) current?.urls.push('');
     if (current && current.urls.length > n) current.urls = current.urls.slice(0, n);
-    urlsBox.innerHTML = '<label style="display:block;margin-top:12px;font-size:12px;color:#aaa;text-transform:uppercase">Ссылки — по панели, сверху-вниз, слева-направо</label>';
+    urlsBox.innerHTML = '<label style="display:block;margin-top:12px;font-size:12px;color:#aaa;text-transform:uppercase">Ссылки — по панели, сверху-вниз, слева-направо. Для терминала — term:&lt;команда&gt;</label>';
     for (let i = 0; i < n; i++) {
       const inp = document.createElement('input');
       inp.placeholder = `https://… — панель ${i + 1}`;
@@ -856,6 +856,50 @@ async function initApps() {
   await render();
 }
 
+// ---------- term:-панель — вывод команды + кнопка перезапуска ----------
+// Не интерактивный PTY: sh -c / cmd /C, вывод стримится событием
+// `term-out-{label}`. Плавающая ↻ справа сверху перезапускает команду.
+async function initTerm() {
+  const { getCurrentWebview } = await import('@tauri-apps/api/webview');
+  const m = /^app-(.+)-(\d+)$/.exec(getCurrentWebview().label);
+  if (!m) return;
+  const appId = m[1];
+  const index = Number(m[2]);
+  document.getElementById('canvas')!.style.display = 'none';
+
+  const body = document.body;
+  body.style.cssText = 'margin:0;background:#0c0c10;color:#c8e0a8;overflow:hidden';
+  const pre = document.createElement('pre');
+  pre.style.cssText =
+    'margin:0;padding:10px 12px;box-sizing:border-box;height:100vh;overflow-y:auto;' +
+    'font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all';
+  body.appendChild(pre);
+
+  const rerun = document.createElement('button');
+  rerun.textContent = '↻';
+  rerun.title = 'Выполнить команду заново';
+  rerun.style.cssText =
+    'position:fixed;top:8px;right:8px;z-index:10;width:34px;height:34px;border-radius:50%;' +
+    'border:1px solid #3a3a44;background:rgba(24,24,30,.85);color:#c8e0a8;font-size:17px;cursor:pointer';
+  body.appendChild(rerun);
+
+  const run = async () => {
+    pre.textContent = '';
+    try {
+      await invoke('app_term_run', { id: appId, index });
+    } catch (e) {
+      pre.textContent += `Ошибка: ${e}\n`;
+    }
+  };
+  rerun.addEventListener('click', run);
+
+  await listen<string>(`term-out-${getCurrentWebview().label}`, (e) => {
+    pre.textContent += e.payload + '\n';
+    pre.scrollTop = pre.scrollHeight;
+  });
+  await run();
+}
+
 // ---------- полоса-разделитель панелей окна «Мои приложения» ----------
 // Тонкое дочернее вебвью (6px) поверх стыка панелей: pointer-события
 // уходят в Rust, который двигает splits и перестраивает панели.
@@ -905,6 +949,8 @@ if (location.hash === '#settings' || location.search.includes('view=settings')) 
   void initAbout();
 } else if (location.hash === '#apps') {
   void initApps();
+} else if (location.hash === '#term') {
+  void initTerm();
 } else if (location.hash === '#divider') {
   void initDivider();
 } else if (location.hash === '#blank') {

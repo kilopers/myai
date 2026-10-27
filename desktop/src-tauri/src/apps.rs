@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Mutex};
 use tauri::{
-    AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl, WebviewWindowBuilder,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, WebviewUrl, WebviewWindowBuilder,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 use tauri_plugin_store::StoreExt;
@@ -82,6 +82,16 @@ fn persist(app: &AppHandle) {
 /// Толщина полосы-разделителя между панелями, логические px.
 const DIV_PX: f64 = 6.0;
 
+/// Клавиши «обновить страницу» внутри панели — как в браузере.
+/// Инжектится в каждое дочернее вебвью (в т.ч. внешние сайты).
+const RELOAD_SCRIPT: &str = "window.addEventListener('keydown',function(e){if(e.key==='F5'||((e.metaKey||e.ctrlKey)&&(e.key||'').toLowerCase()==='r')){e.preventDefault();location.reload();}});";
+
+/// Живые процессы term:-панелей — label вебвью → child.
+#[derive(Default)]
+pub struct TermState {
+    pub procs: Mutex<HashMap<String, std::process::Child>>,
+}
+
 /// Позиции разделителей приложения: [вертикальный, горизонтальный]
 /// в долях окна; дефолт 0.5, зажаты в разумные пределы.
 fn splits_of(def: &AppDef) -> Vec<f64> {
@@ -138,15 +148,18 @@ fn divider_rects(def: &AppDef) -> Vec<(usize, f64, f64, f64, f64)> {
 /// Геометрия полосы-разделителя в логических пикселях.
 fn divider_px(d: &(usize, f64, f64, f64, f64), lw: f64, lh: f64) -> (LogicalPosition<f64>, LogicalSize<f64>) {
     let (_, x, y, w, h) = *d;
+    // Отступ от краёв окна по длинной оси — полоса живёт строго
+    // внутри области панелей и не касается тайтлбара/рамок.
+    const EDGE: f64 = 4.0;
     if w == 0.0 {
         (
-            LogicalPosition::new(x * lw - DIV_PX / 2.0, y * lh),
-            LogicalSize::new(DIV_PX, h * lh),
+            LogicalPosition::new(x * lw - DIV_PX / 2.0, y * lh + EDGE),
+            LogicalSize::new(DIV_PX, (h * lh - 2.0 * EDGE).max(1.0)),
         )
     } else {
         (
-            LogicalPosition::new(x * lw, y * lh - DIV_PX / 2.0),
-            LogicalSize::new(w * lw, DIV_PX),
+            LogicalPosition::new(x * lw + EDGE, y * lh - DIV_PX / 2.0),
+            LogicalSize::new((w * lw - 2.0 * EDGE).max(1.0), DIV_PX),
         )
     }
 }
@@ -172,13 +185,30 @@ fn layout_children(win: &tauri::Window, def: &AppDef) {
         let Some(r) = rects.get(i) else {
             break;
         };
-        let Ok(url) = tauri::Url::parse(url) else {
-            continue;
+        let label = format!("{}-{}", win.label(), i);
+        // `term:<команда>` — панель-терминал (наш index.html#term),
+        // остальное — внешняя ссылка.
+        let wv = if url.starts_with("term:") {
+            tauri::webview::WebviewBuilder::new(
+                label,
+                WebviewUrl::App("index.html#term".into()),
+            )
+        } else {
+            let Ok(u) = tauri::Url::parse(url) else {
+                continue;
+            };
+            tauri::webview::WebviewBuilder::new(label, WebviewUrl::External(u))
         };
-        let wv = tauri::webview::WebviewBuilder::new(
-            format!("{}-{}", win.label(), i),
-            WebviewUrl::External(url),
-        );
+        // Микрофон/камера для встроенных приложений (звонки и т.п.).
+        let wv = wv
+            .on_permission_request(|_, kind| match kind {
+                tauri::webview::PermissionKind::Camera
+                | tauri::webview::PermissionKind::Microphone => {
+                    tauri::webview::PermissionResponse::Allow
+                }
+                _ => tauri::webview::PermissionResponse::Default,
+            })
+            .initialization_script(RELOAD_SCRIPT);
         let pos = LogicalPosition::new(r.0 * lw, r.1 * lh);
         let sz = LogicalSize::new(r.2 * lw, r.3 * lh);
         let _ = win.add_child(wv, pos, sz);
@@ -370,6 +400,12 @@ pub fn apps_save(app: AppHandle, def: AppDef) -> Result<(), String> {
         return Err("число ссылок не совпадает с раскладкой".to_string());
     }
     for u in &def.urls {
+        if let Some(cmd) = u.strip_prefix("term:") {
+            if cmd.trim().is_empty() {
+                return Err("пустая команда терминала".to_string());
+            }
+            continue;
+        }
         if tauri::Url::parse(u).is_err() {
             return Err(format!("некорректная ссылка: {u}"));
         }
@@ -394,6 +430,7 @@ pub fn apps_delete(app: AppHandle, id: String) -> Result<(), String> {
     if let Some(win) = app.get_window(&format!("app-{id}")) {
         let _ = win.destroy();
     }
+    kill_terms(&app, &id);
     let st = app.state::<AppsState>();
     if let Ok(mut list) = st.list.lock() {
         list.retain(|d| d.id != id);
@@ -453,5 +490,91 @@ pub fn app_divider_move(app: AppHandle, id: String, index: usize, client: f64) {
 pub fn app_divider_done(app: AppHandle, id: String) {
     if find(&app, &id).is_some() {
         persist(&app);
+    }
+}
+
+/// Запуск/перезапуск команды term:-панели. Вывод стримится
+/// построчно событием `term-out-{label}` (stderr слит в stdout).
+#[tauri::command]
+pub fn app_term_run(app: AppHandle, id: String, index: usize) -> Result<(), String> {
+    let def = find(&app, &id).ok_or_else(|| "приложение не найдено".to_string())?;
+    let url = def.urls.get(index).cloned().unwrap_or_default();
+    let Some(cmdline) = url.strip_prefix("term:").map(str::trim) else {
+        return Err("панель не является терминалом".to_string());
+    };
+    if cmdline.is_empty() {
+        return Err("пустая команда".to_string());
+    }
+    let label = format!("app-{id}-{index}");
+
+    {
+        let st = app.state::<TermState>();
+        if let Ok(mut m) = st.procs.lock() {
+            if let Some(mut c) = m.remove(&label) {
+                let _ = c.kill();
+                let _ = c.wait();
+            }
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    let mut cmd = {
+        let mut c = std::process::Command::new("cmd");
+        c.args(["/C", cmdline]);
+        c
+    };
+    #[cfg(not(target_os = "windows"))]
+    let mut cmd = {
+        let mut c = std::process::Command::new("sh");
+        c.args(["-c", cmdline]);
+        c
+    };
+    let mut child = cmd
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::stdout())
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    let out = child.stdout.take();
+
+    {
+        let st = app.state::<TermState>();
+        if let Ok(mut m) = st.procs.lock() {
+            m.insert(label.clone(), child);
+        }
+    }
+
+    let app2 = app.clone();
+    std::thread::spawn(move || {
+        use std::io::{BufRead, BufReader};
+        if let Some(o) = out {
+            for line in BufReader::new(o).lines() {
+                let Ok(line) = line else { break };
+                let _ = app2.emit(format!("term-out-{label}"), line);
+            }
+        }
+        let _ = app2.emit(format!("term-out-{label}"), "\u{2014} процесс завершён \u{2014}".to_string());
+        if let Some(st) = app2.try_state::<TermState>() {
+            if let Ok(mut m) = st.procs.lock() {
+                m.remove(&label);
+            }
+        }
+    });
+    Ok(())
+}
+
+/// Убить все term-процессы приложения (при удалении приложения).
+fn kill_terms(app: &AppHandle, app_id: &str) {
+    let Some(st) = app.try_state::<TermState>() else {
+        return;
+    };
+    if let Ok(mut m) = st.procs.lock() {
+        let prefix = format!("app-{app_id}-");
+        let keys: Vec<String> = m.keys().filter(|k| k.starts_with(&prefix)).cloned().collect();
+        for k in keys {
+            if let Some(mut c) = m.remove(&k) {
+                let _ = c.kill();
+                let _ = c.wait();
+            }
+        }
     }
 }
