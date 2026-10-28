@@ -601,6 +601,10 @@ async function initEditor() {
   }
 
   canvas.addEventListener('mousedown', (e) => {
+    // Без preventDefault mousedown на нефокусируемом canvas забирает фокус
+    // у только что созданного поля ввода → срабатывает blur-коммит и поле
+    // удаляется раньше первой буквы. На macOS/Windows поведение одинаково.
+    e.preventDefault();
     const p = toImageCoords(e);
     if (tool === 'text') {
       openTextInput(p);
