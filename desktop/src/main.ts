@@ -746,7 +746,7 @@ async function initApps() {
     const n = LAYOUT_RECTS[layout].length;
     while ((current?.urls.length ?? 0) < n) current?.urls.push('');
     if (current && current.urls.length > n) current.urls = current.urls.slice(0, n);
-    urlsBox.innerHTML = '<label style="display:block;margin-top:12px;font-size:12px;color:#aaa;text-transform:uppercase">Ссылки — по панели, сверху-вниз, слева-направо. Для терминала — term:&lt;команда&gt;</label>';
+    urlsBox.innerHTML = '<label style="display:block;margin-top:12px;font-size:12px;color:#aaa;text-transform:uppercase">Ссылки — по панели, сверху-вниз, слева-направо. Для терминала — term: или term:&lt;команда&gt;</label>';
     for (let i = 0; i < n; i++) {
       const inp = document.createElement('input');
       inp.placeholder = `https://… — панель ${i + 1}`;

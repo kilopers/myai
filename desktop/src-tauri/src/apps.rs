@@ -410,10 +410,8 @@ pub fn apps_save(app: AppHandle, def: AppDef) -> Result<(), String> {
         return Err("число ссылок не совпадает с раскладкой".to_string());
     }
     for u in &def.urls {
-        if let Some(cmd) = u.strip_prefix("term:") {
-            if cmd.trim().is_empty() {
-                return Err("пустая команда терминала".to_string());
-            }
+        // `term:` без команды — интерактивный шелл по умолчанию (v1.5.1+).
+        if u.strip_prefix("term:").is_some() {
             continue;
         }
         if tauri::Url::parse(u).is_err() {
