@@ -894,7 +894,9 @@ pub fn run() {
             apps::app_toggle,
             apps::app_divider_move,
             apps::app_divider_done,
-            apps::app_term_run
+            apps::app_term_run,
+            apps::app_term_write,
+            apps::app_term_resize
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]

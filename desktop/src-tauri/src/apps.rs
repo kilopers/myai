@@ -86,10 +86,20 @@ const DIV_PX: f64 = 6.0;
 /// Инжектится в каждое дочернее вебвью (в т.ч. внешние сайты).
 const RELOAD_SCRIPT: &str = "window.addEventListener('keydown',function(e){if(e.key==='F5'||((e.metaKey||e.ctrlKey)&&(e.key||'').toLowerCase()==='r')){e.preventDefault();location.reload();}});";
 
-/// Живые процессы term:-панелей — label вебвью → child.
+/// Живой терминал term:-панели: PTY-мастер + процесс + stdin.
+pub struct TermProc {
+    pub child: Box<dyn portable_pty::Child + Send + Sync>,
+    pub master: Box<dyn portable_pty::MasterPty + Send>,
+    pub writer: Box<dyn std::io::Write + Send>,
+    /// true, когда в панели запущен явный `term:<cmd>` (а не шелл):
+    /// только для таких пишем «процесс завершён».
+    pub had_command: bool,
+}
+
+/// Живые процессы term:-панелей — label вебвью → PTY.
 #[derive(Default)]
 pub struct TermState {
-    pub procs: Mutex<HashMap<String, std::process::Child>>,
+    pub procs: Mutex<HashMap<String, TermProc>>,
 }
 
 /// Позиции разделителей приложения: [вертикальный, горизонтальный]
@@ -493,8 +503,10 @@ pub fn app_divider_done(app: AppHandle, id: String) {
     }
 }
 
-/// Запуск/перезапуск команды term:-панели. Вывод стримится
-/// построчно событием `term-out-{label}` (stderr слит в stdout).
+/// Запуск/перезапуск term:-панели. Настоящий PTY (portable-pty):
+/// пустая команда — интерактивный шелл по умолчанию, `term:<cmd>` —
+/// команда через sh -c / cmd /C. Сырой вывод (ANSI) стримится событием
+/// `term-out-{label}` в xterm.js; ввод — app_term_write.
 #[tauri::command]
 pub fn app_term_run(app: AppHandle, id: String, index: usize) -> Result<(), String> {
     let def = find(&app, &id).ok_or_else(|| "приложение не найдено".to_string())?;
@@ -502,94 +514,167 @@ pub fn app_term_run(app: AppHandle, id: String, index: usize) -> Result<(), Stri
     let Some(cmdline) = url.strip_prefix("term:").map(str::trim) else {
         return Err("панель не является терминалом".to_string());
     };
-    if cmdline.is_empty() {
-        return Err("пустая команда".to_string());
-    }
+    let had_command = !cmdline.is_empty();
     let label = format!("app-{id}-{index}");
 
     {
         let st = app.state::<TermState>();
         if let Ok(mut m) = st.procs.lock() {
-            if let Some(mut c) = m.remove(&label) {
-                let _ = c.kill();
-                let _ = c.wait();
+            if let Some(mut p) = m.remove(&label) {
+                let _ = p.child.kill();
+                let _ = p.child.wait();
             }
         };
     }
 
-    #[cfg(target_os = "windows")]
-    let mut cmd = {
-        let mut c = std::process::Command::new("cmd");
-        c.args(["/C", cmdline]);
+    let cmd = if had_command {
+        #[cfg(target_os = "windows")]
+        let c = {
+            let mut c = portable_pty::CommandBuilder::new("cmd");
+            c.arg("/C");
+            c.arg(cmdline);
+            c
+        };
+        #[cfg(not(target_os = "windows"))]
+        let c = {
+            let mut c = portable_pty::CommandBuilder::new("sh");
+            c.arg("-c");
+            c.arg(cmdline);
+            c
+        };
         c
+    } else {
+        // Пустой term: — интерактивный шелл по умолчанию ($SHELL / cmd.exe).
+        portable_pty::CommandBuilder::new_default_prog()
     };
-    #[cfg(not(target_os = "windows"))]
-    let mut cmd = {
-        let mut c = std::process::Command::new("sh");
-        c.args(["-c", cmdline]);
-        c
-    };
-    let mut child = cmd
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
+
+    let pair = portable_pty::native_pty_system()
+        .openpty(portable_pty::PtySize {
+            rows: 24,
+            cols: 80,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
         .map_err(|e| e.to_string())?;
-    let out = child.stdout.take();
-    let err = child.stderr.take();
+    let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
+    let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
+    let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
 
     {
         let st = app.state::<TermState>();
         if let Ok(mut m) = st.procs.lock() {
-            m.insert(label.clone(), child);
+            m.insert(
+                label.clone(),
+                TermProc {
+                    child,
+                    master: pair.master,
+                    writer,
+                    had_command,
+                },
+            );
         };
     }
 
     let app2 = app.clone();
     let label2 = label.clone();
-    // По потоку на stdout и stderr — события идут в одну панель.
-    macro_rules! pipe_reader {
-        ($pipe:expr) => {{
-            let app3 = app2.clone();
-            let label3 = label2.clone();
-            if let Some(pipe) = $pipe {
-                std::thread::spawn(move || {
-                    use std::io::{BufRead, BufReader};
-                    for line in BufReader::new(pipe).lines() {
-                        let Ok(line) = line else { break };
-                        let _ = app3.emit(&format!("term-out-{label3}"), line);
+    std::thread::spawn(move || {
+        use std::io::Read;
+        let mut pending: Vec<u8> = Vec::new();
+        let mut buf = [0u8; 8192];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) | Err(_) => break,
+                Ok(n) => {
+                    pending.extend_from_slice(&buf[..n]);
+                    // Отдаём только полные UTF-8-последовательности —
+                    // хвост неполного символа ждёт следующий кусок.
+                    let upto = match std::str::from_utf8(&pending) {
+                        Ok(_) => pending.len(),
+                        Err(e) => e.valid_up_to(),
+                    };
+                    if upto > 0 {
+                        let text = String::from_utf8_lossy(&pending[..upto]).into_owned();
+                        let _ = app2.emit(&format!("term-out-{label2}"), text);
+                        pending.drain(..upto);
                     }
-                });
+                    // Невалидный поток не копим бесконечно.
+                    if pending.len() > 4096 {
+                        pending.clear();
+                    }
+                }
             }
-        }};
-    }
-    pipe_reader!(out);
-    pipe_reader!(err);
+        }
+    });
+
+    let app3 = app.clone();
+    let label3 = label.clone();
     std::thread::spawn(move || {
         // Ждём завершения процесса через try_wait по живому Child
         // в мапе; пропал из мапы — убит перезапуском/удалением.
-        let st = app2.state::<TermState>();
+        let st = app3.state::<TermState>();
         loop {
             let done = {
                 let Ok(mut m) = st.procs.lock() else { return };
-                match m.get_mut(&label2) {
-                    Some(c) => !matches!(c.try_wait(), Ok(None)),
+                match m.get_mut(&label3) {
+                    Some(p) => !matches!(p.child.try_wait(), Ok(None)),
                     None => return,
                 }
             };
             if done {
-                if let Ok(mut m) = st.procs.lock() {
-                    m.remove(&label2);
+                let had = match st.procs.lock() {
+                    Ok(mut m) => m.remove(&label3).map(|p| p.had_command).unwrap_or(false),
+                    Err(_) => false,
+                };
+                if had {
+                    let _ = app3.emit(
+                        &format!("term-out-{label3}"),
+                        "\r\n\u{2014} процесс завершён \u{2014}\r\n",
+                    );
                 }
-                let _ = app2.emit(
-                    &format!("term-out-{label2}"),
-                    "\u{2014} процесс завершён \u{2014}",
-                );
                 return;
             }
             std::thread::sleep(std::time::Duration::from_millis(500));
         }
     });
     Ok(())
+}
+
+/// Ввод в term:-панель — байты в stdin PTY.
+#[tauri::command]
+pub fn app_term_write(app: AppHandle, id: String, index: usize, data: String) -> Result<(), String> {
+    use std::io::Write;
+    let label = format!("app-{id}-{index}");
+    let st = app.state::<TermState>();
+    let mut m = st.procs.lock().map_err(|_| "нет терминала".to_string())?;
+    let Some(p) = m.get_mut(&label) else {
+        return Err("терминал не запущен".to_string());
+    };
+    p.writer.write_all(data.as_bytes()).map_err(|e| e.to_string())
+}
+
+/// Размер PTY следит за панелью (cols×rows от xterm.js fit-аддона).
+#[tauri::command]
+pub fn app_term_resize(
+    app: AppHandle,
+    id: String,
+    index: usize,
+    cols: u16,
+    rows: u16,
+) -> Result<(), String> {
+    let label = format!("app-{id}-{index}");
+    let st = app.state::<TermState>();
+    let m = st.procs.lock().map_err(|_| "нет терминала".to_string())?;
+    let Some(p) = m.get(&label) else {
+        return Err("терминал не запущен".to_string());
+    };
+    p.master
+        .resize(portable_pty::PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| e.to_string())
 }
 
 /// Убить все term-процессы приложения (при удалении приложения).
@@ -601,9 +686,9 @@ fn kill_terms(app: &AppHandle, app_id: &str) {
         let prefix = format!("app-{app_id}-");
         let keys: Vec<String> = m.keys().filter(|k| k.starts_with(&prefix)).cloned().collect();
         for k in keys {
-            if let Some(mut c) = m.remove(&k) {
-                let _ = c.kill();
-                let _ = c.wait();
+            if let Some(mut p) = m.remove(&k) {
+                let _ = p.child.kill();
+                let _ = p.child.wait();
             }
         }
     };

@@ -856,9 +856,11 @@ async function initApps() {
   await render();
 }
 
-// ---------- term:-панель — вывод команды + кнопка перезапуска ----------
-// Не интерактивный PTY: sh -c / cmd /C, вывод стримится событием
-// `term-out-{label}`. Плавающая ↻ справа сверху перезапускает команду.
+// ---------- term:-панель — интерактивный терминал (xterm.js + PTY) ----------
+// Rust держит PTY (portable-pty): вывод стримится сырыми кусками
+// событием `term-out-{label}`, ввод уходит в app_term_write,
+// размер — app_term_resize. Пустой term: — шелл по умолчанию,
+// `term:<cmd>` — команда; ↻ перезапускает.
 async function initTerm() {
   const { getCurrentWebview } = await import('@tauri-apps/api/webview');
   const m = /^app-(.+)-(\d+)$/.exec(getCurrentWebview().label);
@@ -867,35 +869,61 @@ async function initTerm() {
   const index = Number(m[2]);
   document.getElementById('canvas')!.style.display = 'none';
 
+  const [{ Terminal }, { FitAddon }] = await Promise.all([
+    import('@xterm/xterm'),
+    import('@xterm/addon-fit'),
+    import('@xterm/xterm/css/xterm.css'),
+  ]);
+
   const body = document.body;
-  body.style.cssText = 'margin:0;background:#0c0c10;color:#c8e0a8;overflow:hidden';
-  const pre = document.createElement('pre');
-  pre.style.cssText =
-    'margin:0;padding:10px 12px;box-sizing:border-box;height:100vh;overflow-y:auto;' +
-    'font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all';
-  body.appendChild(pre);
+  body.style.cssText = 'margin:0;background:#0c0c10;overflow:hidden';
+  const holder = document.createElement('div');
+  holder.style.cssText = 'position:fixed;inset:0;padding:6px 4px 4px 8px;box-sizing:border-box';
+  body.appendChild(holder);
+
+  const term = new Terminal({
+    fontFamily: 'ui-monospace,Menlo,Consolas,monospace',
+    fontSize: 13,
+    cursorBlink: true,
+    scrollback: 5000,
+    theme: { background: '#0c0c10' },
+  });
+  const fit = new FitAddon();
+  term.loadAddon(fit);
+  term.open(holder);
 
   const rerun = document.createElement('button');
   rerun.textContent = '↻';
-  rerun.title = 'Выполнить команду заново';
+  rerun.title = 'Перезапустить';
   rerun.style.cssText =
     'position:fixed;top:8px;right:8px;z-index:10;width:34px;height:34px;border-radius:50%;' +
     'border:1px solid #3a3a44;background:rgba(24,24,30,.85);color:#c8e0a8;font-size:17px;cursor:pointer';
   body.appendChild(rerun);
 
+  const resize = () => {
+    fit.fit();
+    void invoke('app_term_resize', { id: appId, index, cols: term.cols, rows: term.rows });
+  };
+  new ResizeObserver(resize).observe(holder);
+  window.addEventListener('resize', resize);
+
+  term.onData((d) => {
+    void invoke('app_term_write', { id: appId, index, data: d });
+  });
+
   const run = async () => {
-    pre.textContent = '';
     try {
       await invoke('app_term_run', { id: appId, index });
+      term.reset();
+      resize();
     } catch (e) {
-      pre.textContent += `Ошибка: ${e}\n`;
+      term.writeln(`Ошибка: ${e}`);
     }
   };
   rerun.addEventListener('click', run);
 
   await listen<string>(`term-out-${getCurrentWebview().label}`, (e) => {
-    pre.textContent += e.payload + '\n';
-    pre.scrollTop = pre.scrollHeight;
+    term.write(e.payload);
   });
   await run();
 }
