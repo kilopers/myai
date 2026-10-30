@@ -6,7 +6,7 @@ APP_VERSION=$(cat /var/www/html/VERSION 2>/dev/null || echo '?')
 deploy_status() {
     wget -q -T 10 -O /dev/null \
       --header='Content-Type: application/json' \
-      --post-data="{\"project\":\"screenshoter\",\"status\":\"$1\",\"data\":\"$2 v${APP_VERSION} env=${APP_ENV:-?} url=${APP_URL:-?}\"}" \
+      --post-data="{\"project\":\"myai\",\"status\":\"$1\",\"data\":\"$2 v${APP_VERSION} env=${APP_ENV:-?} url=${APP_URL:-?}\"}" \
       https://ai.kilop.ru/api/deploy/status >/dev/null 2>&1 || true
 }
 
