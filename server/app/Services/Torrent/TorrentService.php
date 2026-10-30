@@ -103,9 +103,13 @@ class TorrentService
     public function start(Torrent $torrent, ?array $indexes = null): void
     {
         abort_if(
-            in_array($torrent->status, [Torrent::STATUS_DOWNLOADING, Torrent::STATUS_COMPLETED], true),
+            in_array($torrent->status, [
+                Torrent::STATUS_DOWNLOADING,
+                Torrent::STATUS_COMPLETED,
+                Torrent::STATUS_PAUSED, // у paused есть gid — дубль задачи; resume() снимает с паузы
+            ], true),
             422,
-            'Торрент уже качается или скачан.',
+            'Торрент уже качается, на паузе или скачан.',
         );
 
         $file = $torrent->storedFile;
