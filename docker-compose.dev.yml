@@ -11,6 +11,7 @@ services:
     volumes:
       - ./server:/var/www/html:cached
       - ./data-dev/screenshots:/var/www/html/storage/app/public
+      - ./data-dev/torrents:/var/www/html/storage/app/torrents
     entrypoint: >
       sh -c "chown -R www-data:www-data storage bootstrap/cache;
              composer install --no-interaction &&
@@ -24,6 +25,12 @@ services:
     volumes:
       - ./server:/var/www/html:cached
       - ./data-dev/screenshots:/var/www/html/storage/app/public
+      - ./data-dev/torrents:/var/www/html/storage/app/torrents
+
+  # Тот же staging-каталог, что у app/queue — не продовый ./data.
+  aria2:
+    volumes:
+      - ./data-dev/torrents:/downloads
 
   web:
     build:
