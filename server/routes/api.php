@@ -9,6 +9,7 @@ use App\Http\Controllers\FileController;
 use App\Http\Controllers\FolderController;
 use App\Http\Controllers\InviteController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicShareController;
 use App\Http\Controllers\ScreenshotController;
 use App\Http\Controllers\ShareLinkController;
 use App\Http\Controllers\SyncController;
@@ -26,6 +27,22 @@ Route::get('/ws-config', function () {
         'host' => parse_url(config('app.url'), PHP_URL_HOST) ?: 'localhost',
     ]);
 });
+
+// Публичный просмотр расшаренных ссылок для SPA-страниц /share/*
+// (без авторизации — токен ссылки сам по себе ключ доступа).
+Route::middleware('throttle:120,1')->group(function () {
+    Route::get('/share/{token}', [PublicShareController::class, 'info']);
+    Route::get('/share/{token}/file/{uuid}', [PublicShareController::class, 'fileInfo']);
+    Route::get('/share/{token}/file/{uuid}/raw', [PublicShareController::class, 'raw']);
+    Route::get('/share/{token}/file/{uuid}/download', [PublicShareController::class, 'download']);
+    Route::get('/share/{token}/file/{uuid}/thumbnail', [PublicShareController::class, 'thumbnail']);
+    Route::get('/share/{token}/file/{uuid}/pages', [PublicShareController::class, 'pages']);
+    Route::get('/share/{token}/file/{uuid}/pages/{page}', [PublicShareController::class, 'page']);
+    Route::get('/share/{token}/file/{uuid}/converted', [PublicShareController::class, 'converted']);
+    Route::get('/share-shot/{uuid}', [PublicShareController::class, 'screenshot']);
+});
+Route::post('/share/{token}/upload', [PublicShareController::class, 'upload'])
+    ->middleware('throttle:30,1');
 
 // Автообновление десктопа: версия, раздача инсталляторов, webhook из CI
 Route::get('/desktop-version', [DesktopReleaseController::class, 'version'])->middleware('throttle:60,1');

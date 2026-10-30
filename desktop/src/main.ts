@@ -50,16 +50,34 @@ const norm = (a: Point, b: Point): Rect => ({
 });
 
 function drawArrow(c: CanvasRenderingContext2D, from: Point, to: Point, color: string) {
-  const head = 22;
+  // Наконечник крупный и залитый; линия заканчивается у его основания,
+  // чтобы не выглядывала из-под углов треугольника.
+  const head = 34; // длина наконечника
+  const half = 17; // полуширина основания
   const angle = Math.atan2(to.y - from.y, to.x - from.x);
-  c.strokeStyle = color; c.fillStyle = color; c.lineWidth = 6;
+  const dx = Math.cos(angle);
+  const dy = Math.sin(angle);
+  const px = -dy;
+  const py = dx;
+  const bx = to.x - dx * head;
+  const by = to.y - dy * head;
+
+  c.strokeStyle = color;
+  c.fillStyle = color;
+  c.lineWidth = 6;
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+  // Линия чуть заходит в основание треугольника — без просвета и без выступа.
   c.beginPath();
-  c.moveTo(from.x, from.y); c.lineTo(to.x, to.y); c.stroke();
+  c.moveTo(from.x, from.y);
+  c.lineTo(bx + dx * 3, by + dy * 3);
+  c.stroke();
   c.beginPath();
   c.moveTo(to.x, to.y);
-  c.lineTo(to.x - head * Math.cos(angle - Math.PI / 6), to.y - head * Math.sin(angle - Math.PI / 6));
-  c.lineTo(to.x - head * Math.cos(angle + Math.PI / 6), to.y - head * Math.sin(angle + Math.PI / 6));
-  c.closePath(); c.fill();
+  c.lineTo(bx + px * half, by + py * half);
+  c.lineTo(bx - px * half, by - py * half);
+  c.closePath();
+  c.fill();
 }
 
 function drawShapes(

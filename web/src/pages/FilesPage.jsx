@@ -38,6 +38,8 @@ import DownloadIcon from '@mui/icons-material/Download';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import AllInclusiveIcon from '@mui/icons-material/AllInclusive';
+import ScheduleIcon from '@mui/icons-material/Schedule';
 import client from '../api/client';
 import { onWsEvent } from '../api/ws';
 import { notifyFoldersChanged } from '../components/FolderTree';
@@ -64,6 +66,23 @@ function fileIcon(mime) {
 
 const fmtSize = (n) =>
   n > 1048576 ? `${(n / 1048576).toFixed(1)} МБ` : `${(n / 1024).toFixed(1)} КБ`;
+
+// Срок хранения — иконка вместо слов: ∞ «вечно» или часы + дата удаления.
+function ExpiryMark({ iso }) {
+  const icon = { fontSize: 14, verticalAlign: '-2px', mr: 0.25 };
+  return iso ? (
+    <Tooltip title={`Удалится ${new Date(iso).toLocaleDateString()}`}>
+      <Box component="span">
+        <ScheduleIcon sx={icon} />
+        {new Date(iso).toLocaleDateString()}
+      </Box>
+    </Tooltip>
+  ) : (
+    <Tooltip title="Хранится вечно">
+      <AllInclusiveIcon sx={{ ...icon, mr: 0 }} />
+    </Tooltip>
+  );
+}
 
 // У типов с конвертацией после done есть производная-миниатюра
 // (/thumbnail; у видео — poster-кадр). Картинки без производных
@@ -397,6 +416,21 @@ export default function FilesPage() {
   const expiryText = (iso) =>
     iso ? `удалится ${new Date(iso).toLocaleDateString()}` : 'хранится вечно';
 
+  // Карточки файлов можно таскать на дерево папок слева — перемещение.
+  const onFileDragStart = (e, f) => {
+    e.dataTransfer.setData('application/x-myai-file', String(f.id));
+    e.dataTransfer.effectAllowed = 'move';
+    window.dispatchEvent(new Event('myai:file-drag'));
+  };
+  const onFileDragEnd = () => window.dispatchEvent(new Event('myai:file-drag-end'));
+
+  // Дерево папок после drop шлёт 'files-changed' — перечитываем список.
+  useEffect(() => {
+    const onChanged = () => load();
+    window.addEventListener('files-changed', onChanged);
+    return () => window.removeEventListener('files-changed', onChanged);
+  }, [load]);
+
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -457,8 +491,6 @@ export default function FilesPage() {
           mb: 2,
           py: 5,
           px: 2,
-          maxWidth: 680,
-          mx: 'auto',
           border: '2px dashed',
           borderRadius: 2,
           borderColor: dragOver ? 'primary.main' : 'divider',
@@ -492,8 +524,6 @@ export default function FilesPage() {
           key={u.id}
           sx={{
             mb: 1,
-            maxWidth: 680,
-            mx: 'auto',
             opacity: u.leaving ? 0 : 1,
             transition: 'opacity .5s ease',
           }}
@@ -517,7 +547,13 @@ export default function FilesPage() {
         }}
       >
         {files.map((f) => (
-          <Card key={f.id} sx={{ display: 'flex', flexDirection: 'column' }}>
+          <Card
+            key={f.id}
+            draggable
+            onDragStart={(e) => onFileDragStart(e, f)}
+            onDragEnd={onFileDragEnd}
+            sx={{ display: 'flex', flexDirection: 'column' }}
+          >
             <Box
               onClick={() => openFile(f)}
               sx={{
@@ -545,7 +581,7 @@ export default function FilesPage() {
                 </Typography>
               </Tooltip>
               <Typography variant="caption" color="text.secondary" display="block">
-                {fmtSize(f.size)} · {expiryText(f.expires_at)}
+                {fmtSize(f.size)} · <ExpiryMark iso={f.expires_at} />
               </Typography>
               {(f.conversion_status === 'pending' || f.conversion_status === 'processing') && (
                 <Box sx={{ mt: 0.5 }}>
@@ -619,7 +655,7 @@ export default function FilesPage() {
       {/* Ссылка с TTL */}
       <Dialog open={!!shareDialog} onClose={() => setShareDialog(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Ссылка на {shareDialog?.type === 'folder' ? 'папку' : 'файл'}</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 4 }}>
           <Typography variant="body2" color="text.secondary" noWrap>
             {shareDialog?.name}
           </Typography>
@@ -650,7 +686,7 @@ export default function FilesPage() {
       {/* Срок хранения файла */}
       <Dialog open={!!editFile} onClose={() => setEditFile(null)} maxWidth="xs" fullWidth>
         <DialogTitle>{editFile?.name}</DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
+        <DialogContent sx={{ pt: 4 }}>
           <FormControl size="small" fullWidth>
             <InputLabel>Срок хранения</InputLabel>
             <Select value={editFileTtl} label="Срок хранения" onChange={(e) => setEditFileTtl(e.target.value)}>

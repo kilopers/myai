@@ -10,6 +10,7 @@ use App\Services\TrashService;
 use App\Support\StoragePath;
 use App\Support\SyncHash;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
@@ -80,9 +81,16 @@ class ScreenshotController extends Controller
 
     /**
      * Stream the image file. Public route — unguessable UUID acts as the access key.
+     * Голый /i/{uuid} без расширения — редирект в SPA-просмотрщик;
+     * /i/{uuid}.{ext} остаётся «сырой» картинкой для встраивания
+     * (превью в мессенджерах, <img>, десктоп).
      */
-    public function file(string $uuid): StreamedResponse
+    public function file(string $uuid): StreamedResponse|RedirectResponse
     {
+        if (! str_contains($uuid, '.')) {
+            return redirect("/share/i/{$uuid}");
+        }
+
         $uuid = Str::before($uuid, '.');
 
         $screenshot = Screenshot::where('uuid', $uuid)->firstOrFail();

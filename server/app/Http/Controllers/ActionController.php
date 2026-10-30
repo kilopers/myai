@@ -38,9 +38,11 @@ class ActionController extends Controller
                 'files.upload' => $this->fileUpload($request),
                 'files.uploadChunk' => $this->fileUploadChunk($request),
                 'files.delete' => $this->deleteModel(StoredFile::class, $request),
+                'files.move' => $this->fileMove($request),
                 'folders.create' => $this->folderCreate($request),
                 'folders.delete' => $this->deleteModel(Folder::class, $request),
                 'folders.setTtl' => $this->folderSetTtl($request),
+                'folders.setConversion' => $this->folderSetConversion($request),
 
                 // Публичные ссылки
                 'share.create' => $this->shareCreate($request),
@@ -115,7 +117,10 @@ class ActionController extends Controller
         return [
             'folder' => $folder ? (new JsonResource($folder))->resolve() : null,
             'folders' => JsonResource::collection(
-                Folder::where('user_id', $userId)->where('parent_id', $folder?->id)->withCount('files')->orderBy('name')->get()
+                Folder::where('user_id', $userId)->where('parent_id', $folder?->id)
+                    ->withCount('files')
+                    ->withCount(['shareLinks as active_links' => fn ($q) => $q->active()])
+                    ->orderBy('name')->get()
             )->resolve(),
             'files' => StoredFileResource::collection(
                 StoredFile::where('user_id', $userId)->where('folder_id', $folder?->id)->latest()->withCount('derivatives')->get()
@@ -199,6 +204,25 @@ class ActionController extends Controller
         $folder = Folder::where('user_id', $request->user()->id)->findOrFail($request->input('id'));
 
         return ['folder' => app(FolderController::class)->update($request, $folder)->resolve()];
+    }
+
+    private function folderSetConversion(Request $request): array
+    {
+        $folder = Folder::where('user_id', $request->user()->id)->findOrFail($request->input('id'));
+
+        return ['folder' => app(FolderController::class)->update($request, $folder)->resolve()];
+    }
+
+    /**
+     * Перемещение файла в другую папку (drag&drop на дерево слева).
+     * folder_id=null — перенос в корень.
+     */
+    private function fileMove(Request $request): array
+    {
+        $file = StoredFile::where('user_id', $request->user()->id)
+            ->findOrFail($request->input('id'));
+
+        return ['file' => app(FileController::class)->update($request, $file)->resolve()];
     }
 
     private function syncBranch(Request $request): array

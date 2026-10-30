@@ -16,6 +16,7 @@ class ShareLinkController extends Controller
             'type' => ['required', 'in:file,folder'],
             'id' => ['required', 'integer'],
             'ttl_days' => ['nullable', 'integer', 'min:0', 'max:36500'],
+            'can_write' => ['sometimes', 'boolean'],
         ]);
 
         $model = $validated['type'] === 'folder' ? Folder::class : StoredFile::class;
@@ -32,6 +33,8 @@ class ShareLinkController extends Controller
             'linkable_type' => $model,
             'linkable_id' => $target->id,
             'expires_at' => $ttlDays ? now()->addDays((int) $ttlDays) : null,
+            // «Разрешить загрузку» имеет смысл только для папок.
+            'can_write' => ($validated['can_write'] ?? false) && $validated['type'] === 'folder',
         ]);
 
         return response()->json([

@@ -104,6 +104,23 @@ export default function Layout() {
                 to={item.to}
                 selected={selected && (item.to !== '/files' || !currentFolderId)}
                 onClick={isMobile ? toggle : undefined}
+                // На пункт «Файлы» можно бросить карточку — перенос в корень.
+                {...(item.to === '/files' ? {
+                  onDragOver: (e) => {
+                    if (!e.dataTransfer.types?.includes('application/x-myai-file')) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                  },
+                  onDrop: async (e) => {
+                    const id = Number(e.dataTransfer.getData('application/x-myai-file'));
+                    if (!id) return;
+                    e.preventDefault();
+                    try {
+                      await client.post('/api/action', { action: 'files.move', id, folder_id: null });
+                      window.dispatchEvent(new Event('files-changed'));
+                    } catch { /* покажем через dirs.changed/перезагрузку */ }
+                  },
+                } : {})}
                 sx={{
                   borderRadius: 1.5,
                   mb: 0.125,

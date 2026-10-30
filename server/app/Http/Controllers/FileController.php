@@ -2,13 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\FileConversionUpdated;
 use App\Http\Resources\StoredFileResource;
-use App\Jobs\ProcessUploadedFile;
 use App\Models\FileDerivative;
 use App\Models\Folder;
 use App\Models\StoredFile;
-use App\Services\Conversion\ProcessorRegistry;
+use App\Services\StoredFileWriter;
 use App\Services\TrashService;
 use App\Support\StoragePath;
 use App\Support\SyncHash;
@@ -55,24 +53,15 @@ class FileController extends Controller
         $path = StoragePath::file($uuid, $extension);
         Storage::disk('public')->putFileAs(dirname($path), $uploaded, basename($path));
 
-        $ttl = $folder?->default_ttl_days ?? $request->user()->default_file_ttl_days;
-        $mtime = isset($validated['mtime']) ? (int) $validated['mtime'] : now()->getTimestamp();
-
-        $file = $request->user()->files()->create([
-            'folder_id' => $folder?->id,
+        $file = app(StoredFileWriter::class)->register($request->user(), $folder, [
             'uuid' => $uuid,
             'name' => $uploaded->getClientOriginalName(),
             'filename' => "{$uuid}.{$extension}",
             'mime_type' => $uploaded->getMimeType(),
-            'size' => $uploaded->getSize(),
+            'size' => (int) $uploaded->getSize(),
             'path' => $path,
-            'mtime' => $mtime,
-            'entry_hash' => SyncHash::file($uploaded->getClientOriginalName(), (int) $uploaded->getSize(), $mtime),
-            'expires_at' => $ttl ? now()->addDays($ttl) : null,
+            'mtime' => isset($validated['mtime']) ? (int) $validated['mtime'] : now()->getTimestamp(),
         ]);
-
-        SyncHash::refreshFolderChain($folder, $request->user());
-        $this->queueConversion($file);
 
         return (new StoredFileResource($file))->response()->setStatusCode(201);
     }
@@ -123,12 +112,10 @@ class FileController extends Controller
         fclose($tmp);
         Storage::deleteDirectory($dir);
 
-        $ttl = $folder?->default_ttl_days ?? $request->user()->default_file_ttl_days;
         $mtime = isset($validated['mtime']) ? (int) $validated['mtime'] : now()->getTimestamp();
-        $size = Storage::disk('public')->size($path);
+        $size = (int) Storage::disk('public')->size($path);
 
-        $file = $request->user()->files()->create([
-            'folder_id' => $folder?->id,
+        $file = app(StoredFileWriter::class)->register($request->user(), $folder, [
             'uuid' => $uuid,
             'name' => $validated['name'],
             'filename' => "{$uuid}.{$extension}",
@@ -136,53 +123,9 @@ class FileController extends Controller
             'size' => $size,
             'path' => $path,
             'mtime' => $mtime,
-            'entry_hash' => SyncHash::file($validated['name'], (int) $size, $mtime),
-            'expires_at' => $ttl ? now()->addDays($ttl) : null,
         ]);
 
-        SyncHash::refreshFolderChain($folder, $request->user());
-        $this->queueConversion($file);
-
         return (new StoredFileResource($file))->response()->setStatusCode(201);
-    }
-
-    /**
-     * Постановка файла на фоновую пост-обработку. Файлу без подходящего
-     * процессора остаётся conversion_status=none.
-     * В режиме sync-очереди джоба выполняется инлайн — её исключение
-     * не должно ломать успешный ответ загрузки.
-     */
-    private function queueConversion(StoredFile $file): void
-    {
-        if (app(ProcessorRegistry::class)->for($file->mime_type) === null) {
-            return;
-        }
-        $file->forceFill([
-            'conversion_status' => 'pending',
-            'conversion_progress' => 0,
-            'pages_done' => null,
-            'pages_total' => null,
-            'conversion_error' => null,
-        ])->save();
-
-        // Событие pending идёт сразу, не дожидаясь старта джобы: пока
-        // воркер занят (напр. длинное видео), открытая папка на других
-        // устройствах может получить файл только по этому событию —
-        // dirs.changed мог не дойти.
-        event(new FileConversionUpdated($file->user_id, [
-            'file_id' => $file->id,
-            'status' => 'pending',
-            'progress' => 0,
-            'pages_done' => null,
-            'pages_total' => null,
-            'has_derivatives' => false,
-        ]));
-
-        try {
-            ProcessUploadedFile::dispatch($file->id);
-        } catch (\Throwable $e) {
-            report($e);
-        }
     }
 
     /**

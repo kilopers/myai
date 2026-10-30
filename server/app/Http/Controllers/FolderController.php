@@ -15,7 +15,11 @@ class FolderController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
-        $folders = $request->user()->folders()->withCount('files')->latest()->get();
+        $folders = $request->user()->folders()
+            ->withCount('files')
+            ->withCount(['shareLinks as active_links' => fn ($q) => $q->active()])
+            ->latest()
+            ->get();
 
         return JsonResource::collection($folders);
     }
@@ -46,6 +50,7 @@ class FolderController extends Controller
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:120'],
             'default_ttl_days' => ['nullable', 'integer', 'min:1', 'max:36500'],
+            'conversion_enabled' => ['sometimes', 'boolean'],
         ]);
 
         abort_if(

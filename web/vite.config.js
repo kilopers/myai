@@ -24,6 +24,9 @@ export default defineConfig({
     proxy: {
       '/api': { target: apiTarget, changeOrigin: true },
       '/i': { target: apiTarget, changeOrigin: true },
+      // Легаси-урлы шаринга — редиректят в SPA-страницы /share/*
+      '/f': { target: apiTarget, changeOrigin: true },
+      '/d': { target: apiTarget, changeOrigin: true },
       // Reverb WebSocket (php artisan reverb:start, порт 8080)
       '/app': { target: wsTarget, ws: true, changeOrigin: true },
     },

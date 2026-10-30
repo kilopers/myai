@@ -11,6 +11,9 @@ import ReleasesPage from './pages/ReleasesPage';
 import SettingsPage from './pages/SettingsPage';
 import AdminPage from './pages/AdminPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
+import ShareFilePage from './pages/ShareFilePage';
+import ShareFolderPage from './pages/ShareFolderPage';
+import ShareShotPage from './pages/ShareShotPage';
 
 function Protected({ children, adminOnly = false, allowPasswordChange = false }) {
   const { user, loading } = useAuth();
@@ -37,6 +40,11 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/invite/:token" element={<InviteRegisterPage />} />
+      {/* Публичные страницы шаринга — без авторизации и без меню */}
+      <Route path="/share/f/:token" element={<ShareFilePage />} />
+      <Route path="/share/d/:token" element={<ShareFolderPage />} />
+      <Route path="/share/d/:token/file/:uuid" element={<ShareFilePage />} />
+      <Route path="/share/i/:uuid" element={<ShareShotPage />} />
       <Route
         path="/change-password"
         element={
