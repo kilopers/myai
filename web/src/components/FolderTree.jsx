@@ -30,6 +30,7 @@ import LinkIcon from '@mui/icons-material/Link';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import BlockIcon from '@mui/icons-material/Block';
 import HomeIcon from '@mui/icons-material/Home';
+import TouchAppIcon from '@mui/icons-material/TouchApp';
 import client from '../api/client';
 
 const TTL_OPTIONS = [
@@ -151,6 +152,17 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
       : `Конвертация в «${folder.name}» включена`);
   };
 
+  // Режим торрентов: auto — .torrent стартует сразу, manual — ждёт
+  // выбора файлов через диалог в списке.
+  const toggleTorrentMode = async (folder) => {
+    const next = folder.torrent_mode === 'manual' ? 'auto' : 'manual';
+    await client.put(`/api/folders/${folder.id}`, { torrent_mode: next });
+    notifyFoldersChanged();
+    onAction?.(next === 'manual'
+      ? `Торренты в «${folder.name}» — ручной запуск`
+      : `Торренты в «${folder.name}» — автозапуск`);
+  };
+
   // Drag&drop: карточка файла из списка — на папку дерева (перемещение).
   const isFileDrag = (e) => e.dataTransfer.types?.includes('application/x-myai-file');
 
@@ -266,6 +278,11 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
               <BlockIcon sx={{ fontSize: 13, color: '#8a8a96', mr: 0.3 }} />
             </Tooltip>
           )}
+          {folder.torrent_mode === 'manual' && (
+            <Tooltip title="Торренты запускаются вручную">
+              <TouchAppIcon sx={{ fontSize: 13, color: '#8a8a96', mr: 0.3 }} />
+            </Tooltip>
+          )}
           <IconButton
             className="folder-menu-btn"
             size="small"
@@ -327,6 +344,11 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
           {menu?.folder?.conversion_enabled === false
             ? 'Включить конвертацию'
             : 'Отключить конвертацию'}
+        </MenuItem>
+        <MenuItem onClick={act((f) => toggleTorrentMode(f))}>
+          {menu?.folder?.torrent_mode === 'manual'
+            ? 'Торренты: автозапуск'
+            : 'Торренты: вручную'}
         </MenuItem>
         <MenuItem onClick={act((f) => syncBranch(f))}>Синхронизировать ветку</MenuItem>
         {!menu?.folder?.is_system && (

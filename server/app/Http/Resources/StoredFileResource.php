@@ -25,6 +25,19 @@ class StoredFileResource extends JsonResource
             'pages_total' => $this->pages_total,
             'pages_done' => $this->pages_done,
             'has_derivatives' => (bool) ($this->derivatives_count ?? $this->derivatives()->exists()),
+            // Для .torrent-файлов — состояние задачи загрузки (полный
+            // список файлов торрента отдаёт GET /api/torrents/{id}).
+            'torrent' => $this->whenLoaded('torrent', fn ($t) => $t === null ? null : [
+                'id' => $t->id,
+                'name' => $t->name,
+                'status' => $t->status,
+                'progress' => (int) $t->progress,
+                'download_rate' => (int) $t->download_rate,
+                'downloaded_size' => (int) $t->downloaded_size,
+                'total_size' => (int) $t->total_size,
+                'error' => $t->error,
+                'result_folder_id' => $t->result_folder_id,
+            ]),
             'links' => $this->whenLoaded('shareLinks', fn () => $this->shareLinks->map(fn ($l) => [
                 'id' => $l->id,
                 'url' => $l->publicUrl(),

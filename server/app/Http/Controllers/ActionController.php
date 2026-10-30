@@ -123,7 +123,7 @@ class ActionController extends Controller
                     ->orderBy('name')->get()
             )->resolve(),
             'files' => StoredFileResource::collection(
-                StoredFile::where('user_id', $userId)->where('folder_id', $folder?->id)->latest()->withCount('derivatives')->get()
+                StoredFile::where('user_id', $userId)->where('folder_id', $folder?->id)->latest()->withCount('derivatives')->with('torrent')->get()
             )->resolve(),
             'breadcrumbs' => $this->breadcrumbs($folder),
             'dir_hash' => $folder?->dirHash() ?? SyncHash::rootHash($request->user()),

@@ -47,6 +47,16 @@ return [
             'report' => false,
         ],
 
+        // Staging торрент-загрузок: сюда пишет движок (aria2, каталог
+        // /downloads в его контейнере → тот же bind-volume). Частичные
+        // данные лежат вне public-диска и не попадают в sync-дерево.
+        'torrents' => [
+            'driver' => 'local',
+            'root' => storage_path('app/torrents'),
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

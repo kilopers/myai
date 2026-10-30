@@ -51,6 +51,7 @@ class FolderController extends Controller
             'name' => ['sometimes', 'string', 'max:120'],
             'default_ttl_days' => ['nullable', 'integer', 'min:1', 'max:36500'],
             'conversion_enabled' => ['sometimes', 'boolean'],
+            'torrent_mode' => ['sometimes', Rule::in(['auto', 'manual'])],
         ]);
 
         abort_if(

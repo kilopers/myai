@@ -7,6 +7,8 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -14,6 +16,11 @@ import {
   IconButton,
   LinearProgress,
   Link,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Menu,
   MenuItem,
   Pagination,
   Select,
@@ -40,6 +47,10 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import AllInclusiveIcon from '@mui/icons-material/AllInclusive';
 import ScheduleIcon from '@mui/icons-material/Schedule';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import PauseIcon from '@mui/icons-material/Pause';
+import ChecklistIcon from '@mui/icons-material/Checklist';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import client from '../api/client';
 import { onWsEvent } from '../api/ws';
 import { notifyFoldersChanged } from '../components/FolderTree';
@@ -66,6 +77,15 @@ function fileIcon(mime) {
 
 const fmtSize = (n) =>
   n > 1048576 ? `${(n / 1048576).toFixed(1)} МБ` : `${(n / 1024).toFixed(1)} КБ`;
+
+// Статусы торрент-задачи: подпись чипа и цвет.
+const TORRENT_STATUS = {
+  awaiting_selection: { label: 'Ожидает выбора', color: 'warning' },
+  downloading: { label: 'Скачивается', color: 'primary' },
+  paused: { label: 'На паузе', color: 'default' },
+  completed: { label: 'Скачан', color: 'success' },
+  error: { label: 'Ошибка', color: 'error' },
+};
 
 // Срок хранения — иконка вместо слов: ∞ «вечно» или часы + дата удаления.
 function ExpiryMark({ iso }) {
@@ -156,6 +176,8 @@ export default function FilesPage() {
   const [editFile, setEditFile] = useState(null);
   const [editFileTtl, setEditFileTtl] = useState('');
   const [viewerFile, setViewerFile] = useState(null);
+  const [torrentDialog, setTorrentDialog] = useState(null); // {id, name, files, checked:Set}
+  const [torrentMenu, setTorrentMenu] = useState(null); // {anchor, torrent}
   const inputRef = useRef(null);
   const isMobile = useMediaQuery((theme) => theme.breakpoints.down('sm'));
 
@@ -250,10 +272,21 @@ export default function FilesPage() {
         ),
       );
     });
+    // Live-прогресс торрентов: точечно патчим карточку .torrent-файла.
+    // Само появление result-папки при completed придёт через dirs.changed.
+    const offTorrent = onWsEvent('torrent.updated', (d) => {
+      if (!d?.id) return;
+      setFiles((list) =>
+        list.map((f) =>
+          f.torrent?.id === d.id ? { ...f, torrent: { ...f.torrent, ...d } } : f,
+        ),
+      );
+    });
     return () => {
       offChanged();
       offReconnect();
       offConversion();
+      offTorrent();
     };
   }, [folderId, load, watch]);
 
@@ -411,6 +444,49 @@ export default function FilesPage() {
   const removeFile = async (id) => {
     await client.post('/api/action', { action: 'files.delete', id });
     load();
+  };
+
+  // --- Торренты ---
+  // Диалог выбора файлов торрента: подтягивает полный список с сервера.
+  const openTorrentSelect = async (f) => {
+    try {
+      const { data } = await client.get(`/api/torrents/${f.torrent.id}`);
+      const list = data.files ?? [];
+      setTorrentDialog({
+        id: f.torrent.id,
+        name: data.name,
+        files: list,
+        checked: new Set(list.map((x) => x.index)),
+      });
+    } catch {
+      setMessage('Не удалось получить список файлов торрента');
+    }
+  };
+
+  const torrentStart = async (id, fileIndexes) => {
+    try {
+      const body = fileIndexes === undefined ? {} : { file_indexes: fileIndexes };
+      await client.post(`/api/torrents/${id}/start`, body);
+    } catch (e) {
+      setMessage(e.response?.data?.message || 'Не удалось запустить торрент');
+    }
+  };
+
+  const torrentPause = (f) =>
+    client.post(`/api/torrents/${f.torrent.id}/pause`).catch(() => {});
+  const torrentResume = (f) =>
+    client.post(`/api/torrents/${f.torrent.id}/resume`).catch(() => {});
+
+  const torrentDelete = async (withData) => {
+    try {
+      await client.delete(`/api/torrents/${torrentMenu.torrent.id}`, {
+        params: { with_data: withData ? 1 : 0 },
+      });
+      setTorrentMenu(null);
+      load();
+    } catch {
+      setMessage('Не удалось удалить торрент');
+    }
   };
 
   const expiryText = (iso) =>
@@ -602,6 +678,83 @@ export default function FilesPage() {
                   Ошибка конвертации — доступен оригинал
                 </Typography>
               )}
+              {f.torrent && (
+                <Box sx={{ mt: 0.5 }}>
+                  <Tooltip
+                    title={
+                      f.torrent.status === 'completed' && f.torrent.result_folder_id
+                        ? 'Открыть папку с результатом'
+                        : (TORRENT_STATUS[f.torrent.status]?.label ?? f.torrent.status)
+                    }
+                  >
+                    <Chip
+                      size="small"
+                      color={TORRENT_STATUS[f.torrent.status]?.color ?? 'default'}
+                      variant={f.torrent.status === 'downloading' ? 'filled' : 'outlined'}
+                      label={
+                        f.torrent.status === 'downloading'
+                          ? `Торрент · ${f.torrent.progress ?? 0}%`
+                          : `Торрент · ${TORRENT_STATUS[f.torrent.status]?.label ?? f.torrent.status}`
+                      }
+                      onClick={
+                        f.torrent.status === 'completed' && f.torrent.result_folder_id
+                          ? () => setSearchParams({ folder: String(f.torrent.result_folder_id) })
+                          : undefined
+                      }
+                    />
+                  </Tooltip>
+                  {(f.torrent.status === 'downloading' || f.torrent.status === 'paused') && (
+                    <Box sx={{ mt: 0.5 }}>
+                      <LinearProgress variant="determinate" value={f.torrent.progress ?? 0} />
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
+                        {f.torrent.progress ?? 0}%
+                        {f.torrent.download_rate > 0 ? ` · ${fmtSpeed(f.torrent.download_rate)}` : ''}
+                      </Typography>
+                    </Box>
+                  )}
+                  {f.torrent.status === 'error' && (
+                    <Tooltip title={f.torrent.error ?? ''}>
+                      <Typography variant="caption" color="error.main" display="block" noWrap sx={{ mt: 0.25 }}>
+                        {f.torrent.error || 'Ошибка загрузки торрента'}
+                      </Typography>
+                    </Tooltip>
+                  )}
+                  <Box sx={{ display: 'flex', mt: 0.25 }}>
+                    {f.torrent.status === 'awaiting_selection' && (
+                      <>
+                        <IconButton size="small" title="Выбрать файлы" onClick={() => openTorrentSelect(f)}>
+                          <ChecklistIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton size="small" title="Скачать все файлы" onClick={() => torrentStart(f.torrent.id)}>
+                          <PlayArrowIcon fontSize="small" />
+                        </IconButton>
+                      </>
+                    )}
+                    {f.torrent.status === 'error' && (
+                      <IconButton size="small" title="Повторить загрузку" onClick={() => torrentStart(f.torrent.id)}>
+                        <PlayArrowIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                    {f.torrent.status === 'downloading' && (
+                      <IconButton size="small" title="Пауза" onClick={() => torrentPause(f)}>
+                        <PauseIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                    {f.torrent.status === 'paused' && (
+                      <IconButton size="small" title="Продолжить" onClick={() => torrentResume(f)}>
+                        <PlayArrowIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                    <IconButton
+                      size="small"
+                      title="Удалить торрент"
+                      onClick={(e) => setTorrentMenu({ anchor: e.currentTarget, torrent: f.torrent })}
+                    >
+                      <DeleteOutlineIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                </Box>
+              )}
             </CardContent>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 0.5, pb: 0.5 }}>
               <IconButton size="small" title="Ссылка" onClick={() => { setShareDialog({ type: 'file', id: f.id, name: f.name }); setShareResult(''); }}>
@@ -708,6 +861,87 @@ export default function FilesPage() {
           <Button variant="contained" onClick={saveFile}>Сохранить</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Выбор файлов торрента */}
+      <Dialog open={!!torrentDialog} onClose={() => setTorrentDialog(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Файлы торрента «{torrentDialog?.name}»</DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+            <Button
+              size="small"
+              onClick={() =>
+                setTorrentDialog((d) => ({ ...d, checked: new Set(d.files.map((x) => x.index)) }))
+              }
+            >
+              Все
+            </Button>
+            <Button
+              size="small"
+              onClick={() => setTorrentDialog((d) => ({ ...d, checked: new Set() }))}
+            >
+              Ничего
+            </Button>
+          </Box>
+          <List dense sx={{ maxHeight: 400, overflow: 'auto' }}>
+            {torrentDialog?.files.map((tf) => (
+              <ListItem
+                key={tf.index}
+                disableGutters
+                secondaryAction={
+                  <Typography variant="caption" color="text.secondary">
+                    {fmtSize(tf.size)}
+                  </Typography>
+                }
+              >
+                <ListItemIcon sx={{ minWidth: 32 }}>
+                  <Checkbox
+                    size="small"
+                    edge="start"
+                    checked={torrentDialog.checked.has(tf.index)}
+                    onChange={(e) =>
+                      setTorrentDialog((d) => {
+                        const checked = new Set(d.checked);
+                        e.target.checked ? checked.add(tf.index) : checked.delete(tf.index);
+                        return { ...d, checked };
+                      })
+                    }
+                  />
+                </ListItemIcon>
+                <ListItemText
+                  primary={tf.path}
+                  primaryTypographyProps={{ fontSize: '0.85rem', noWrap: true }}
+                />
+              </ListItem>
+            ))}
+          </List>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTorrentDialog(null)}>Отмена</Button>
+          <Button
+            variant="contained"
+            disabled={!torrentDialog || torrentDialog.checked.size === 0}
+            onClick={() => {
+              torrentStart(torrentDialog.id, [...torrentDialog.checked]);
+              setTorrentDialog(null);
+            }}
+          >
+            Скачать выбранные ({torrentDialog?.checked.size ?? 0})
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Удаление торрента: только задача или вместе с данными */}
+      <Menu
+        anchorEl={torrentMenu?.anchor}
+        open={!!torrentMenu}
+        onClose={() => setTorrentMenu(null)}
+        slotProps={{ list: { dense: true } }}
+      >
+        <MenuItem onClick={() => torrentDelete(false)}>Удалить торрент</MenuItem>
+        <MenuItem onClick={() => torrentDelete(true)} sx={{ color: 'error.main' }}>
+          Удалить торрент с данными
+        </MenuItem>
+      </Menu>
 
       <Snackbar open={!!message} autoHideDuration={4000} onClose={() => setMessage('')} message={message} />
 

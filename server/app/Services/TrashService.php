@@ -7,6 +7,7 @@ use App\Models\Folder;
 use App\Models\Screenshot;
 use App\Models\StoredFile;
 use App\Models\User;
+use App\Services\Torrent\TorrentService;
 use App\Support\StoragePath;
 use App\Support\SyncHash;
 use Illuminate\Support\Facades\Storage;
@@ -36,6 +37,14 @@ class TrashService
 
     public function trashFile(StoredFile $file): void
     {
+        // Если по файлу идёт торрент-загрузка — отменяем её и удаляем
+        // запись задачи. Сбой не должен ломать перемещение в корзину.
+        try {
+            app(TorrentService::class)->onFileTrashed($file);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
         $dir = self::dirPath($file->folder);
         $file->shareLinks()->delete();
         $this->tombstone($file->user_id, 'file', $file->name, (int) $file->size, $file->mtime, $file->entryHash(), $dir);

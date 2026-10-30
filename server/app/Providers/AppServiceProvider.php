@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Services\DirChangeTracker;
+use App\Services\Torrent\Aria2Engine;
+use App\Services\Torrent\TorrentEngine;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -18,6 +20,10 @@ class AppServiceProvider extends ServiceProvider
     {
         // Буфер изменённых директорий — единый на запрос/команду.
         $this->app->singleton(DirChangeTracker::class);
+
+        // Движок торрент-загрузок — в тестах подменяется фейком через
+        // app->instance(TorrentEngine::class, ...).
+        $this->app->bind(TorrentEngine::class, Aria2Engine::class);
     }
 
     /**

@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['user_id', 'parent_id', 'name', 'default_ttl_days', 'conversion_enabled'])]
+#[Fillable(['user_id', 'parent_id', 'name', 'default_ttl_days', 'conversion_enabled', 'torrent_mode'])]
 class Folder extends Model
 {
     use SoftDeletes;

@@ -71,6 +71,18 @@ jobs:
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
 
+      - name: Build & push aria2 (torrent engine)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./aria2
+          file: ./aria2/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/kilopers/myai/aria2:latest
+            ghcr.io/kilopers/myai/aria2:${{ github.sha }}
+          cache-from: type=gha,scope=aria2
+          cache-to: type=gha,mode=max,scope=aria2
+
       # Мгновенный триггер автодеплоя: дёргаем HTTP API Watchtower на
       # сервере (polling остаётся страховкой). Секрет: WATCHTOWER_TOKEN.
       - name: Trigger watchtower

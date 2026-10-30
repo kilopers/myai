@@ -9,3 +9,8 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('uploads:prune')->hourly();
+
+// Опрос торрент-движка: команда сама крутится ~50 сек с шагом 2 сек,
+// пока есть активные загрузки (withoutOverlapping — страховка от
+// накопления при зависшем RPC).
+Schedule::command('torrents:poll')->everyMinute()->withoutOverlapping();

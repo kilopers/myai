@@ -40,4 +40,14 @@ return [
         'token' => env('RELEASE_SYNC_TOKEN'),
     ],
 
+    // Встроенный торрент-клиент: aria2-демон с JSON-RPC (сервис aria2
+    // в docker-compose). download_dir — каталог загрузки в координатах
+    // движка; у app/queue ему соответствует диск «torrents»
+    // (storage/app/torrents), смонтированный в тот же bind-volume.
+    'torrent' => [
+        'rpc_url' => env('TORRENT_RPC_URL', 'http://127.0.0.1:6800/jsonrpc'),
+        'rpc_secret' => env('TORRENT_RPC_SECRET'),
+        'download_dir' => env('TORRENT_DOWNLOAD_DIR', '/downloads'),
+    ],
+
 ];

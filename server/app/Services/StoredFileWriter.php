@@ -8,6 +8,7 @@ use App\Models\Folder;
 use App\Models\StoredFile;
 use App\Models\User;
 use App\Services\Conversion\ProcessorRegistry;
+use App\Services\Torrent\TorrentService;
 use App\Support\SyncHash;
 
 /**
@@ -22,8 +23,11 @@ class StoredFileWriter
      * обновляет хэши ветки и ставит файл на конвертацию.
      *
      * @param  array{uuid:string,name:string,filename:string,mime_type:?string,size:int,path:string,mtime:int}  $data
+     * @param  bool  $detectTorrents  false — пропустить детект .torrent
+     *                                (используется при регистрации скачанных торрентом файлов,
+     *                                чтобы содержимое раздачи не порождало новые задачи).
      */
-    public function register(User $user, ?Folder $folder, array $data): StoredFile
+    public function register(User $user, ?Folder $folder, array $data, bool $detectTorrents = true): StoredFile
     {
         $ttl = $folder?->default_ttl_days ?? $user->default_file_ttl_days;
 
@@ -42,6 +46,18 @@ class StoredFileWriter
 
         SyncHash::refreshFolderChain($folder, $user);
         $this->queueConversion($file);
+
+        // .torrent-файл порождает задачу загрузки (auto/manual по
+        // настройке папки). Сбой детекта не должен ломать загрузку.
+        if ($detectTorrents) {
+            try {
+                app(TorrentService::class)->onFileRegistered($file);
+                // Чтобы ответ загрузки сразу нёс torrent-payload.
+                $file->load('torrent');
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
 
         return $file;
     }

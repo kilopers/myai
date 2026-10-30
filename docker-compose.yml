@@ -31,9 +31,15 @@ x-app-env: &app-env
   REVERB_PORT: ${REVERB_PORT:-8080}
   REVERB_SCHEME: ${REVERB_SCHEME:-http}
   RELEASE_SYNC_TOKEN: ${RELEASE_SYNC_TOKEN:-}
+  # Торрент-движок aria2 (сервис ниже): JSON-RPC внутри docker-сети.
+  TORRENT_RPC_URL: ${TORRENT_RPC_URL:-http://aria2:6800/jsonrpc}
+  TORRENT_RPC_SECRET: ${TORRENT_RPC_SECRET:-myai-torrent}
+  TORRENT_DOWNLOAD_DIR: /downloads
 
 x-app-volumes: &app-volumes
   - ./data/screenshots:/var/www/html/storage/app/public
+  # staging торрент-загрузок — тот же каталог, что /downloads у aria2
+  - ./data/torrents:/var/www/html/storage/app/torrents
 
 # Метка скоупа Watchtower — автообновляются только контейнеры этого проекта
 x-watchtower-label: &watchtower-label
@@ -93,6 +99,43 @@ services:
     depends_on:
       app:
         condition: service_started
+    restart: unless-stopped
+
+  # Торрент-движок aria2: JSON-RPC-демон, только скачивание (без
+  # раздачи). RPC-порт наружу не публикуется — доступ только из
+  # docker-сети; BT-порты 6881 нужны для пиров (могут быть заняты —
+  # переопределяются BT_LISTEN_PORT в .env).
+  aria2:
+    image: ${ARIA2_IMAGE:-ghcr.io/kilopers/myai/aria2}:${IMAGE_TAG:-latest}
+    build:
+      context: ./aria2
+    # uid/gid 82 = www-data в php-alpine образе app: staging-файлы
+    # aria2 должны быть перезаписываемыми из контейнеров app/queue
+    # (перенос результата, очистка staging). Права на ./data/torrents
+    # выставляет entrypoint app (chown -R www-data storage).
+    user: "82:82"
+    command: >
+      --enable-rpc=true
+      --rpc-listen-all=true
+      --rpc-listen-port=6800
+      --rpc-secret=${TORRENT_RPC_SECRET:-myai-torrent}
+      --dir=/downloads
+      --listen-port=6881
+      --dht-listen-port=6881
+      --seed-time=0
+      --seed-ratio=0.0
+      --bt-stop-timeout=60
+      --max-connection-per-server=16
+      --file-allocation=none
+      --summary-interval=0
+      --save-session=/downloads/.aria2.session
+      --save-session-interval=30
+    labels: *watchtower-label
+    ports:
+      - "${BT_LISTEN_PORT:-6881}:6881"
+      - "${BT_LISTEN_PORT:-6881}:6881/udp"
+    volumes:
+      - ./data/torrents:/downloads
     restart: unless-stopped
 
   db:

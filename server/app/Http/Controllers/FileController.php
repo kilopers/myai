@@ -22,7 +22,7 @@ class FileController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
-        $query = $request->user()->files()->latest()->withCount('derivatives');
+        $query = $request->user()->files()->latest()->withCount('derivatives')->with('torrent');
 
         if ($request->has('folder_id')) {
             $query->where('folder_id', $request->integer('folder_id'));

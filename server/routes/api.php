@@ -13,6 +13,7 @@ use App\Http\Controllers\PublicShareController;
 use App\Http\Controllers\ScreenshotController;
 use App\Http\Controllers\ShareLinkController;
 use App\Http\Controllers\SyncController;
+use App\Http\Controllers\TorrentController;
 use App\Http\Controllers\TrashController;
 use Illuminate\Support\Facades\Route;
 
@@ -71,6 +72,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/files/{file}/converted', [FileController::class, 'converted']);
     Route::post('/share-links', [ShareLinkController::class, 'store']);
     Route::delete('/share-links/{shareLink}', [ShareLinkController::class, 'destroy']);
+
+    // Торрент-загрузки (v1.7.0)
+    Route::get('/torrents/{torrent}', [TorrentController::class, 'show']);
+    Route::post('/torrents/{torrent}/start', [TorrentController::class, 'start']);
+    Route::post('/torrents/{torrent}/pause', [TorrentController::class, 'pause']);
+    Route::post('/torrents/{torrent}/resume', [TorrentController::class, 'resume']);
+    Route::delete('/torrents/{torrent}', [TorrentController::class, 'destroy']);
 
     // Корзина
     Route::get('/trash', [TrashController::class, 'index']);

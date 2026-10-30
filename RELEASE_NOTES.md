@@ -5,6 +5,42 @@
 при больших/ломающих изменениях, главная — по решению владельца.
 Актуальная версия — в файле `VERSION`.
 
+## 1.7.0
+
+- feat: встроенный торрент-клиент в файловом менеджере. `.torrent`,
+  брошенный в папку (веб-загрузка, sync-десктоп, публичная ссылка),
+  порождает задачу `torrents`: сервер скачивает содержимое движком
+  `aria2` (JSON-RPC, без раздачи — seed-time=0) и по завершении
+  складывает файлы в папку с именем торрента рядом с .torrent
+  (вложенная структура торрента воспроизводится, коллизия имён —
+  суффикс « (N)»). До завершения ни папки, ни частичных файлов в
+  sync-дереве нет — staging на отдельном диске `torrents`
+  (`storage/app/torrents` ↔ `/downloads` у aria2, bind `./data/torrents`).
+- feat(server): режим запуска на папку — `folders.torrent_mode`
+  (`auto` — старт всех файлов сразу, `manual` — ждёт выбора через
+  модалку; переключатель в контекстном меню папки дерева). Result-папка
+  наследует `conversion_enabled`/`default_ttl_days` родителя —
+  скачанное видео/pdf/office уходит в штатную конвертацию.
+- feat(server): API `GET/POST/DELETE /api/torrents/{id}`
+  (show/start{file_indexes}/pause/resume/destroy?with_data=0|1).
+  Прогресс/скорость — поллер `torrents:poll` из schedule:work
+  (цикл ~50 с × шаг 2 с) + broadcast `torrent.updated` на
+  `sync.user.{id}`; событие `dirs.changed` появлением result-папки
+  рассылает сам поллер.
+- feat(web): карточка .torrent — статус-чип, прогресс-бар с % и
+  скоростью (обновление по WS), кнопки «Выбрать файлы» (модалка со
+  списком и чекбоксами), Play/Pause/Resume, меню «Удалить торрент» /
+  «Удалить торрент с данными» (result-папка и .torrent — в корзину).
+- infra: сервис `aria2` в docker-compose (образ
+  `ghcr.io/kilopers/myai/aria2`, `aria2/Dockerfile` — alpine+aria2,
+  uid 82=www-data для совместного staging), env `TORRENT_RPC_URL`/
+  `TORRENT_RPC_SECRET`/`BT_LISTEN_PORT` в `.env.example`, сборка
+  образа в deploy.yml. RPC наружу не публикуется.
+- ВАЖНО для прода: compose на хосте статичен — нужен
+  `scp docker-compose.yml` в /docker/myai + `docker compose up -d`
+  (создать aria2, пересоздать app/queue с новыми env/volume) +
+  `TORRENT_RPC_SECRET` в `.env` хоста.
+
 ## 1.6.1
 
 - fix(deps): `symfony/mime` 8.1.7 → 8.1.10 — закрыт
