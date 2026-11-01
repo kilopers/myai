@@ -35,6 +35,21 @@ function Protected({ children, adminOnly = false, allowPasswordChange = false })
   return children;
 }
 
+/**
+ * Корень «/»: на старте сессии (флаг в sessionStorage, живёт до
+ * закрытия вкладки) возвращает пользователя на последний открытый
+ * URL — Layout пишет его в localStorage при каждой навигации.
+ */
+function HomeGate() {
+  const fresh = !sessionStorage.getItem('myai:session');
+  sessionStorage.setItem('myai:session', '1');
+  const lastUrl = localStorage.getItem('myai:last-url');
+  if (fresh && lastUrl && lastUrl.split('?')[0] !== '/') {
+    return <Navigate to={lastUrl} replace />;
+  }
+  return <GalleryPage />;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -60,7 +75,7 @@ export default function App() {
           </Protected>
         }
       >
-        <Route path="/" element={<GalleryPage />} />
+        <Route path="/" element={<HomeGate />} />
         <Route path="/files" element={<FilesPage />} />
         <Route path="/trash" element={<TrashPage />} />
         <Route path="/releases" element={<ReleasesPage />} />

@@ -46,6 +46,11 @@ export default function Layout() {
 
   useEffect(() => onWsStatus(setWsState), []);
 
+  // Последнее место пользователя — HomeGate вернёт сюда при заходе на «/»
+  useEffect(() => {
+    localStorage.setItem('myai:last-url', location.pathname + location.search);
+  }, [location]);
+
   const isFiles = location.pathname.startsWith('/files');
   const currentFolderId = isFiles && searchParams.get('folder')
     ? Number(searchParams.get('folder'))

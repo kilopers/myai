@@ -67,7 +67,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('screenshots', ScreenshotController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
 
     Route::apiResource('folders', FolderController::class)->only(['index', 'store', 'update', 'destroy']);
-    Route::apiResource('files', FileController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('files', FileController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
     Route::get('/files/{file}/download', [FileController::class, 'download']);
     // Производные файла фоновой конвертации (v1.3.0)
     Route::get('/files/{file}/thumbnail', [FileController::class, 'thumbnail']);

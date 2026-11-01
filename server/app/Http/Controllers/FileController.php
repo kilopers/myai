@@ -289,6 +289,14 @@ class FileController extends Controller
         return response()->json(['position' => $file->view_state]);
     }
 
+    /** Карточка файла — нужна для восстановления открытого просмотрщика (?view=id). */
+    public function show(Request $request, StoredFile $file): StoredFileResource
+    {
+        $this->authorizeFile($request, $file);
+
+        return new StoredFileResource($file);
+    }
+
     /** Проверка владельца — так же, как в download. */
     private function authorizeFile(Request $request, StoredFile $file): void
     {

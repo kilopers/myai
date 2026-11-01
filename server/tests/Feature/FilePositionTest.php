@@ -67,6 +67,21 @@ class FilePositionTest extends TestCase
         $this->assertSame(['page' => 7], $file->fresh()->view_state);
     }
 
+    public function test_show_returns_resource_for_owner_only(): void
+    {
+        $user = User::factory()->create();
+        $file = $this->makeFile($user);
+        $other = User::factory()->create();
+
+        // GET /api/files/{id} — для восстановления просмотрщика по ?view=
+        $this->getJson("/api/files/{$file->id}")->assertUnauthorized();
+        $this->actingAs($user)->getJson("/api/files/{$file->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $file->id)
+            ->assertJsonPath('data.name', 'movie.mkv');
+        $this->actingAs($other)->getJson("/api/files/{$file->id}")->assertForbidden();
+    }
+
     public function test_position_validation(): void
     {
         $user = User::factory()->create();

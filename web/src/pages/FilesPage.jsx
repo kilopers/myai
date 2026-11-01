@@ -183,6 +183,7 @@ export default function FilesPage() {
   const isMobile = useMediaQuery((theme) => theme.breakpoints.down('sm'));
 
   const folderId = searchParams.get('folder');
+  const viewId = searchParams.get('view');
   const dirHashRef = useRef(null); // хэш открытой директории из files.state
   const filesRef = useRef([]); // актуальный список для ws-обработчиков
   // file_id, по которым уже догружали список после file.conversion
@@ -212,6 +213,36 @@ export default function FilesPage() {
       if (e.response?.status === 404 && folderId) setSearchParams({});
     }
   }, [folderId, page, setSearchParams]);
+
+  // Открытый просмотрщик держим в URL (?view=id): переживает перезагрузку,
+  // восстанавливается «вернуться где был» и работает как deep-link.
+  const clearViewParam = useCallback(() => {
+    setSearchParams((prev) => {
+      const q = new URLSearchParams(prev);
+      q.delete('view');
+      return q;
+    });
+  }, [setSearchParams]);
+
+  const closeViewer = useCallback(() => {
+    setViewerFile(null);
+    clearViewParam();
+  }, [clearViewParam]);
+
+  // Открытие файла по ?view=id (файл не обязан быть в текущей выборке)
+  useEffect(() => {
+    if (!viewId || viewerFile?.id === Number(viewId)) return undefined;
+    let cancelled = false;
+    client.get(`/api/files/${viewId}`)
+      .then(({ data }) => {
+        const f = data.data ?? data;
+        if (cancelled) return;
+        if (viewMode(f)) setViewerFile(f);
+        else clearViewParam(); // тип без просмотрщика — открывать нечего
+      })
+      .catch(() => { if (!cancelled) clearViewParam(); });
+    return () => { cancelled = true; };
+  }, [viewId, viewerFile?.id, clearViewParam]);
 
   useEffect(() => {
     load();
@@ -425,6 +456,11 @@ export default function FilesPage() {
     // в новой вкладке по подписанной ссылке (без blob в память).
     if (viewMode(f)) {
       setViewerFile(f);
+      setSearchParams((prev) => {
+        const q = new URLSearchParams(prev);
+        q.set('view', String(f.id));
+        return q;
+      });
       return;
     }
     const { data } = await client.get(`/api/files/${f.id}/media-url`);
@@ -1046,7 +1082,7 @@ export default function FilesPage() {
       <Snackbar open={!!message} autoHideDuration={4000} onClose={() => setMessage('')} message={message} />
 
       {/* Встроенный просмотрщик файла */}
-      {viewerFile && <FileViewerDialog file={viewerFile} onClose={() => setViewerFile(null)} />}
+      {viewerFile && <FileViewerDialog file={viewerFile} onClose={closeViewer} />}
     </Box>
   );
 }
