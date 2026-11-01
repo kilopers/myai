@@ -241,7 +241,9 @@ class TorrentService
             ]),
             default => $this->saveAndBroadcast($torrent, array_filter([
                 'status' => Torrent::STATUS_ERROR,
-                'error' => $st['error'] ?? 'Загрузка остановлена движком.',
+                'error' => ($st['error'] ?? '') !== ''
+                    ? $st['error']
+                    : 'Загрузка остановлена движком (нет сидов/пиров — см. лог).',
                 'downloaded_size' => $st['completed'],
                 'download_rate' => 0,
                 'log' => $this->errorLogLine($torrent, $st),
@@ -287,7 +289,7 @@ class TorrentService
         if (now()->getTimestamp() - $torrent->lastLogAt() < 30) {
             return null;
         }
-        $torrent->appendLog('Ошибка движка: '.($st['error'] ?? 'загрузка остановлена'));
+        $torrent->appendLog('Ошибка движка: '.(($st['error'] ?? '') !== '' ? $st['error'] : 'загрузка остановлена'));
 
         return $torrent->log;
     }

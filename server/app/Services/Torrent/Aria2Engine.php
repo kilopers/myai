@@ -54,7 +54,13 @@ class Aria2Engine implements TorrentEngine
             'peers' => (int) ($st['connections'] ?? 0),
             'upload_rate' => (int) ($st['uploadSpeed'] ?? 0),
             'error' => $status === 'error'
-                ? (string) ($st['errorMessage'] ?? $st['errorCode'] ?? 'ошибка движка')
+                // errorMessage бывает пустой (напр. обрыв по
+                // --bt-stop-timeout) — тогда хотя бы код ошибки.
+                ? (($st['errorMessage'] ?? '') !== ''
+                    ? (string) $st['errorMessage']
+                    : ($st['errorCode'] ?? '') !== '' && ($st['errorCode'] ?? '') !== '0'
+                        ? "ошибка движка, код {$st['errorCode']}"
+                        : null)
                 : null,
         ];
     }
