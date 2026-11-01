@@ -6,6 +6,15 @@
 Актуальная версия — в файле `VERSION`.
 
 
+## 1.7.7
+
+- PWA («мобильное приложение» без пушей, по образцу techcontrol):
+  `manifest.webmanifest` (standalone, иконки 192/512 any+maskable),
+  минимальный `sw.js` без кэша и без пушей — только для
+  установки на домашний экран; регистрация в `main.jsx`, apple-мета
+  и apple-touch-icon 180 в `index.html`.
+
+
 ## 1.7.6
 
 - aria2: `--bt-stop-timeout` увеличен с 60 до 300 секунд — у торрента
