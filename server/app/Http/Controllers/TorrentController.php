@@ -14,11 +14,29 @@ class TorrentController extends Controller
      * выбора (карточка в списке получает сокращённый payload через
      * StoredFileResource).
      */
-    public function show(Request $request, Torrent $torrent): JsonResponse
+    public function show(Request $request, Torrent $torrent, TorrentService $service): JsonResponse
     {
         $this->authorize($request, $torrent);
 
-        return response()->json($this->toArray($torrent));
+        // Живые статы движка для модалки лога: сиды/пиры/скорости.
+        // У завершённых/ошибочных gid уже снят — статов не будет.
+        $engine = null;
+        if ($torrent->gid !== null) {
+            try {
+                $st = $service->engine->status($torrent->gid);
+                $engine = [
+                    'seeds' => $st['seeds'] ?? null,
+                    'peers' => $st['peers'] ?? null,
+                    'download_rate' => $st['rate'] ?? 0,
+                    'upload_rate' => $st['upload_rate'] ?? 0,
+                    'error' => $st['error'] ?? null,
+                ];
+            } catch (\Throwable) {
+                // Движок недоступен/задача забыта — показываем лог без статов.
+            }
+        }
+
+        return response()->json([...$this->toArray($torrent), 'engine' => $engine]);
     }
 
     /**
@@ -93,6 +111,7 @@ class TorrentController extends Controller
             'progress' => $torrent->progress,
             'download_rate' => $torrent->download_rate,
             'error' => $torrent->error,
+            'log' => $torrent->log ?? [],
             'created_at' => $torrent->created_at?->toIso8601String(),
         ];
     }

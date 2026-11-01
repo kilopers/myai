@@ -241,6 +241,35 @@ class TorrentApiTest extends TestCase
         $this->assertSame(1324, $torrent->downloaded_size);
     }
 
+    public function test_log_collects_events_and_show_returns_engine_stats(): void
+    {
+        $user = User::factory()->create();
+        $this->upload($user)->assertCreated();
+        $torrent = Torrent::firstOrFail();
+
+        // Старт уже записал строку в журнал.
+        $this->assertNotEmpty($torrent->log);
+        $this->assertStringContainsString('Загрузка запущена', $torrent->log[0]['m']);
+
+        $this->engine->statuses['gid-1'] = [
+            'status' => 'active', 'total' => 2648, 'completed' => 1324, 'rate' => 1048576,
+            'error' => null, 'seeds' => 4, 'peers' => 12, 'upload_rate' => 0,
+        ];
+        $this->travel(31)->seconds();
+        app(TorrentService::class)->poll($torrent);
+
+        $torrent->refresh();
+        $this->assertStringContainsString('сиды 4', $torrent->log[1]['m']);
+        $this->assertStringContainsString('пиры 12', $torrent->log[1]['m']);
+
+        $this->actingAs($user)->getJson("/api/torrents/{$torrent->id}")
+            ->assertOk()
+            ->assertJsonCount(2, 'log')
+            ->assertJsonPath('engine.seeds', 4)
+            ->assertJsonPath('engine.peers', 12)
+            ->assertJsonPath('engine.download_rate', 1048576);
+    }
+
     public function test_finalize_moves_files_into_result_folder(): void
     {
         $user = User::factory()->create();

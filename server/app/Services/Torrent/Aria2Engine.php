@@ -48,6 +48,11 @@ class Aria2Engine implements TorrentEngine
             'total' => (int) ($st['totalLength'] ?? 0),
             'completed' => (int) ($st['completedLength'] ?? 0),
             'rate' => (int) ($st['downloadSpeed'] ?? 0),
+            // Сиды среди подключённых пиров и все подключённые пиры —
+            // для строки статистики и модалки лога.
+            'seeds' => (int) ($st['numSeeders'] ?? 0),
+            'peers' => (int) ($st['connections'] ?? 0),
+            'upload_rate' => (int) ($st['uploadSpeed'] ?? 0),
             'error' => $status === 'error'
                 ? (string) ($st['errorMessage'] ?? $st['errorCode'] ?? 'ошибка движка')
                 : null,

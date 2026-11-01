@@ -6,9 +6,12 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['user_id', 'folder_id', 'stored_file_id', 'result_folder_id', 'gid', 'info_hash', 'name', 'status', 'files', 'total_size', 'downloaded_size', 'progress', 'download_rate', 'error'])]
+#[Fillable(['user_id', 'folder_id', 'stored_file_id', 'result_folder_id', 'gid', 'info_hash', 'name', 'status', 'files', 'total_size', 'downloaded_size', 'progress', 'download_rate', 'error', 'log'])]
 class Torrent extends Model
 {
+    /** Сколько последних строк держим в журнале загрузки. */
+    private const LOG_CAP = 150;
+
     public const STATUS_AWAITING_SELECTION = 'awaiting_selection';
 
     public const STATUS_DOWNLOADING = 'downloading';
@@ -27,7 +30,27 @@ class Torrent extends Model
             'downloaded_size' => 'integer',
             'progress' => 'integer',
             'download_rate' => 'integer',
+            'log' => 'array',
         ];
+    }
+
+    /**
+     * Строка в журнал загрузки (не сохраняет модель — вызывающий
+     * сохраняет сам, обычно вместе с другими полями).
+     */
+    public function appendLog(string $message): void
+    {
+        $log = $this->log ?? [];
+        $log[] = ['t' => now()->getTimestamp(), 'm' => $message];
+        $this->log = array_slice($log, -self::LOG_CAP);
+    }
+
+    /** Unixtime последней строки журнала (0 — журнал пуст). */
+    public function lastLogAt(): int
+    {
+        $log = $this->log ?? [];
+
+        return (int) (end($log)['t'] ?? 0);
     }
 
     /** @return BelongsTo<User, $this> */

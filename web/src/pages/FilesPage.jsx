@@ -177,6 +177,7 @@ export default function FilesPage() {
   const [editFileTtl, setEditFileTtl] = useState('');
   const [viewerFile, setViewerFile] = useState(null);
   const [torrentDialog, setTorrentDialog] = useState(null); // {id, name, files, checked:Set}
+  const [torrentLog, setTorrentLog] = useState(null); // {id, data} — модалка журнала загрузки
   const [torrentMenu, setTorrentMenu] = useState(null); // {anchor, torrent}
   const inputRef = useRef(null);
   const isMobile = useMediaQuery((theme) => theme.breakpoints.down('sm'));
@@ -448,6 +449,30 @@ export default function FilesPage() {
 
   // --- Торренты ---
   // Диалог выбора файлов торрента: подтягивает полный список с сервера.
+  // Лог загрузки торрента: статы движка (сиды/пиры/скорость) + журнал
+  // событий. Пока модалка открыта — обновляется раз в 3 сек.
+  const openTorrentLog = async (f) => {
+    setTorrentLog({ id: f.torrent.id, data: null });
+    try {
+      const { data } = await client.get(`/api/torrents/${f.torrent.id}`);
+      setTorrentLog({ id: f.torrent.id, data });
+    } catch {
+      setTorrentLog(null);
+      onAction?.('Не удалось загрузить лог торрента');
+    }
+  };
+
+  useEffect(() => {
+    if (!torrentLog?.id) return undefined;
+    const t = setInterval(async () => {
+      try {
+        const { data } = await client.get(`/api/torrents/${torrentLog.id}`);
+        setTorrentLog((d) => (d ? { ...d, data } : d));
+      } catch { /* временные сбои — просто пропускаем тик */ }
+    }, 3000);
+    return () => clearInterval(t);
+  }, [torrentLog?.id]);
+
   const openTorrentSelect = async (f) => {
     try {
       const { data } = await client.get(`/api/torrents/${f.torrent.id}`);
@@ -704,17 +729,26 @@ export default function FilesPage() {
                     />
                   </Tooltip>
                   {(f.torrent.status === 'downloading' || f.torrent.status === 'paused') && (
-                    <Box sx={{ mt: 0.5 }}>
-                      <LinearProgress variant="determinate" value={f.torrent.progress ?? 0} />
-                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
-                        {f.torrent.progress ?? 0}%
-                        {f.torrent.download_rate > 0 ? ` · ${fmtSpeed(f.torrent.download_rate)}` : ''}
-                      </Typography>
-                    </Box>
+                    <Tooltip title="Лог загрузки">
+                      <Box sx={{ mt: 0.5, cursor: 'pointer' }} onClick={() => openTorrentLog(f)}>
+                        <LinearProgress variant="determinate" value={f.torrent.progress ?? 0} />
+                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
+                          {f.torrent.progress ?? 0}%
+                          {f.torrent.download_rate > 0 ? ` · ${fmtSpeed(f.torrent.download_rate)}` : ''}
+                        </Typography>
+                      </Box>
+                    </Tooltip>
                   )}
                   {f.torrent.status === 'error' && (
-                    <Tooltip title={f.torrent.error ?? ''}>
-                      <Typography variant="caption" color="error.main" display="block" noWrap sx={{ mt: 0.25 }}>
+                    <Tooltip title={`${f.torrent.error ?? ''} — лог загрузки`}>
+                      <Typography
+                        variant="caption"
+                        color="error.main"
+                        display="block"
+                        noWrap
+                        sx={{ mt: 0.25, cursor: 'pointer' }}
+                        onClick={() => openTorrentLog(f)}
+                      >
                         {f.torrent.error || 'Ошибка загрузки торрента'}
                       </Typography>
                     </Tooltip>
@@ -927,6 +961,73 @@ export default function FilesPage() {
           >
             Скачать выбранные ({torrentDialog?.checked.size ?? 0})
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Лог загрузки торрента: живые статы + журнал событий */}
+      <Dialog open={!!torrentLog} onClose={() => setTorrentLog(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Лог загрузки «{torrentLog?.data?.name ?? '…'}»
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          {!torrentLog?.data ? (
+            <LinearProgress />
+          ) : (
+            <>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Chip
+                  size="small"
+                  color={TORRENT_STATUS[torrentLog.data.status]?.color ?? 'default'}
+                  label={TORRENT_STATUS[torrentLog.data.status]?.label ?? torrentLog.data.status}
+                />
+                <Typography variant="caption" color="text.secondary">
+                  {torrentLog.data.progress ?? 0}% · {fmtSize(torrentLog.data.downloaded_size ?? 0)}
+                  {' / '}
+                  {fmtSize(torrentLog.data.total_size ?? 0)}
+                </Typography>
+              </Box>
+              {torrentLog.data.engine && (
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                  ↓ {fmtSpeed(torrentLog.data.engine.download_rate ?? 0)}
+                  {torrentLog.data.engine.upload_rate > 0
+                    ? ` · ↑ ${fmtSpeed(torrentLog.data.engine.upload_rate)}`
+                    : ''}
+                  {' · '}сиды: {torrentLog.data.engine.seeds ?? '—'}
+                  {' · '}пиры: {torrentLog.data.engine.peers ?? '—'}
+                </Typography>
+              )}
+              {torrentLog.data.error && (
+                <Alert severity="error" sx={{ mb: 1, wordBreak: 'break-word' }}>
+                  {torrentLog.data.error}
+                </Alert>
+              )}
+              <Box
+                component="pre"
+                sx={{
+                  m: 0,
+                  p: 1,
+                  maxHeight: 320,
+                  overflow: 'auto',
+                  bgcolor: '#f5f5f8',
+                  borderRadius: 1,
+                  fontSize: '0.72rem',
+                  lineHeight: 1.6,
+                  fontFamily: 'monospace',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                }}
+              >
+                {(torrentLog.data.log ?? []).length === 0
+                  ? 'Журнал пуст.'
+                  : torrentLog.data.log
+                      .map((l) => `${new Date(l.t * 1000).toLocaleTimeString('ru-RU')}  ${l.m}`)
+                      .join('\n')}
+              </Box>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTorrentLog(null)}>Закрыть</Button>
         </DialogActions>
       </Dialog>
 

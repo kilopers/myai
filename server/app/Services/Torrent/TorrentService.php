@@ -54,6 +54,8 @@ class TorrentService
                 'status' => Torrent::STATUS_ERROR,
                 'error' => 'Не удалось разобрать .torrent: '.$e->getMessage(),
             ]);
+            $torrent->appendLog('Ошибка разбора .torrent: '.$e->getMessage());
+            $torrent->save();
             $this->broadcast($torrent);
 
             return;
@@ -139,6 +141,7 @@ class TorrentService
                 $select,
             );
         } catch (\Throwable $e) {
+            $torrent->appendLog('Ошибка запуска загрузки: '.mb_substr($e->getMessage(), 0, 300));
             $torrent->forceFill([
                 'status' => Torrent::STATUS_ERROR,
                 'error' => mb_substr($e->getMessage(), 0, 2000),
@@ -149,6 +152,12 @@ class TorrentService
             throw $e;
         }
 
+        $selected = $select === null ? count($files) : count($select);
+        $torrent->appendLog(
+            $select === null
+                ? "Загрузка запущена: все файлы ({$selected} шт.)"
+                : "Загрузка запущена: выбрано {$selected} из ".count($files).' файлов'
+        );
         $torrent->forceFill([
             'gid' => $gid,
             'status' => Torrent::STATUS_DOWNLOADING,
@@ -167,6 +176,7 @@ class TorrentService
         abort_if($torrent->gid === null, 422, 'Задача не запущена.');
 
         $this->engine->pause($torrent->gid);
+        $torrent->appendLog('Загрузка поставлена на паузу');
         $torrent->forceFill([
             'status' => Torrent::STATUS_PAUSED,
             'download_rate' => 0,
@@ -180,6 +190,7 @@ class TorrentService
         abort_if($torrent->gid === null, 422, 'Задача не запущена.');
 
         $this->engine->resume($torrent->gid);
+        $torrent->appendLog('Загрузка продолжена');
         $torrent->forceFill(['status' => Torrent::STATUS_DOWNLOADING])->save();
         $this->broadcast($torrent);
     }
@@ -198,6 +209,7 @@ class TorrentService
         try {
             $st = $this->engine->status($torrent->gid);
         } catch (\Throwable $e) {
+            $torrent->appendLog('Задача потеряна движком: '.mb_substr($e->getMessage(), 0, 300));
             $torrent->forceFill([
                 'status' => Torrent::STATUS_ERROR,
                 'error' => 'Задача потеряна движком: '.mb_substr($e->getMessage(), 0, 1900),
@@ -214,25 +226,83 @@ class TorrentService
 
         match ($st['status']) {
             'complete' => $this->finalize($torrent),
-            'active' => $this->saveAndBroadcast($torrent, [
+            'active' => $this->saveAndBroadcast($torrent, array_filter([
                 'status' => Torrent::STATUS_DOWNLOADING,
                 'progress' => $progress,
                 'downloaded_size' => $st['completed'],
                 'download_rate' => $st['rate'],
-            ]),
+                'log' => $this->statsLogLine($torrent, $st, $progress),
+            ], fn ($v) => $v !== null)),
             'paused' => $this->saveAndBroadcast($torrent, [
                 'status' => Torrent::STATUS_PAUSED,
                 'progress' => $progress,
                 'downloaded_size' => $st['completed'],
                 'download_rate' => 0,
             ]),
-            default => $this->saveAndBroadcast($torrent, [
+            default => $this->saveAndBroadcast($torrent, array_filter([
                 'status' => Torrent::STATUS_ERROR,
                 'error' => $st['error'] ?? 'Загрузка остановлена движком.',
                 'downloaded_size' => $st['completed'],
                 'download_rate' => 0,
-            ]),
+                'log' => $this->errorLogLine($torrent, $st),
+            ], fn ($v) => $v !== null)),
         };
+    }
+
+    /**
+     * Строка статистики в журнал не чаще раза в ~30 секунд: прогресс,
+     * скачано, скорость, сиды/пиры. Возвращает журнал для сохранения
+     * вместе с остальными полями опроса.
+     *
+     * @param  array<string, mixed>  $st
+     * @return list<array{t: int, m: string}>|null
+     */
+    private function statsLogLine(Torrent $torrent, array $st, int $progress): ?array
+    {
+        if (now()->getTimestamp() - $torrent->lastLogAt() < 30) {
+            return null;
+        }
+        $torrent->appendLog(sprintf(
+            '%d%% · %s / %s · ↓ %s/с · сиды %d · пиры %d',
+            $progress,
+            $this->humanSize($st['completed']),
+            $this->humanSize($st['total']),
+            $this->humanSize($st['rate']),
+            (int) ($st['seeds'] ?? 0),
+            (int) ($st['peers'] ?? 0),
+        ));
+
+        return $torrent->log;
+    }
+
+    /**
+     * Строка ошибки движка в журнал (раз в ~30 сек, чтобы частые
+     * опросы не замусоривали лог одинаковыми строками).
+     *
+     * @param  array<string, mixed>  $st
+     * @return list<array{t: int, m: string}>|null
+     */
+    private function errorLogLine(Torrent $torrent, array $st): ?array
+    {
+        if (now()->getTimestamp() - $torrent->lastLogAt() < 30) {
+            return null;
+        }
+        $torrent->appendLog('Ошибка движка: '.($st['error'] ?? 'загрузка остановлена'));
+
+        return $torrent->log;
+    }
+
+    private function humanSize(int|float $bytes): string
+    {
+        $units = ['Б', 'КБ', 'МБ', 'ГБ', 'ТБ'];
+        $v = (float) $bytes;
+        $u = 0;
+        while ($v >= 1024 && $u < count($units) - 1) {
+            $v /= 1024;
+            $u++;
+        }
+
+        return sprintf('%.1f %s', $v, $units[$u]);
     }
 
     /**
@@ -248,6 +318,8 @@ class TorrentService
         $staging = $this->stagingDir($torrent);
         $user = $torrent->user;
         $parent = $torrent->folder;
+
+        $torrent->appendLog('Скачивание завершено — перенос файлов в файловый менеджер');
 
         $result = Folder::create([
             'user_id' => $user->id,
@@ -286,6 +358,7 @@ class TorrentService
         }
 
         $gid = $torrent->gid;
+        $torrent->appendLog("Готово: файлы перенесены в папку «{$result->name}»");
         $torrent->forceFill([
             'status' => Torrent::STATUS_COMPLETED,
             'progress' => 100,
