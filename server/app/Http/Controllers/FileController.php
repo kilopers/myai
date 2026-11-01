@@ -184,6 +184,77 @@ class FileController extends Controller
         return $this->derivativeResponse($derivative);
     }
 
+    /**
+     * Выдаёт подписанные HMAC-ссылки на /files/{file}/media: stream —
+     * сконвертированная версия (или оригинал) для <video>, download —
+     * оригинал как attachment. Подпись не привязана к хосту, поэтому
+     * ссылки относительные и работают через любой прокси/dev-сервер.
+     */
+    public function mediaUrl(Request $request, StoredFile $file): JsonResponse
+    {
+        $this->authorizeFile($request, $file);
+        $exp = now()->addHours(6)->getTimestamp();
+
+        return response()->json([
+            'stream' => $this->signedMediaUrl($file, 'stream', $exp),
+            'download' => $this->signedMediaUrl($file, 'original', $exp),
+        ]);
+    }
+
+    /**
+     * Отдача медиа по подписанной ссылке (без Bearer — доступ даёт sig+exp).
+     * BinaryFileResponse — поддержка HTTP Range: плеер грузит и мотает
+     * файл кусками, не скачивая целиком.
+     */
+    public function media(Request $request, StoredFile $file): BinaryFileResponse
+    {
+        $mode = (string) $request->query('mode', 'stream');
+        $exp = (int) $request->query('exp', 0);
+        $sig = (string) $request->query('sig', '');
+        abort_unless(in_array($mode, ['stream', 'original'], true), 404);
+        abort_unless(
+            $exp >= time() && hash_equals($this->mediaSignature($file, $mode, $exp), $sig),
+            403
+        );
+
+        if ($mode === 'original') {
+            abort_unless(Storage::disk('public')->exists($file->path), 404);
+
+            return response()->download(
+                Storage::disk('public')->path($file->path),
+                $file->name,
+                ['Content-Type' => $file->mime_type ?: 'application/octet-stream'],
+            );
+        }
+
+        $derivative = $file->derivatives()
+            ->whereIn('kind', [FileDerivative::KIND_VIDEO, FileDerivative::KIND_PDF])
+            ->orderByRaw("kind = '".FileDerivative::KIND_PDF."'") // video предпочтительнее
+            ->first();
+        if ($derivative !== null) {
+            return $this->derivativeResponse($derivative);
+        }
+
+        abort_unless(Storage::disk('public')->exists($file->path), 404);
+
+        return response()->file(Storage::disk('public')->path($file->path), [
+            'Content-Type' => $file->mime_type ?: 'application/octet-stream',
+            'Content-Disposition' => 'inline; filename="'.addslashes($file->name).'"',
+        ]);
+    }
+
+    private function signedMediaUrl(StoredFile $file, string $mode, int $exp): string
+    {
+        $query = http_build_query(['mode' => $mode, 'exp' => $exp, 'sig' => $this->mediaSignature($file, $mode, $exp)]);
+
+        return "/api/files/{$file->id}/media?{$query}";
+    }
+
+    private function mediaSignature(StoredFile $file, string $mode, int $exp): string
+    {
+        return hash_hmac('sha256', "{$file->id}|{$mode}|{$exp}", (string) config('app.key'));
+    }
+
     /** Проверка владельца — так же, как в download. */
     private function authorizeFile(Request $request, StoredFile $file): void
     {

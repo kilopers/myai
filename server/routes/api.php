@@ -45,6 +45,10 @@ Route::middleware('throttle:120,1')->group(function () {
 Route::post('/share/{token}/upload', [PublicShareController::class, 'upload'])
     ->middleware('throttle:30,1');
 
+// Стриминг медиа по подписанной HMAC-ссылке (выдаёт /files/{file}/media-url):
+// <video>/<a download> не шлют Bearer, поэтому доступ — через sig+exp в query.
+Route::get('/files/{file}/media', [FileController::class, 'media'])->name('files.media');
+
 // Автообновление десктопа: версия, раздача инсталляторов, webhook из CI
 Route::get('/desktop-version', [DesktopReleaseController::class, 'version'])->middleware('throttle:60,1');
 Route::get('/desktop-download/{platform}', [DesktopReleaseController::class, 'download'])->middleware('throttle:60,1');
@@ -70,6 +74,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/files/{file}/pages', [FileController::class, 'pages']);
     Route::get('/files/{file}/pages/{page}', [FileController::class, 'page']);
     Route::get('/files/{file}/converted', [FileController::class, 'converted']);
+    Route::get('/files/{file}/media-url', [FileController::class, 'mediaUrl']);
     Route::post('/share-links', [ShareLinkController::class, 'store']);
     Route::delete('/share-links/{shareLink}', [ShareLinkController::class, 'destroy']);
 

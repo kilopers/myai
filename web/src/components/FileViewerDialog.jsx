@@ -41,8 +41,10 @@ const blobUrl = async (url) => {
 };
 
 /**
- * Встроенный просмотрщик файла. Все данные приватные — грузим blob'ами
- * через axios (Bearer). Оригинал всегда доступен кнопкой «Скачать».
+ * Встроенный просмотрщик файла. Данные приватные: картинки и страницы
+ * грузим blob'ами через axios (Bearer), видео и скачивание оригинала —
+ * подписанными ссылками /media-url (стриминг по HTTP Range, без копии
+ * файла в память вкладки).
  */
 export default function FileViewerDialog({ file, onClose }) {
   const mode = file ? viewMode(file) : null;
@@ -78,8 +80,10 @@ export default function FileViewerDialog({ file, onClose }) {
         .then(({ data }) => setCount(data.count ?? 0))
         .catch(() => setError(true));
     } else if (mode === 'video') {
-      blobUrl(`/api/files/${file.id}/converted`)
-        .then((u) => { obj = u; if (!cancelled) setMediaUrl(u); })
+      // Видео стримим по подписанной ссылке (HTTP Range) — иначе axios
+      // тянул бы весь файл в Blob до начала воспроизведения.
+      client.get(`/api/files/${file.id}/media-url`)
+        .then(({ data }) => { if (!cancelled) setMediaUrl(data.stream); })
         .catch(() => setError(true));
       blobUrl(`/api/files/${file.id}/thumbnail`)
         .then((u) => { if (!cancelled) setPosterUrl(u); })
@@ -137,13 +141,13 @@ export default function FileViewerDialog({ file, onClose }) {
   }, []);
 
   const downloadOriginal = async () => {
-    const { data } = await client.get(`/api/files/${file.id}/download`, { responseType: 'blob' });
-    const url = URL.createObjectURL(new Blob([data], { type: file.mime_type }));
+    // Подписанная ссылка — браузер качает напрямую, без Blob в памяти
+    // (для больших файлов blob-скачивание съедало гигабайты RAM).
+    const { data } = await client.get(`/api/files/${file.id}/media-url`);
     const a = document.createElement('a');
-    a.href = url;
+    a.href = data.download;
     a.download = file.name;
     a.click();
-    URL.revokeObjectURL(url);
   };
 
   if (!file) return null;
