@@ -31,6 +31,7 @@ import ScheduleIcon from '@mui/icons-material/Schedule';
 import BlockIcon from '@mui/icons-material/Block';
 import HomeIcon from '@mui/icons-material/Home';
 import TouchAppIcon from '@mui/icons-material/TouchApp';
+import CloudOffIcon from '@mui/icons-material/CloudOff';
 import client from '../api/client';
 
 const TTL_OPTIONS = [
@@ -163,6 +164,16 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
       : `Торренты в «${folder.name}» — автозапуск`);
   };
 
+  // «Не синхронизировать с компьютером»: папка целиком выпадает из
+  // sync-дерева и из хэшей родителей — десктоп её игнорирует.
+  const toggleSyncExcluded = async (folder) => {
+    await client.put(`/api/folders/${folder.id}`, { sync_excluded: !folder.sync_excluded });
+    notifyFoldersChanged();
+    onAction?.(folder.sync_excluded
+      ? `Папка «${folder.name}» снова синхронизируется`
+      : `Папка «${folder.name}» исключена из синхронизации`);
+  };
+
   // Drag&drop: карточка файла из списка — на папку дерева (перемещение).
   const isFileDrag = (e) => e.dataTransfer.types?.includes('application/x-myai-file');
 
@@ -283,6 +294,11 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
               <TouchAppIcon sx={{ fontSize: 13, color: '#8a8a96', mr: 0.3 }} />
             </Tooltip>
           )}
+          {folder.sync_excluded && (
+            <Tooltip title="Не синхронизируется с компьютером">
+              <CloudOffIcon sx={{ fontSize: 13, color: '#8a8a96', mr: 0.3 }} />
+            </Tooltip>
+          )}
           <IconButton
             className="folder-menu-btn"
             size="small"
@@ -350,7 +366,16 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
             ? 'Торренты: автозапуск'
             : 'Торренты: вручную'}
         </MenuItem>
-        <MenuItem onClick={act((f) => syncBranch(f))}>Синхронизировать ветку</MenuItem>
+        {!menu?.folder?.is_system && (
+          <MenuItem onClick={act((f) => toggleSyncExcluded(f))}>
+            {menu?.folder?.sync_excluded
+              ? 'Синхронизировать с компьютером'
+              : 'Не синхронизировать с компьютером'}
+          </MenuItem>
+        )}
+        {!menu?.folder?.sync_excluded && (
+          <MenuItem onClick={act((f) => syncBranch(f))}>Синхронизировать ветку</MenuItem>
+        )}
         {!menu?.folder?.is_system && (
           <MenuItem onClick={act((f) => setNameDialog({ mode: 'rename', folder: f, value: f.name }))}>
             Переименовать

@@ -131,6 +131,53 @@ class SyncApiTest extends TestCase
         $this->assertSame('new.txt', $since->json('deleted.0.name'));
     }
 
+    public function test_sync_excluded_folder_leaves_sync_tree_and_hashes(): void
+    {
+        $user = User::factory()->create();
+        $docs = Folder::create(['user_id' => $user->id, 'name' => 'Документы']);
+        $big = Folder::create(['user_id' => $user->id, 'name' => 'Архив']);
+        $nested = Folder::create(['user_id' => $user->id, 'name' => 'Вложенная', 'parent_id' => $big->id]);
+        $this->file($user, $docs, 'a.txt', 3, 100);
+        $this->file($user, $big, 'huge.bin', 9, 200);
+        $this->file($user, $nested, 'deep.bin', 5, 300);
+
+        $hashAll = $this->actingAs($user)->getJson('/api/sync/tree')
+            ->assertOk()->json('root_hash');
+
+        $this->actingAs($user)
+            ->putJson("/api/folders/{$big->id}", ['sync_excluded' => true])
+            ->assertOk()
+            ->assertJsonPath('data.sync_excluded', true);
+
+        $r = $this->actingAs($user)->getJson('/api/sync/tree')->assertOk();
+
+        // Папки в дереве остаются — десктопу нужен флаг sync_excluded,
+        // а вот файлы исключённой ветки уже не отдаём.
+        $folders = collect($r->json('folders'));
+        $this->assertTrue((bool) $folders->firstWhere('name', 'Архив')['sync_excluded']);
+        $this->assertFalse((bool) $folders->firstWhere('name', 'Вложенная')['sync_excluded']);
+        $names = collect($r->json('entries'))->pluck('name')->sort()->values();
+        $this->assertSame(['a.txt'], $names->all());
+
+        $hashExcluded = $r->json('root_hash');
+        $this->assertNotSame($hashAll, $hashExcluded);
+
+        // Изменения внутри исключённой ветки root_hash не двигают —
+        // иначе сравнение хэшей на десктопе разошлось бы навсегда.
+        $this->file($user, $nested, 'more.bin', 7, 400);
+        $this->assertSame(
+            $hashExcluded,
+            $this->actingAs($user)->getJson('/api/sync/tree')->json('root_hash'),
+        );
+
+        // А в обычной папке — двигают.
+        $this->file($user, $docs, 'b.txt', 4, 500);
+        $this->assertNotSame(
+            $hashExcluded,
+            $this->actingAs($user)->getJson('/api/sync/tree')->json('root_hash'),
+        );
+    }
+
     public function test_sync_branch_action_dispatches_event(): void
     {
         Event::fake([SyncRequested::class]);

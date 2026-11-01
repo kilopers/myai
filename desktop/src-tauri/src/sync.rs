@@ -13,6 +13,12 @@
 //! Изменение содержимого без смены имени/размера/mtime не обнаруживается;
 //! переименование = удаление + создание. Конфликт решается по mtime —
 //! побеждает более новая версия.
+//!
+//! Папки с флагом sync_excluded (настройка «не синхронизировать с
+//! компьютером») целиком выпадают из синка: не качаются, не грузятся,
+//! не удаляются и НЕ участвуют в dir_hash родителей — сервер считает
+//! хэши так же, поэтому деревья сходятся. Локальная копия такой папки
+//! просто остаётся на диске как есть (ничего с ней не делаем).
 
 use rusqlite::{params, Connection};
 use serde::Deserialize;
@@ -57,6 +63,11 @@ struct WatchState {
     root_hash: Option<String>,
     /// Watcher потерял события (переполнение/ошибка) — нужен полный rescan.
     stale: bool,
+    /// rel-paths веток с sync_excluded — их содержимое не сканируется
+    /// и не участвует в хэшах (приходит из sync/tree, кэш — meta sync.db).
+    excluded: HashSet<String>,
+    /// excluded подгружен из sync.db (иначе читаем мету один раз).
+    excluded_loaded: bool,
     /// rel_path → время последнего FS-события (скользящий дебаунс).
     dirty: HashMap<String, Instant>,
     /// Троттлинг автосинка по heartbeat и лога ошибок heartbeat'а.
@@ -106,6 +117,55 @@ fn folder_hash(name: &str, dir_hash: &str) -> String {
     sha256_hex(format!("{name}|0|{dir_hash}").as_bytes())
 }
 
+/// rel лежит в исключённой из синка ветке — совпадает с отмеченной
+/// sync_excluded папкой или находится внутри неё.
+fn is_excluded(rel: &str, excluded: &HashSet<String>) -> bool {
+    excluded
+        .iter()
+        .any(|p| rel == p || rel.starts_with(&format!("{p}/")))
+}
+
+/// Актуальный набор исключённых веток: живое состояние, при первом
+/// обращении — из meta sync.db (записано прошлым проходом синка).
+fn current_exclusions(app: &AppHandle) -> HashSet<String> {
+    if let Some(w) = app.try_state::<SyncWatch>() {
+        if let Ok(mut g) = w.0.lock() {
+            if !g.excluded_loaded {
+                if let Ok(conn) = open_db(app) {
+                    if let Some(j) = meta_get(&conn, "excluded_paths") {
+                        g.excluded = serde_json::from_str(&j).unwrap_or_default();
+                    }
+                }
+                g.excluded_loaded = true;
+            }
+            return g.excluded.clone();
+        }
+    }
+    HashSet::new()
+}
+
+/// Запомнить исключённые ветки из sync/tree: meta sync.db + живое
+/// состояние. Смена набора делает живое дерево stale — оно посчитано
+/// под старые исключения и требует полного rescan'а.
+fn store_exclusions(app: &AppHandle, conn: &Connection, paths: &HashSet<String>) {
+    let mut sorted: Vec<&String> = paths.iter().collect();
+    sorted.sort();
+    meta_set(
+        conn,
+        "excluded_paths",
+        &serde_json::to_string(&sorted).unwrap_or_default(),
+    );
+    if let Some(w) = app.try_state::<SyncWatch>() {
+        if let Ok(mut g) = w.0.lock() {
+            if g.excluded != *paths {
+                g.excluded = paths.clone();
+                g.stale = true;
+            }
+            g.excluded_loaded = true;
+        }
+    }
+}
+
 /// dir_hash: дети сортируются по имени в byte-order, конкатенация хэшей.
 fn dir_hash(children: &[(String, String)]) -> String {
     let mut items = children.to_vec();
@@ -125,10 +185,14 @@ struct LocalNode {
     dir_hash: String,
 }
 
-/// Полный обход: только stat() на каждый элемент.
-fn scan_local(root: &Path) -> Result<(BTreeMap<String, LocalNode>, String), String> {
+/// Полный обход: только stat() на каждый элемент. Исключённые из
+/// синка ветки (sync_excluded) в дерево и хэши не попадают.
+fn scan_local(
+    root: &Path,
+    excluded: &HashSet<String>,
+) -> Result<(BTreeMap<String, LocalNode>, String), String> {
     let mut out = BTreeMap::new();
-    let root_hash = scan_dir(root, "", &mut out, false)?;
+    let root_hash = scan_dir(root, "", &mut out, false, excluded)?;
     Ok((out, root_hash))
 }
 
@@ -144,7 +208,8 @@ fn local_tree(app: &AppHandle, root: &Path) -> Result<(BTreeMap<String, LocalNod
             }
         }
     }
-    let (map, rh) = scan_local(root)?;
+    let excluded = current_exclusions(app);
+    let (map, rh) = scan_local(root, &excluded)?;
     store_live_tree(app, map.clone(), &rh);
 
     Ok((map, rh))
@@ -157,6 +222,7 @@ fn scan_dir(
     rel: &str,
     out: &mut BTreeMap<String, LocalNode>,
     tolerant: bool,
+    excluded: &HashSet<String>,
 ) -> Result<String, String> {
     let mut children: Vec<(String, String)> = Vec::new();
     let rd = std::fs::read_dir(dir).map_err(|e| format!("нет доступа к {}: {e}", dir.display()))?;
@@ -172,6 +238,11 @@ fn scan_dir(
         } else {
             format!("{rel}/{name}")
         };
+        // sync_excluded-ветка: сервер исключает её из dir_hash так же —
+        // пропускаем и здесь, чтобы хэши сошлись.
+        if is_excluded(&child_rel, excluded) {
+            continue;
+        }
         let meta = match entry.metadata() {
             Ok(m) => m,
             Err(_) => continue,
@@ -182,7 +253,7 @@ fn scan_dir(
             // В строгом (синк) ошибку пробрасываем: иначе недоступная
             // папка выглядела бы как локально удалённая и ушла бы в
             // удаление на сервере.
-            let dh = match scan_dir(&entry.path(), &child_rel, out, tolerant) {
+            let dh = match scan_dir(&entry.path(), &child_rel, out, tolerant, excluded) {
                 Ok(dh) => dh,
                 Err(e) => {
                     if tolerant {
@@ -246,6 +317,9 @@ struct RemoteFolder {
     id: i64,
     #[serde(default)]
     is_system: bool,
+    /// «Не синхронизировать с компьютером» — ветка пропускается целиком.
+    #[serde(default)]
+    sync_excluded: bool,
     path: String,
     #[serde(default)]
     entry_hash: String,
@@ -419,16 +493,8 @@ async fn run_sync(app: &AppHandle, only_folder_id: Option<i64>) {
         }
     };
 
-    // Локальное дерево — живое от watcher'а или полный скан
-    let (local, local_root_hash) = match local_tree(app, &root) {
-        Ok(v) => v,
-        Err(e) => {
-            log(app, format!("ошибка сканирования: {e}"));
-            return;
-        }
-    };
-    log(app, format!("локально: {} элементов, хэш корня {}", local.len(), &local_root_hash[..12]));
-
+    // Удалённое дерево — сначала оно: набор исключённых из синка веток
+    // нужен уже на скане локальной папки (те же ветки не хэшируем и мы).
     let http = reqwest::Client::new();
     let tree: RemoteTree = match http
         .get(format!("{base}/api/sync/tree"))
@@ -456,6 +522,27 @@ async fn run_sync(app: &AppHandle, only_folder_id: Option<i64>) {
         &tree.root_hash[..12.min(tree.root_hash.len())],
     ));
 
+    // Ветки «не синхронизировать с компьютером»: сервер исключает их
+    // из хэшей — делаем то же при локальном скане. Смена набора сама
+    // пометит живое дерево stale → последует полный rescan.
+    let excluded: HashSet<String> = tree
+        .folders
+        .iter()
+        .filter(|f| f.sync_excluded)
+        .map(|f| f.path.clone())
+        .collect();
+    store_exclusions(app, &conn, &excluded);
+
+    // Локальное дерево — живое от watcher'а или полный скан
+    let (local, local_root_hash) = match local_tree(app, &root) {
+        Ok(v) => v,
+        Err(e) => {
+            log(app, format!("ошибка сканирования: {e}"));
+            return;
+        }
+    };
+    log(app, format!("локально: {} элементов, хэш корня {}", local.len(), &local_root_hash[..12]));
+
     // Быстрый путь: корневые хэши равны — глубокий обход не нужен
     if only_folder_id.is_none() && tree.root_hash == local_root_hash {
         log(app, "хэши корня совпадают — деревья идентичны, делать нечего");
@@ -469,6 +556,9 @@ async fn run_sync(app: &AppHandle, only_folder_id: Option<i64>) {
     let mut remote_files: BTreeMap<String, RemoteEntry> = BTreeMap::new();
     let mut folder_id_of: HashMap<String, i64> = HashMap::new();
     for f in &tree.folders {
+        if is_excluded(&f.path, &excluded) {
+            continue; // ветка и всё под ней вне синка
+        }
         remote_dirs.insert(f.path.clone(), f.clone());
         folder_id_of.insert(f.path.clone(), f.id);
     }
@@ -483,6 +573,9 @@ async fn run_sync(app: &AppHandle, only_folder_id: Option<i64>) {
         };
         // Скриншоты в sync-папку не выгружаем — они живут только в вебе.
         if e.kind == "screenshot" {
+            continue;
+        }
+        if is_excluded(&rel, &excluded) {
             continue;
         }
         remote_files.insert(rel, e.clone());
@@ -879,7 +972,7 @@ async fn run_sync(app: &AppHandle, only_folder_id: Option<i64>) {
 
     // Финальный локальный хэш → новый remote_root_hash; живое дерево — обновить
     // Финальный скан не удался — не затираем хороший хэш пустым.
-    let new_root = match scan_local(&root) {
+    let new_root = match scan_local(&root, &excluded) {
         Ok((map, h)) => {
             store_live_tree(app, map, &h);
             h
@@ -1216,6 +1309,7 @@ fn apply_dirty(app: &AppHandle, root: &Path, st: &mut WatchState) {
     for p in &aged {
         st.dirty.remove(p);
     }
+    let excluded = st.excluded.clone();
     let map = st.tree.as_mut().unwrap();
     let mut touched: HashSet<String> = HashSet::new();
 
@@ -1224,6 +1318,10 @@ fn apply_dirty(app: &AppHandle, root: &Path, st: &mut WatchState) {
     paths.sort_by_key(|p| std::cmp::Reverse(p.matches('/').count()));
 
     for rel in paths {
+        // sync_excluded-ветка вне дерева и хэшей — события в ней игнорим.
+        if is_excluded(&rel, &excluded) {
+            continue;
+        }
         for a in ancestors_of(&rel) {
             touched.insert(a);
         }
@@ -1240,7 +1338,7 @@ fn apply_dirty(app: &AppHandle, root: &Path, st: &mut WatchState) {
                 // события на её содержимое не приходят.
                 let prefix = format!("{rel}/");
                 map.retain(|k, _| k == &rel || !k.starts_with(&prefix));
-                match scan_dir(&full, &rel, map, false) {
+                match scan_dir(&full, &rel, map, false, &excluded) {
                     Ok(dh) => {
                         map.insert(
                             rel.clone(),
@@ -1433,12 +1531,14 @@ async fn watch_loop(app: &AppHandle) {
         let root = PathBuf::from(&root_str);
 
         // Полный скан — старт/смена папки или watcher потерял события.
+        // Заодно подгружает набор sync_excluded-веток в живое состояние.
+        let excluded = current_exclusions(app);
         let need_scan = app
             .try_state::<SyncWatch>()
             .and_then(|w| w.0.lock().ok().map(|g| g.tree.is_none() || g.stale))
             .unwrap_or(false);
         if need_scan {
-            match scan_local(&root) {
+            match scan_local(&root, &excluded) {
                 Ok((map, rh)) => {
                     log(app, format!("fs-watch: полный скан, хэш корня {}", &rh[..12]));
                     store_live_tree(app, map, &rh);
@@ -1564,8 +1664,9 @@ pub fn sync_root_hash(app: AppHandle) -> Option<String> {
     // ещё не записан (напр. после первого запуска на Windows).
     // Терпимый режим: нечитаемая подпапка не должна уронить весь скан.
     let root = sync_root(&app)?;
+    let excluded = current_exclusions(&app);
     let mut out = BTreeMap::new();
-    scan_dir(Path::new(&root), "", &mut out, true).ok()
+    scan_dir(Path::new(&root), "", &mut out, true, &excluded).ok()
 }
 
 #[cfg(test)]
@@ -1605,5 +1706,41 @@ mod tests {
             dir_hash(&[]),
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         );
+    }
+
+    #[test]
+    fn excluded_branch_invisible_to_hashes() {
+        // Ветка с sync_excluded хэшируется так, будто её нет: root_hash
+        // совпадает с деревом без этой папки, в карту узлы не попадают.
+        let tmp = std::env::temp_dir().join(format!("myai-sync-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(tmp.join("docs")).unwrap();
+        std::fs::write(tmp.join("docs/a.txt"), b"abc").unwrap();
+        std::fs::create_dir_all(tmp.join("skip/deep")).unwrap();
+        std::fs::write(tmp.join("skip/deep/x.bin"), b"xx").unwrap();
+
+        let none = HashSet::new();
+        let mut excluded = HashSet::new();
+        excluded.insert("skip".to_string());
+
+        let (map_all, _) = scan_local(&tmp, &none).unwrap();
+        let (map_ex, rh_ex) = scan_local(&tmp, &excluded).unwrap();
+
+        assert!(!map_ex.keys().any(|k| k == "skip" || k.starts_with("skip/")));
+        let expected = dir_hash(&[("docs".into(), map_all["docs"].entry_hash.clone())]);
+        assert_eq!(rh_ex, expected);
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn is_excluded_matches_self_and_descendants() {
+        let excluded: HashSet<String> = ["big".to_string(), "a/b".to_string()].into();
+        assert!(is_excluded("big", &excluded));
+        assert!(is_excluded("big/x/y", &excluded));
+        assert!(is_excluded("a/b/c", &excluded));
+        assert!(!is_excluded("bigger", &excluded));
+        assert!(!is_excluded("a/bc", &excluded));
+        assert!(!is_excluded("a", &excluded));
     }
 }

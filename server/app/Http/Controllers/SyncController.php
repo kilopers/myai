@@ -8,6 +8,7 @@ use App\Support\SyncHash;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 class SyncController extends Controller
 {
@@ -40,14 +41,24 @@ class SyncController extends Controller
             'parent_id' => $f->parent_id,
             'name' => $f->name,
             'is_system' => (bool) $f->is_system,
+            'sync_excluded' => (bool) $f->sync_excluded,
             'path' => $pathOf($f),
             'dir_hash' => $f->dirHash(),
             'entry_hash' => SyncHash::folderEntry($f->name, $f->dirHash()),
         ])->values();
 
+        // Файлы исключённых из синка веток клиенту не нужны: он всё
+        // равно пропустит их по флагу папки — не шлём и метаданные.
+        $excludedFolderIds = $folders
+            ->filter(fn (Folder $f) => $this->isUnderExcluded($f, $folders))
+            ->keys();
+
         $entries = [];
 
         foreach ($user->files()->get() as $file) {
+            if ($file->folder_id !== null && $excludedFolderIds->contains($file->folder_id)) {
+                continue;
+            }
             $entries[] = [
                 'id' => (string) $file->id,
                 'kind' => 'file',
@@ -84,6 +95,22 @@ class SyncController extends Controller
             'root_hash' => $root,
             'diverged' => $client !== '' && ! hash_equals($root, $client),
         ]);
+    }
+
+    /**
+     * Папка внутри исключённой из синка ветки: флаг sync_excluded на
+     * самой папке или на любом из предков.
+     *
+     * @param  Collection<int, Folder>  $folders
+     */
+    private function isUnderExcluded(Folder $folder, $folders): bool
+    {
+        if ($folder->sync_excluded) {
+            return true;
+        }
+        $parent = $folder->parent_id !== null ? $folders->get($folder->parent_id) : null;
+
+        return $parent !== null && $this->isUnderExcluded($parent, $folders);
     }
 
     /**

@@ -55,6 +55,12 @@ class SyncHash
         $children = [];
 
         foreach ($folder->children as $child) {
+            // Исключённая из синка папка (sync_excluded) целиком не
+            // участвует в хэше родителя — иначе десктоп, который её
+            // пропускает, никогда не сойдётся по dir_hash.
+            if ($child->sync_excluded) {
+                continue;
+            }
             $children[] = [
                 'name' => $child->name,
                 'hash' => self::folderEntry($child->name, $child->dirHash()),
@@ -104,7 +110,7 @@ class SyncHash
     {
         $children = [];
 
-        foreach ($user->folders()->whereNull('parent_id')->get() as $folder) {
+        foreach ($user->folders()->whereNull('parent_id')->where('sync_excluded', false)->get() as $folder) {
             $children[] = [
                 'name' => $folder->name,
                 'hash' => self::folderEntry($folder->name, $folder->dirHash()),
@@ -149,6 +155,9 @@ class SyncHash
             }
             $children = [];
             foreach ($folders->where('parent_id', $folder->id) as $child) {
+                if ($child->sync_excluded) {
+                    continue;
+                }
                 $children[] = [
                     'name' => $child->name,
                     'hash' => self::folderEntry($child->name, $compute($child)),

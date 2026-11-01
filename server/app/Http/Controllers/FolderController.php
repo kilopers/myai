@@ -52,6 +52,7 @@ class FolderController extends Controller
             'default_ttl_days' => ['nullable', 'integer', 'min:1', 'max:36500'],
             'conversion_enabled' => ['sometimes', 'boolean'],
             'torrent_mode' => ['sometimes', Rule::in(['auto', 'manual'])],
+            'sync_excluded' => ['sometimes', 'boolean'],
         ]);
 
         abort_if(
@@ -61,9 +62,13 @@ class FolderController extends Controller
         );
 
         $nameChanged = isset($validated['name']) && $validated['name'] !== $folder->name;
+        // Переключение исключения из синка меняет dir_hash родителей —
+        // пересчитываем цепочку, как при переименовании.
+        $syncToggled = array_key_exists('sync_excluded', $validated)
+            && (bool) $validated['sync_excluded'] !== $folder->sync_excluded;
         $folder->update($validated);
 
-        if ($nameChanged) {
+        if ($nameChanged || $syncToggled) {
             SyncHash::refreshFolderChain($folder->parent, $request->user());
         }
 
