@@ -422,24 +422,23 @@ export default function FilesPage() {
 
   const openFile = async (f) => {
     // Типы с встроенным просмотрщиком — диалог; прочие — оригинал
-    // в новой вкладке, как раньше.
+    // в новой вкладке по подписанной ссылке (без blob в память).
     if (viewMode(f)) {
       setViewerFile(f);
       return;
     }
-    const { data } = await client.get(`/api/files/${f.id}/download`, { responseType: 'blob' });
-    const url = URL.createObjectURL(new Blob([data], { type: f.mime_type }));
-    window.open(url, '_blank');
+    const { data } = await client.get(`/api/files/${f.id}/media-url`);
+    window.open(data.stream, '_blank');
   };
 
   const downloadFile = async (f) => {
-    const { data } = await client.get(`/api/files/${f.id}/download`, { responseType: 'blob' });
-    const url = URL.createObjectURL(new Blob([data], { type: f.mime_type }));
+    // Подписанная ссылка — настоящая браузерная загрузка в «Загрузки»,
+    // без копии файла в Blob (на больших файлах blob-клик тихо падал).
+    const { data } = await client.get(`/api/files/${f.id}/media-url`);
     const a = document.createElement('a');
-    a.href = url;
+    a.href = data.download;
     a.download = f.name;
     a.click();
-    URL.revokeObjectURL(url);
   };
 
   const removeFile = async (id) => {
