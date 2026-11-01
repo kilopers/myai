@@ -75,6 +75,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/files/{file}/pages/{page}', [FileController::class, 'page']);
     Route::get('/files/{file}/converted', [FileController::class, 'converted']);
     Route::get('/files/{file}/media-url', [FileController::class, 'mediaUrl']);
+    // Позиция просмотра (страница pdf/word, секунды видео)
+    Route::get('/files/{file}/position', [FileController::class, 'position']);
+    Route::put('/files/{file}/position', [FileController::class, 'savePosition']);
     Route::post('/share-links', [ShareLinkController::class, 'store']);
     Route::delete('/share-links/{shareLink}', [ShareLinkController::class, 'destroy']);
 

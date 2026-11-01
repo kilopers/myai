@@ -24,6 +24,8 @@ class StoredFileResource extends JsonResource
             'conversion_progress' => (int) $this->conversion_progress,
             'pages_total' => $this->pages_total,
             'pages_done' => $this->pages_done,
+            // Позиция просмотра: {"page":N} | {"seconds":S} | null.
+            'view_state' => $this->view_state,
             'has_derivatives' => (bool) ($this->derivatives_count ?? $this->derivatives()->exists()),
             // Для .torrent-файлов — состояние задачи загрузки (полный
             // список файлов торрента отдаёт GET /api/torrents/{id}).

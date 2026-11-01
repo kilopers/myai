@@ -54,6 +54,11 @@ export default function FileViewerDialog({ file, onClose }) {
   const [posterUrl, setPosterUrl] = useState(null);
   const [error, setError] = useState(false);
   const pageCache = useRef(new Map());
+  const pendingSeek = useRef(0); // секунды, куда перемотать видео после загрузки метаданных
+  const lastSaveAt = useRef(0);  // ms — троттлинг автосейва позиции
+  const lastPos = useRef(null);  // последняя позиция для досейва при закрытии
+  const fileRef = useRef(file);
+  fileRef.current = file;
 
   // Сброс состояния при смене файла
   useEffect(() => {
@@ -64,7 +69,78 @@ export default function FileViewerDialog({ file, onClose }) {
     setError(false);
     pageCache.current.forEach((u) => URL.revokeObjectURL(u));
     pageCache.current = new Map();
+    pendingSeek.current = 0;
+    lastSaveAt.current = 0;
+    lastPos.current = null;
   }, [file?.id]);
+
+  // Сохранение позиции просмотра (pages — page, video — seconds)
+  const savePosition = useCallback((position) => {
+    if (!file) return;
+    client.put(`/api/files/${file.id}/position`, { position }).catch(() => {});
+  }, [file]);
+
+  // Восстановление позиции: страница pdf/word или секунда видео
+  useEffect(() => {
+    if (!file || (mode !== 'pages' && mode !== 'video')) return undefined;
+    let cancelled = false;
+    client.get(`/api/files/${file.id}/position`)
+      .then(({ data }) => {
+        const pos = data?.position;
+        if (cancelled || !pos) return;
+        if (mode === 'pages' && pos.page > 0) setPage(pos.page);
+        if (mode === 'video' && pos.seconds > 0) pendingSeek.current = pos.seconds;
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [file?.id, mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Автосейв текущей страницы (дебаунс — при быстром листании не спамим PUT'ами)
+  useEffect(() => {
+    if (mode !== 'pages' || !file || count === 0) return undefined;
+    const t = setTimeout(() => {
+      lastPos.current = { page };
+      savePosition({ page });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [mode, file, page, count, savePosition]);
+
+  // Обработчики <video>: seek из сохранённой позиции + автосейв раз в 10 с,
+  // на паузе и по окончании (конец → сброс на начало)
+  const videoEvents = {
+    onLoadedMetadata: (e) => {
+      const { duration } = e.currentTarget;
+      if (pendingSeek.current > 0 && pendingSeek.current < duration - 1) {
+        e.currentTarget.currentTime = pendingSeek.current;
+      }
+      pendingSeek.current = 0;
+    },
+    onTimeUpdate: (e) => {
+      const seconds = Math.floor(e.currentTarget.currentTime);
+      lastPos.current = { seconds };
+      const now = Date.now();
+      if (now - lastSaveAt.current >= 10000) {
+        lastSaveAt.current = now;
+        savePosition({ seconds });
+      }
+    },
+    onPause: (e) => {
+      lastSaveAt.current = Date.now();
+      const seconds = Math.floor(e.currentTarget.currentTime);
+      lastPos.current = { seconds };
+      savePosition({ seconds });
+    },
+    onEnded: () => {
+      lastSaveAt.current = Date.now();
+      lastPos.current = { seconds: 0 };
+      savePosition({ seconds: 0 });
+    },
+  };
+
+  const handleClose = useCallback(() => {
+    if (lastPos.current) savePosition(lastPos.current);
+    onClose();
+  }, [onClose, savePosition]);
 
   // Загрузка контента по режиму
   useEffect(() => {
@@ -138,6 +214,11 @@ export default function FileViewerDialog({ file, onClose }) {
   // Освобождение blob-ссылок при размонтировании диалога
   useEffect(() => () => {
     pageCache.current.forEach((u) => URL.revokeObjectURL(u));
+    // Досейв позиции — если диалог умер без handleClose
+    if (lastPos.current && fileRef.current) {
+      client.put(`/api/files/${fileRef.current.id}/position`, { position: lastPos.current })
+        .catch(() => {});
+    }
   }, []);
 
   const downloadOriginal = async () => {
@@ -153,7 +234,7 @@ export default function FileViewerDialog({ file, onClose }) {
   if (!file) return null;
 
   return (
-    <Dialog open onClose={onClose} maxWidth="lg" fullWidth>
+    <Dialog open onClose={handleClose} maxWidth="lg" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
           {file.name}
@@ -163,7 +244,7 @@ export default function FileViewerDialog({ file, onClose }) {
             </Typography>
           )}
         </Typography>
-        <IconButton onClick={onClose} size="small">
+        <IconButton onClick={handleClose} size="small">
           <CloseIcon />
         </IconButton>
       </DialogTitle>
@@ -186,6 +267,7 @@ export default function FileViewerDialog({ file, onClose }) {
               poster={posterUrl ?? undefined}
               controls
               autoPlay
+              {...videoEvents}
               sx={{ maxWidth: '100%', maxHeight: '70vh', bgcolor: 'black' }}
             />
           ) : (

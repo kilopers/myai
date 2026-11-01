@@ -13,6 +13,7 @@ use App\Support\SyncHash;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -253,6 +254,39 @@ class FileController extends Controller
     private function mediaSignature(StoredFile $file, string $mode, int $exp): string
     {
         return hash_hmac('sha256', "{$file->id}|{$mode}|{$exp}", (string) config('app.key'));
+    }
+
+    /**
+     * Позиция просмотра файла: {"page": N} для постраничных режимов,
+     * {"seconds": S} для видео. Фронт дёргает при открытии просмотрщика.
+     */
+    public function position(Request $request, StoredFile $file): JsonResponse
+    {
+        $this->authorizeFile($request, $file);
+
+        return response()->json(['position' => $file->view_state]);
+    }
+
+    /**
+     * Сохранение позиции просмотра (троттлится на фронте). saveQuietly —
+     * не трогаем entry_hash/updated_at-семантику: позиция не участвует
+     * в десктоп-синке.
+     */
+    public function savePosition(Request $request, StoredFile $file): JsonResponse
+    {
+        $this->authorizeFile($request, $file);
+        $validated = $request->validate([
+            'position' => ['required', 'array'],
+            'position.page' => ['nullable', 'integer', 'min:1', 'max:100000'],
+            'position.seconds' => ['nullable', 'numeric', 'min:0', 'max:864000'],
+        ]);
+        $pos = $validated['position'];
+        abort_unless(isset($pos['page']) || isset($pos['seconds']), 422);
+
+        $file->view_state = Arr::only($pos, ['page', 'seconds']);
+        $file->saveQuietly();
+
+        return response()->json(['position' => $file->view_state]);
     }
 
     /** Проверка владельца — так же, как в download. */

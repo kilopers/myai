@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
 
-#[Fillable(['user_id', 'folder_id', 'uuid', 'name', 'filename', 'mime_type', 'size', 'path', 'expires_at', 'original_path', 'mtime', 'entry_hash', 'conversion_status', 'conversion_progress', 'pages_total', 'pages_done', 'conversion_error'])]
+#[Fillable(['user_id', 'folder_id', 'uuid', 'name', 'filename', 'mime_type', 'size', 'path', 'expires_at', 'original_path', 'mtime', 'entry_hash', 'conversion_status', 'conversion_progress', 'pages_total', 'pages_done', 'conversion_error', 'view_state'])]
 class StoredFile extends Model
 {
     use SoftDeletes;
@@ -28,6 +28,7 @@ class StoredFile extends Model
             'conversion_progress' => 'integer',
             'pages_total' => 'integer',
             'pages_done' => 'integer',
+            'view_state' => 'array',
         ];
     }
 
