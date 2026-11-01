@@ -53,16 +53,30 @@ class Aria2Engine implements TorrentEngine
             'seeds' => (int) ($st['numSeeders'] ?? 0),
             'peers' => (int) ($st['connections'] ?? 0),
             'upload_rate' => (int) ($st['uploadSpeed'] ?? 0),
-            'error' => $status === 'error'
-                // errorMessage бывает пустой (напр. обрыв по
-                // --bt-stop-timeout) — тогда хотя бы код ошибки.
-                ? (($st['errorMessage'] ?? '') !== ''
-                    ? (string) $st['errorMessage']
-                    : ($st['errorCode'] ?? '') !== '' && ($st['errorCode'] ?? '') !== '0'
-                        ? "ошибка движка, код {$st['errorCode']}"
-                        : null)
-                : null,
+            'error' => $status === 'error' ? $this->engineError($st) : null,
         ];
+    }
+
+    /**
+     * errorMessage бывает пустой (напр. обрыв по --bt-stop-timeout) —
+     * тогда хотя бы код ошибки; если и его нет — null, текст подставит
+     * TorrentService.
+     *
+     * @param  array<string, mixed>  $st
+     */
+    private function engineError(array $st): ?string
+    {
+        $message = (string) ($st['errorMessage'] ?? '');
+        if ($message !== '') {
+            return $message;
+        }
+
+        $code = (string) ($st['errorCode'] ?? '');
+        if ($code !== '' && $code !== '0') {
+            return "ошибка движка, код {$code}";
+        }
+
+        return null;
     }
 
     public function pause(string $gid): void
