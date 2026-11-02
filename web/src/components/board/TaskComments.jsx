@@ -240,9 +240,16 @@ export default function TaskComments({ taskId, onCount, onError }) {
     'data-delete': ({ part }) => (
       <Tooltip title="Удалить комментарий" key={part.id}>
         <IconButton
+          className="comment-delete-btn"
           size="small"
           onClick={() => removeComment(part.data)}
-          sx={{ mt: 0.25, p: 0.25, color: 'error.main' }}
+          sx={{
+            p: 0.25,
+            color: 'error.main',
+            bgcolor: 'background.paper',
+            boxShadow: 1,
+            '&:hover': { bgcolor: 'background.paper' },
+          }}
         >
           <DeleteIcon sx={{ fontSize: 14 }} />
         </IconButton>
@@ -276,6 +283,18 @@ export default function TaskComments({ taskId, onCount, onError }) {
             '& .MuiChatMessage-roleUser .MuiChatMessage-inlineMeta': {
               color: 'rgba(0,0,0,0.55)',
             },
+            // Кнопка удаления комментария — только по ховеру на
+            // сообщении, бейджем на верхнем правом углу пузыря.
+            '& .MuiChatMessage-bubble': { position: 'relative' },
+            '& .comment-delete-btn': {
+              opacity: 0,
+              transition: 'opacity .15s ease',
+              position: 'absolute',
+              top: -8,
+              right: -8,
+              zIndex: 1,
+            },
+            '& .MuiChatMessage:hover .comment-delete-btn': { opacity: 1 },
           }}
           >
             <ChatRoot
