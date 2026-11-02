@@ -39,7 +39,7 @@ const insertImages = (editor, files) => {
   return true;
 };
 
-export default function RichTextEditor({ value, onChange, placeholder }) {
+export default function RichTextEditor({ value, onChange, placeholder, minHeight = 96 }) {
   const editor = useEditor({
     extensions: [StarterKit, Image],
     content: value || '',
@@ -127,7 +127,7 @@ export default function RichTextEditor({ value, onChange, placeholder }) {
           px: 1.5,
           py: 1,
           '& .ProseMirror': {
-            minHeight: 96,
+            minHeight,
             outline: 'none',
             fontSize: '0.875rem',
             '& p': { m: 0, mb: 0.5 },

@@ -267,7 +267,13 @@ export default function BoardPage() {
         </DialogActions>
       </AppDialog>
 
-      <AppDialog open={!!taskDlg} onClose={() => setTaskDlg(null)} maxWidth="sm" fullWidth>
+      <AppDialog
+        open={!!taskDlg}
+        onClose={() => setTaskDlg(null)}
+        maxWidth="xl"
+        fullWidth
+        slotProps={{ paper: { sx: { height: { md: '85vh' } } } }}
+      >
         <DialogTitle>
           {taskDlg?.mode === 'edit' ? 'Задача' : 'Новая задача'}
         </DialogTitle>
@@ -291,6 +297,7 @@ export default function BoardPage() {
                 ...d, form: { ...d.form, text: html },
               }))}
               placeholder="Описание задачи"
+              minHeight={200}
             />
           </Box>
           <Box sx={{ mt: 1.5 }}>
