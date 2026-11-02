@@ -287,7 +287,7 @@ export default function BoardPage() {
           <Tabs
             value={taskDlg?.tab ?? 0}
             onChange={(_e, tab) => setTaskDlg((d) => ({ ...d, tab }))}
-            sx={{ mt: 0.5 }}
+            sx={{ mt: 0.5, mb: '5px' }}
           >
             <Tab label="Описание" />
             <Tab
@@ -336,7 +336,7 @@ export default function BoardPage() {
             </>
           )}
           {(taskDlg?.tab ?? 0) === 1 && taskDlg?.mode === 'edit' && (
-            <Box sx={{ flex: 1, minHeight: 0, display: 'flex', mt: 1 }}>
+            <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', mt: 1 }}>
               <TaskComments
                 taskId={taskDlg.task.id}
                 onError={setNotice}

@@ -250,7 +250,7 @@ export default function TaskComments({ taskId, onCount, onError }) {
   const pendingFiles = pending.filter((p) => !p.file.type.startsWith('image/'));
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 300 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: '100%' }}>
       <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0, py: 1, overflowX: 'hidden' }}>
         {!comments ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
