@@ -1,6 +1,6 @@
 import { Box, Chip, Typography } from '@mui/material';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
-import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
+import ChatBubbleOutlineOutlinedIcon from '@mui/icons-material/ChatBubbleOutlineOutlined';
 
 /** HTML описания задачи → однострочный текст для превью карточки. */
 const plainText = (html) => {
@@ -83,7 +83,7 @@ export default function BoardTask({ task, onClick, onDragStart }) {
           )}
           {commentsCount > 0 && (
             <Chip
-              icon={<ChatBubbleOutlineIcon />}
+              icon={<ChatBubbleOutlineOutlinedIcon />}
               label={commentsCount}
               size="small"
               variant="outlined"

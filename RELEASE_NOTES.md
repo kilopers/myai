@@ -6,6 +6,11 @@
 Актуальная версия — в файле `VERSION`.
 
 
+## 1.7.50
+
+- Fix сборки: импорт иконки `ChatBubbleOutlineOutlined` (в
+  установленной @mui/icons-material нет `ChatBubbleOutline`).
+
 ## 1.7.49
 
 - Бейджи на карточке задачи — аккуратные MUI `Chip` (outline,
