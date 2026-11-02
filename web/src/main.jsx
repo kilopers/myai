@@ -54,6 +54,11 @@ const theme = createTheme({
     MuiTableCell: {
       styleOverrides: { root: { padding: '6px 12px' } },
     },
+    MuiDialogContent: {
+      styleOverrides: {
+        root: { '.MuiDialogTitle-root + &': { paddingTop: 6 } },
+      },
+    },
     MuiTextField: {
       defaultProps: { variant: 'outlined', size: 'small' },
     },
