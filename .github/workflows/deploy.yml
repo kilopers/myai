@@ -85,10 +85,21 @@ jobs:
 
       # Мгновенный триггер автодеплоя: дёргаем HTTP API Watchtower на
       # сервере (polling остаётся страховкой). Секрет: WATCHTOWER_TOKEN.
+      # Watchtower отвечает 429, пока идёт его собственная polling-сессия
+      # (может совпасть с нашей сборкой и дать частичный апдейт) —
+      # поэтому ждём и повторяем, пока не освободится.
       - name: Trigger watchtower
         if: success()
         continue-on-error: true
         run: |
-          curl -sS -X POST https://myai.ai.kilop.ru/_watchtower/v1/update \
-            -H "Authorization: Bearer ${{ secrets.WATCHTOWER_TOKEN }}" \
-            --max-time 30
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+              https://myai.ai.kilop.ru/_watchtower/v1/update \
+              -H "Authorization: Bearer ${{ secrets.WATCHTOWER_TOKEN }}" \
+              --max-time 30)
+            echo "watchtower update: попытка $i -> HTTP $code"
+            if [ "$code" = "200" ]; then exit 0; fi
+            sleep 20
+          done
+          echo "watchtower не ответил 200 — обновление заберёт polling"
+          exit 0
