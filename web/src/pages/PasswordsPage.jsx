@@ -24,6 +24,7 @@ import {
   TableBody,
   TableCell,
   TableHead,
+  TablePagination,
   TableRow,
   TextField,
   Tooltip,
@@ -46,6 +47,8 @@ export default function PasswordsPage() {
   // 0 — «Все записи»: весь справочник без фильтра по папке.
   const [activeId, setActiveId] = useState(0);
   const [entries, setEntries] = useState(null);
+  const [meta, setMeta] = useState(null);
+  const [page, setPage] = useState(1);
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
   // Диалог папки: {id?, name} — id есть при переименовании.
@@ -65,14 +68,16 @@ export default function PasswordsPage() {
     }
   }, []);
 
-  const loadEntries = useCallback(async (folderId, q) => {
+  const loadEntries = useCallback(async (folderId, q, p) => {
     setEntries(null);
     try {
       const params = new URLSearchParams();
       if (folderId) params.set('password_folder_id', folderId);
       if (q?.trim()) params.set('q', q.trim());
+      params.set('page', p);
       const { data } = await client.get(`/api/password-entries?${params}`);
       setEntries(data.data ?? []);
+      setMeta(data.meta ?? null);
     } catch {
       setEntries([]);
     }
@@ -84,10 +89,18 @@ export default function PasswordsPage() {
   useEffect(() => {
     if (!folders) return;
     const t = setTimeout(() => {
-      loadEntries(query.trim() ? null : activeId, query);
+      setPage(1);
+      loadEntries(query.trim() ? null : activeId, query, 1);
     }, query.trim() ? 300 : 0);
     return () => clearTimeout(t);
   }, [activeId, query, folders, loadEntries]);
+
+  const goPage = (p) => {
+    setPage(p);
+    loadEntries(query.trim() ? null : activeId, query, p);
+  };
+
+  const reloadCurrent = () => loadEntries(query.trim() ? null : activeId, query, page);
 
   const copy = async (text, what) => {
     try {
@@ -161,7 +174,7 @@ export default function PasswordsPage() {
         await client.post('/api/password-entries', payload);
       }
       setEntryDlg(null);
-      await Promise.all([loadEntries(query.trim() ? null : activeId, query), loadFolders()]);
+      await Promise.all([reloadCurrent(), loadFolders()]);
     } catch {
       setMessage('Не удалось сохранить запись');
     } finally {
@@ -173,7 +186,7 @@ export default function PasswordsPage() {
     if (!window.confirm(`Удалить запись «${entry.name}»?`)) return;
     try {
       await client.delete(`/api/password-entries/${entry.id}`);
-      await Promise.all([loadEntries(query.trim() ? null : activeId, query), loadFolders()]);
+      await Promise.all([reloadCurrent(), loadFolders()]);
     } catch {
       setMessage('Не удалось удалить запись');
     }
@@ -359,6 +372,17 @@ export default function PasswordsPage() {
                   )}
                 </TableBody>
               </Table>
+            )}
+            {entries && meta && meta.last_page > 1 && (
+              <TablePagination
+                component="div"
+                count={meta.total}
+                page={(meta.current_page ?? page) - 1}
+                rowsPerPage={20}
+                rowsPerPageOptions={[20]}
+                onPageChange={(e, p) => goPage(p + 1)}
+                labelDisplayedRows={({ from, to, count }) => `${from}–${to} из ${count}`}
+              />
             )}
           </CardContent>
         </Card>

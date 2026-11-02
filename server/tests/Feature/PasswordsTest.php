@@ -89,6 +89,31 @@ class PasswordsTest extends TestCase
             ->getJson("/api/password-entries?password_folder_id={$work->id}&q=netflix")->json('data'));
     }
 
+    public function test_index_paginates_by_20(): void
+    {
+        $user = User::factory()->create();
+        $folder = $user->passwordFolders()->create(['name' => 'Много']);
+        for ($i = 0; $i < 25; $i++) {
+            $user->passwordEntries()->create([
+                'password_folder_id' => $folder->id,
+                'name' => str_pad((string) $i, 3, '0', STR_PAD_LEFT),
+                'password' => "p{$i}",
+            ]);
+        }
+
+        $page1 = $this->actingAs($user)
+            ->getJson("/api/password-entries?password_folder_id={$folder->id}")
+            ->assertOk()->json();
+        $this->assertCount(20, $page1['data']);
+        $this->assertSame(25, $page1['meta']['total']);
+        $this->assertSame(2, $page1['meta']['last_page']);
+
+        $page2 = $this->actingAs($user)
+            ->getJson("/api/password-entries?password_folder_id={$folder->id}&page=2")
+            ->assertOk()->json();
+        $this->assertCount(5, $page2['data']);
+    }
+
     public function test_users_cannot_touch_foreign_passwords(): void
     {
         $owner = User::factory()->create();

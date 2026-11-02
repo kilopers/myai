@@ -14,6 +14,7 @@ class PasswordEntryController extends Controller
     /**
      * Без password_folder_id — весь справочник; q ищет по названию,
      * логину, описанию и имени папки (поиск по всему справочнику).
+     * Выдача постраничная по 20 записей.
      */
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -35,7 +36,7 @@ class PasswordEntryController extends Controller
                     ->orWhereHas('folder', fn ($f) => $f->where('name', 'like', $like)));
             })
             ->orderBy('name')
-            ->get();
+            ->paginate(20);
 
         return JsonResource::collection($entries);
     }
