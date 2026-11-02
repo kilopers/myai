@@ -13,7 +13,7 @@ class BoardColumnController extends Controller
         $board = Board::findOrFail($request->integer('board_id'));
         abort_unless($board->user_id === $request->user()->id, 403);
 
-        return $board->columns()->with('tasks.attachments')->get();
+        return $board->columns()->with(['tasks.attachments', 'tasks' => fn ($q) => $q->withCount('comments')])->get();
     }
 
     public function store(Request $request)
@@ -33,7 +33,10 @@ class BoardColumnController extends Controller
             'position' => (int) $board->columns()->max('position') + 1,
         ]);
 
-        return response()->json($column->load('tasks.attachments'), 201);
+        return response()->json(
+            $column->load(['tasks.attachments', 'tasks' => fn ($q) => $q->withCount('comments')]),
+            201,
+        );
     }
 
     public function update(Request $request, BoardColumn $boardColumn)

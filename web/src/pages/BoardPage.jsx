@@ -10,6 +10,8 @@ import {
   DialogContent,
   DialogTitle,
   Snackbar,
+  Tab,
+  Tabs,
   TextField,
   Typography,
 } from '@mui/material';
@@ -21,6 +23,7 @@ import PageHeader from '../components/PageHeader';
 import RichTextEditor from '../components/RichTextEditor';
 import BoardColumn from '../components/board/BoardColumn';
 import TaskAttachments from '../components/board/TaskAttachments';
+import TaskComments from '../components/board/TaskComments';
 
 const COLUMN_COLORS = [
   '#526de3', '#5b8ff9', '#5ad8a6', '#5d7092',
@@ -151,10 +154,10 @@ export default function BoardPage() {
   };
 
   const openTaskCreate = (column) => setTaskDlg({
-    mode: 'create', column, form: { ...emptyTask }, pending: [],
+    mode: 'create', column, form: { ...emptyTask }, pending: [], tab: 0,
   });
   const openTaskEdit = (task) => setTaskDlg({
-    mode: 'edit', task, pending: [],
+    mode: 'edit', task, pending: [], tab: 0,
     form: { title: task.title, text: task.text ?? '' },
   });
 
@@ -279,43 +282,70 @@ export default function BoardPage() {
         fullWidth
         slotProps={{ paper: { sx: { height: { md: '85vh' } } } }}
       >
-        <DialogTitle>
+        <DialogTitle sx={{ pb: 0 }}>
           {taskDlg?.mode === 'edit' ? 'Задача' : 'Новая задача'}
+          <Tabs
+            value={taskDlg?.tab ?? 0}
+            onChange={(_e, tab) => setTaskDlg((d) => ({ ...d, tab }))}
+            sx={{ mt: 0.5 }}
+          >
+            <Tab label="Описание" />
+            <Tab
+              label={`Обсуждение${(taskDlg?.task?.comments_count ?? taskDlg?.commentsCount ?? 0) > 0
+                ? ` (${taskDlg.task?.comments_count ?? taskDlg.commentsCount})` : ''}`}
+              disabled={taskDlg?.mode !== 'edit'}
+            />
+          </Tabs>
         </DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            fullWidth
-            size="small"
-            label="Название"
-            sx={{ mt: 1 }}
-            autoComplete="off"
-            value={taskDlg?.form.title ?? ''}
-            onChange={(e) => setTaskDlg((d) => ({
-              ...d, form: { ...d.form, title: e.target.value },
-            }))}
-          />
-          <Box sx={{ mt: 1.5 }}>
-            <RichTextEditor
-              value={taskDlg?.form.text ?? ''}
-              onChange={(html) => setTaskDlg((d) => ({
-                ...d, form: { ...d.form, text: html },
-              }))}
-              placeholder="Описание задачи"
-              minHeight={200}
-              editorRef={taskEditorRef}
-            />
-          </Box>
-          <Box sx={{ mt: 1.5 }}>
-            <TaskAttachments
-              taskId={taskDlg?.mode === 'edit' ? taskDlg.task.id : null}
-              attachments={taskDlg?.task?.attachments ?? []}
-              pending={taskDlg?.pending ?? []}
-              onPending={(pending) => setTaskDlg((d) => ({ ...d, pending }))}
-              onChanged={load}
-              onError={setNotice}
-            />
-          </Box>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column' }}>
+          {(taskDlg?.tab ?? 0) === 0 && (
+            <>
+              <TextField
+                autoFocus
+                fullWidth
+                size="small"
+                label="Название"
+                sx={{ mt: 1 }}
+                autoComplete="off"
+                value={taskDlg?.form.title ?? ''}
+                onChange={(e) => setTaskDlg((d) => ({
+                  ...d, form: { ...d.form, title: e.target.value },
+                }))}
+              />
+              <Box sx={{ mt: 1.5 }}>
+                <RichTextEditor
+                  value={taskDlg?.form.text ?? ''}
+                  onChange={(html) => setTaskDlg((d) => ({
+                    ...d, form: { ...d.form, text: html },
+                  }))}
+                  placeholder="Описание задачи"
+                  minHeight={200}
+                  editorRef={taskEditorRef}
+                />
+              </Box>
+              <Box sx={{ mt: 1.5 }}>
+                <TaskAttachments
+                  taskId={taskDlg?.mode === 'edit' ? taskDlg.task.id : null}
+                  attachments={taskDlg?.task?.attachments ?? []}
+                  pending={taskDlg?.pending ?? []}
+                  onPending={(pending) => setTaskDlg((d) => ({ ...d, pending }))}
+                  onChanged={load}
+                  onError={setNotice}
+                />
+              </Box>
+            </>
+          )}
+          {(taskDlg?.tab ?? 0) === 1 && taskDlg?.mode === 'edit' && (
+            <Box sx={{ flex: 1, minHeight: 0, display: 'flex', mt: 1 }}>
+              <TaskComments
+                taskId={taskDlg.task.id}
+                onError={setNotice}
+                onCount={(commentsCount) => setTaskDlg((d) => (d
+                  ? { ...d, commentsCount, task: { ...d.task, comments_count: commentsCount } }
+                  : d))}
+              />
+            </Box>
+          )}
         </DialogContent>
         <DialogActions sx={{ justifyContent: 'space-between' }}>
           {taskDlg?.mode === 'edit' ? (

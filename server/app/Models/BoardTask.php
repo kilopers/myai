@@ -25,4 +25,12 @@ class BoardTask extends Model
     {
         return $this->hasMany(BoardTaskAttachment::class)->orderBy('id');
     }
+
+    /**
+     * @return HasMany<BoardTaskComment, $this>
+     */
+    public function comments(): HasMany
+    {
+        return $this->hasMany(BoardTaskComment::class)->orderBy('id');
+    }
 }

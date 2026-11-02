@@ -4,11 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\BoardTask;
 use App\Models\BoardTaskAttachment;
-use App\Support\StoragePath;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class BoardTaskAttachmentController extends Controller
@@ -27,23 +25,9 @@ class BoardTaskAttachmentController extends Controller
         $task = BoardTask::findOrFail($data['board_task_id']);
         abort_unless($task->column->board->user_id === $request->user()->id, 403);
 
-        $uploaded = $request->file('file');
-        $mime = $uploaded->getMimeType();
-        $extension = strtolower($uploaded->getClientOriginalExtension() ?: 'bin');
-        $uuid = (string) Str::uuid();
-        $path = StoragePath::attachment($uuid, $extension);
-        Storage::disk('public')->putFileAs(dirname($path), $uploaded, basename($path));
-
-        $attachment = $task->attachments()->create([
-            'user_id' => $request->user()->id,
-            'uuid' => $uuid,
-            'kind' => str_starts_with((string) $mime, 'image/') ? 'photo' : 'file',
-            'name' => $uploaded->getClientOriginalName() ?: "file.{$extension}",
-            'filename' => "{$uuid}.{$extension}",
-            'mime_type' => $mime,
-            'size' => $uploaded->getSize() ?: 0,
-            'path' => $path,
-        ]);
+        $attachment = BoardTaskAttachment::fromUpload($request->file('file'), $request->user()->id);
+        $attachment->board_task_id = $task->id;
+        $attachment->save();
 
         return response()->json($attachment, 201);
     }

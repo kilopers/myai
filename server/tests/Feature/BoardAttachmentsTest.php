@@ -80,6 +80,51 @@ class BoardAttachmentsTest extends TestCase
         Storage::disk('public')->assertMissing($path);
     }
 
+    public function test_task_comments_with_files(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        [$board, $task] = $this->boardWithTask($user);
+
+        // Пустой комментарий без текста и файлов — 422
+        $this->actingAs($user)->postJson('/api/board-task-comments', [
+            'board_task_id' => $task['id'],
+        ])->assertUnprocessable();
+
+        // Комментарий с фото и файлом одним запросом
+        $comment = $this->actingAs($user)->postJson('/api/board-task-comments', [
+            'board_task_id' => $task['id'],
+            'text' => 'первый',
+            'files' => [
+                UploadedFile::fake()->image('a.png', 20, 20),
+                UploadedFile::fake()->create('b.txt', 1, 'text/plain'),
+            ],
+        ])->assertCreated()->json();
+        $this->assertSame('первый', $comment['text']);
+        $this->assertCount(2, $comment['attachments']);
+        $this->assertSame($comment['id'], $comment['attachments'][0]['board_task_comment_id']);
+
+        $list = $this->actingAs($user)
+            ->getJson('/api/board-task-comments?board_task_id='.$task['id'])->assertOk()->json();
+        $this->assertCount(1, $list);
+
+        // comments_count приезжает в задачах доски
+        $columns = $this->actingAs($user)
+            ->getJson('/api/board-columns?board_id='.$board['id'])->assertOk()->json();
+        $this->assertSame(1, $columns[0]['tasks'][0]['comments_count']);
+
+        // Чужой комментарий не удалить
+        $other = User::factory()->create();
+        $this->actingAs($other)->deleteJson('/api/board-task-comments/'.$comment['id'])
+            ->assertForbidden();
+
+        // Удаление чистит файлы вложений комментария
+        $path = $comment['attachments'][0]['path'];
+        $this->actingAs($user)->deleteJson('/api/board-task-comments/'.$comment['id'])
+            ->assertNoContent();
+        Storage::disk('public')->assertMissing($path);
+    }
+
     public function test_task_delete_purges_attachment_files(): void
     {
         Storage::fake('public');
