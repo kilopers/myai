@@ -78,6 +78,9 @@ class StoredFileWriter
             return;
         }
         $file->forceFill([
+            // Новое поколение: запущенная джоба прежнего поколения
+            // (если была) увидит расхождение и прервётся.
+            'conversion_epoch' => $file->conversion_epoch + 1,
             'conversion_status' => 'pending',
             'conversion_progress' => 0,
             'pages_done' => null,

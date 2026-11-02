@@ -120,6 +120,12 @@ class TrashService
 
         SyncHash::refreshFolderChain($folder, $file->user);
 
+        // Конвертация недоделана (была прервана сменой файла) —
+        // после восстановления ставим заново: производные чистые.
+        if ($file->conversion_status !== 'done') {
+            app(StoredFileWriter::class)->queueConversion($file);
+        }
+
         return $file;
     }
 

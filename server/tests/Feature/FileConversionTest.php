@@ -12,6 +12,7 @@ use App\Services\Conversion\FileProcessor;
 use App\Services\Conversion\PdfProcessor;
 use App\Services\Conversion\ProcessorRegistry;
 use App\Services\Conversion\ProcessRunner;
+use App\Services\StoredFileWriter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
@@ -328,5 +329,118 @@ class FileConversionTest extends TestCase
             'file_id' => $file->id,
             'kind' => FileDerivative::KIND_THUMBNAIL,
         ]);
+    }
+
+    public function test_conversion_epoch_bumps_on_queue(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+        $user = User::factory()->create();
+        $file = $this->makeFile($user, ['mime_type' => 'image/png']);
+
+        app(StoredFileWriter::class)->queueConversion($file);
+        $this->assertSame(1, $file->refresh()->conversion_epoch);
+
+        app(StoredFileWriter::class)->queueConversion($file);
+        $this->assertSame(2, $file->refresh()->conversion_epoch);
+    }
+
+    public function test_job_purges_old_derivatives_before_converting(): void
+    {
+        Storage::fake('public');
+        Event::fake([FileConversionUpdated::class]);
+        $user = User::factory()->create();
+        $file = $this->makeFile($user, ['mime_type' => 'image/png', 'conversion_epoch' => 1]);
+        Storage::disk('public')->put($file->path, 'png');
+
+        $old = $this->makeDerivative($file, ['kind' => FileDerivative::KIND_THUMBNAIL, 'page_number' => null]);
+        $oldPath = $old->path;
+
+        $fresh = new class extends FileProcessor
+        {
+            public function supports(string $mime): bool
+            {
+                return true;
+            }
+
+            public function process(StoredFile $file, callable $progress): void
+            {
+                $progress(50, null, null);
+            }
+        };
+        $this->app->instance(ProcessorRegistry::class, new ProcessorRegistry([$fresh]));
+
+        (new ProcessUploadedFile($file->id))->handle();
+
+        $this->assertSame(0, $file->derivatives()->count());
+        Storage::disk('public')->assertMissing($oldPath);
+        $this->assertSame('done', $file->refresh()->conversion_status);
+    }
+
+    public function test_file_trashed_mid_conversion_aborts_and_cleans(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        $file = $this->makeFile($user, ['mime_type' => 'image/png', 'conversion_epoch' => 1]);
+        Storage::disk('public')->put($file->path, 'png');
+
+        $partial = new class extends FileProcessor
+        {
+            public function supports(string $mime): bool
+            {
+                return true;
+            }
+
+            public function process(StoredFile $file, callable $progress): void
+            {
+                // Частичный результат первого прохода.
+                $tmp = tempnam(sys_get_temp_dir(), 'der').'.jpg';
+                file_put_contents($tmp, 'jpeg');
+                $this->storeDerivative($file, $tmp, 'part.jpg', FileDerivative::KIND_PAGE, 'image/jpeg', 1);
+                // Файл «изменился»: уходит в корзину посреди работы.
+                $file->delete();
+                // Следующий отчёт прогресса должен сорвать джобу.
+                $progress(60, 1, 5);
+            }
+        };
+        $this->app->instance(ProcessorRegistry::class, new ProcessorRegistry([$partial]));
+
+        (new ProcessUploadedFile($file->id))->handle();
+
+        $file->refresh();
+        $this->assertTrue($file->trashed());
+        $this->assertSame('none', $file->conversion_status);
+        $this->assertSame(0, $file->derivatives()->count());
+        Storage::disk('public')->assertMissing("derivatives/ab/cd/{$file->uuid}/part.jpg");
+    }
+
+    public function test_new_epoch_aborts_running_job(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        $file = $this->makeFile($user, ['mime_type' => 'image/png', 'conversion_epoch' => 1]);
+        Storage::disk('public')->put($file->path, 'png');
+
+        $gen2 = new class extends FileProcessor
+        {
+            public function supports(string $mime): bool
+            {
+                return true;
+            }
+
+            public function process(StoredFile $file, callable $progress): void
+            {
+                // Переочередь пока работает старая джоба — новое поколение.
+                $file->forceFill(['conversion_epoch' => 2])->save();
+                $progress(30, null, null);
+            }
+        };
+        $this->app->instance(ProcessorRegistry::class, new ProcessorRegistry([$gen2]));
+
+        (new ProcessUploadedFile($file->id))->handle();
+
+        // Джоба поколения 1 прервалась и не пометила файл done.
+        $this->assertSame('none', $file->refresh()->conversion_status);
+        $this->assertSame(0, $file->derivatives()->count());
     }
 }
