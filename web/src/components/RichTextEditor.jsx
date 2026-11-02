@@ -56,7 +56,9 @@ export default function RichTextEditor({
   value, onChange, placeholder, minHeight = 96, editorRef,
 }) {
   const editor = useEditor({
-    extensions: [StarterKit, Image],
+    // allowBase64: без него parseHTML режет img[data:] при загрузке
+    // сохранённого описания — картинка «пропадала» после переоткрытия
+    extensions: [StarterKit, Image.configure({ allowBase64: true })],
     content: value || '',
     onUpdate: ({ editor: e }) => onChange(e.isEmpty ? '' : e.getHTML()),
     editorProps: {
