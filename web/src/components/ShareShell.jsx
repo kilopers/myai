@@ -33,6 +33,20 @@ export default function ShareShell({ title, actions, children }) {
       >
         {children}
       </Box>
+      <Box
+        component="footer"
+        sx={{
+          py: 1,
+          textAlign: 'center',
+          borderTop: 1,
+          borderColor: 'divider',
+        }}
+      >
+        <Typography variant="caption" color="text.secondary">
+          Разработано Изорин Игорь Алексеевич, {new Date().getFullYear()},
+          v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'}
+        </Typography>
+      </Box>
     </Box>
   );
 }
