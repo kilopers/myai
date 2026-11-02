@@ -14,7 +14,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import SendIcon from '@mui/icons-material/Send';
 import { ChatDateDivider, ChatMessage, ChatMessageGroup } from '@mui/x-chat';
-import { ChatProvider } from '@mui/x-chat-headless';
+import { ChatRoot } from '@mui/x-chat-headless';
 import client from '../../api/client';
 import CameraCapture from '../CameraCapture';
 import PhotoGallery from '../PhotoGallery';
@@ -167,6 +167,7 @@ export default function TaskComments({ taskId, onCount, onError }) {
   // Комментарии → сообщения чата: текст + фото + файлы + маркер своего
   const chatMessages = useMemo(() => (comments ?? []).map((c) => ({
     id: String(c.id),
+    createdAt: c.created_at,
     // role 'user' даёт класс MuiChatMessage-roleUser — по нему
     // смягчаем слишком насыщенный синий пузырь своих сообщений
     role: me && c.user_id === me.id ? 'user' : 'assistant',
@@ -273,11 +274,18 @@ export default function TaskComments({ taskId, onCount, onError }) {
             },
           }}
           >
-            <ChatProvider
+            <ChatRoot
               adapter={chatAdapter}
               messages={chatMessages}
               currentUser={me ? { id: String(me.id), role: 'user' } : undefined}
               partRenderers={partRenderers}
+              // дата и время в метке сообщения вместо «только HH:MM»
+              localeText={{
+                messageTimestampLabel: (d) => new Date(d).toLocaleString('ru-RU', {
+                  day: '2-digit', month: '2-digit', year: 'numeric',
+                  hour: '2-digit', minute: '2-digit',
+                }),
+              }}
             >
               {chatMessages.map((message, index) => (
                 <Fragment key={message.id}>
@@ -300,7 +308,7 @@ export default function TaskComments({ taskId, onCount, onError }) {
                   </ChatMessageGroup>
                 </Fragment>
               ))}
-            </ChatProvider>
+            </ChatRoot>
           </Box>
         )}
         <Box ref={bottomRef} />

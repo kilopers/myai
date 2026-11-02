@@ -6,6 +6,13 @@
 Актуальная версия — в файле `VERSION`.
 
 
+## 1.7.51
+
+- В сообщениях обсуждения выводится дата и время
+  (`dd.mm.yyyy hh:mm`): сообщение получает `created_at`,
+  ChatProvider → ChatRoot с `localeText.messageTimestampLabel`;
+  заодно заработали дата-разделители ленты (им нужен `createdAt`).
+
 ## 1.7.50
 
 - Fix сборки: импорт иконки `ChatBubbleOutlineOutlined` (в
