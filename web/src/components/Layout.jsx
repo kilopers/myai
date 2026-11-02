@@ -381,18 +381,6 @@ export default function Layout() {
       >
         <Toolbar variant="dense" />
         {nav}
-        <Typography
-          variant="caption"
-          sx={{
-            textAlign: 'center',
-            color: 'rgb(113, 116, 132)',
-            pb: 1,
-            fontSize: '0.7rem',
-            userSelect: 'none',
-          }}
-        >
-          v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'}
-        </Typography>
       </Drawer>
 
       <Box
@@ -408,22 +396,23 @@ export default function Layout() {
         <Toolbar variant="dense" />
         <Outlet />
         {/* Футер только на десктопе — в мобильном приложении скрыт */}
-        <Typography
+        <Box
           component="footer"
-          variant="caption"
-          color="text.disabled"
           sx={{
             mt: 'auto',
-            pt: 3,
-            pb: 0.5,
+            bgcolor: 'primary.main',
+            color: 'primary.contrastText',
+            py: 0.25,
             textAlign: 'center',
             display: { xs: 'none', md: 'block' },
             '@media (display-mode: standalone)': { display: 'none' },
           }}
         >
-          Разработано Зорин Юрий Алексеевич, {new Date().getFullYear()},
-          v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'}
-        </Typography>
+          <Typography variant="caption" sx={{ lineHeight: 1.4 }}>
+            Разработано Зорин Юрий Алексеевич, {new Date().getFullYear()},
+            v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'}
+          </Typography>
+        </Box>
       </Box>
 
       <Snackbar open={!!notice} autoHideDuration={3500} onClose={() => setNotice('')} message={notice} />

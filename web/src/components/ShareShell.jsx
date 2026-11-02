@@ -36,13 +36,13 @@ export default function ShareShell({ title, actions, children }) {
       <Box
         component="footer"
         sx={{
-          py: 1,
+          bgcolor: 'primary.main',
+          color: 'primary.contrastText',
+          py: 0.25,
           textAlign: 'center',
-          borderTop: 1,
-          borderColor: 'divider',
         }}
       >
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" sx={{ lineHeight: 1.4 }}>
           Разработано Зорин Юрий Алексеевич, {new Date().getFullYear()},
           v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'}
         </Typography>
