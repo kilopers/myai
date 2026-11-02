@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BoardTaskAttachment;
 use App\Models\FileDerivative;
 use App\Models\Folder;
 use Illuminate\Http\JsonResponse;
@@ -48,6 +49,11 @@ class StorageController extends Controller
             'trash' => [
                 'count' => $trashCount,
                 'size' => $trashSize,
+            ],
+            // Вложения задач досок: фото и файлы, вне файлового дерева/синка.
+            'attachments' => [
+                'count' => BoardTaskAttachment::where('user_id', $user->id)->count(),
+                'size' => (int) BoardTaskAttachment::where('user_id', $user->id)->sum('size'),
             ],
             // Кэш размеров папок из БД (сумма files.size внутри папок).
             'folders_size' => (int) Folder::where('user_id', $user->id)->sum('size'),

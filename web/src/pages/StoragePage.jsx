@@ -19,6 +19,7 @@ const mb = (b) => `${(b / 1048576).toFixed(1)} МБ`;
 /** Человеческие подписи для каталогов public-диска в реальном замере. */
 const PART_LABELS = {
   files: 'Файлы и скриншоты (files/)',
+  attachments: 'Вложения задач досок (attachments/)',
   derivatives: 'Производные — конвертация, миниатюры (derivatives/)',
   desktop: 'Релизы десктоп-приложения (desktop/)',
   other: 'Прочее (служебные файлы, накладные расходы ФС)',
@@ -64,10 +65,12 @@ export default function StoragePage() {
     ['Файлы (оригиналы)', data.files],
     ['Производные файлов (конвертация, миниатюры)', data.derivatives],
     ['Скриншоты', data.screenshots],
+    ['Вложения задач досок', data.attachments],
     ['Корзина', data.trash],
   ] : [];
   const dbTotal = data
-    ? data.files.size + data.derivatives.size + data.screenshots.size + data.trash.size
+    ? data.files.size + data.derivatives.size + data.screenshots.size
+      + data.attachments.size + data.trash.size
     : 0;
 
   return (

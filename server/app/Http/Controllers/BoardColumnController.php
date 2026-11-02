@@ -13,7 +13,7 @@ class BoardColumnController extends Controller
         $board = Board::findOrFail($request->integer('board_id'));
         abort_unless($board->user_id === $request->user()->id, 403);
 
-        return $board->columns()->with('tasks')->get();
+        return $board->columns()->with('tasks.attachments')->get();
     }
 
     public function store(Request $request)
@@ -33,7 +33,7 @@ class BoardColumnController extends Controller
             'position' => (int) $board->columns()->max('position') + 1,
         ]);
 
-        return response()->json($column->load('tasks'), 201);
+        return response()->json($column->load('tasks.attachments'), 201);
     }
 
     public function update(Request $request, BoardColumn $boardColumn)
@@ -51,6 +51,7 @@ class BoardColumnController extends Controller
     public function destroy(Request $request, BoardColumn $boardColumn)
     {
         abort_unless($boardColumn->board->user_id === $request->user()->id, 403);
+        $boardColumn->tasks->each(fn ($task) => $task->attachments->each->deleteFile());
         $boardColumn->delete();
 
         return response()->noContent();

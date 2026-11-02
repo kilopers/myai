@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['board_column_id', 'title', 'text', 'position'])]
 class BoardTask extends Model
@@ -15,5 +16,13 @@ class BoardTask extends Model
     public function column(): BelongsTo
     {
         return $this->belongsTo(BoardColumn::class, 'board_column_id');
+    }
+
+    /**
+     * @return HasMany<BoardTaskAttachment, $this>
+     */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(BoardTaskAttachment::class)->orderBy('id');
     }
 }

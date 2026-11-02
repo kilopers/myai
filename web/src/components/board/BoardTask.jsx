@@ -1,10 +1,19 @@
 import { Box, Typography } from '@mui/material';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
+
+/** HTML описания задачи → однострочный текст для превью карточки. */
+const plainText = (html) => {
+  if (!html) return '';
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return doc.body.textContent?.trim() ?? '';
+};
 
 /**
  * Карточка задачи канбан-колонки: название + усечённый текст,
- * drag-источник для переноса между колонками.
+ * бейдж с числом вложений, drag-источник для переноса между колонками.
  */
 export default function BoardTask({ task, onClick, onDragStart }) {
+  const attCount = task.attachments?.length ?? 0;
   return (
     <Box
       draggable
@@ -52,9 +61,20 @@ export default function BoardTask({ task, onClick, onDragStart }) {
             whiteSpace: 'pre-wrap',
           }}
         >
-          {task.text}
+          {plainText(task.text)}
         </Typography>
       ) : null}
+      {attCount > 0 && (
+        <Box sx={{
+          display: 'flex', alignItems: 'center', gap: 0.25,
+          mt: 0.5, color: 'text.secondary',
+        }}>
+          <AttachFileIcon sx={{ fontSize: 13 }} />
+          <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+            {attCount}
+          </Typography>
+        </Box>
+      )}
     </Box>
   );
 }

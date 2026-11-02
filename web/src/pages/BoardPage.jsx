@@ -18,7 +18,9 @@ import { Link as RouterLink, useParams } from 'react-router-dom';
 import client from '../api/client';
 import AppDialog from '../components/AppDialog';
 import PageHeader from '../components/PageHeader';
+import RichTextEditor from '../components/RichTextEditor';
 import BoardColumn from '../components/board/BoardColumn';
+import TaskAttachments from '../components/board/TaskAttachments';
 
 const COLUMN_COLORS = [
   '#526de3', '#5b8ff9', '#5ad8a6', '#5d7092',
@@ -50,7 +52,12 @@ export default function BoardPage() {
       ]);
       const list = boards.data ?? boards;
       setBoard(list.find((b) => b.id === boardId) ?? { id: boardId, name: 'Доска' });
-      setColumns(cols.data ?? cols);
+      const colsList = cols.data ?? cols;
+      setColumns(colsList);
+      // Открытая задача — подтягиваем свежую версию (вложения и пр.)
+      setTaskDlg((d) => (d?.task
+        ? { ...d, task: colsList.flatMap((c) => c.tasks).find((t) => t.id === d.task.id) ?? d.task }
+        : d));
     } catch {
       setNotice('Не удалось загрузить доску');
     }
@@ -97,9 +104,17 @@ export default function BoardPage() {
       if (taskDlg.mode === 'edit') {
         await client.put(`/api/board-tasks/${taskDlg.task.id}`, form);
       } else {
-        await client.post('/api/board-tasks', {
+        const { data: task } = await client.post('/api/board-tasks', {
           board_column_id: taskDlg.column.id, ...form,
         });
+        // Отложенные вложения новой задачи — догружаем после создания
+        for (const { file } of taskDlg.pending ?? []) {
+          const fd = new FormData();
+          fd.append('board_task_id', task.id);
+          fd.append('file', file);
+          await client.post('/api/board-task-attachments', fd);
+        }
+        (taskDlg.pending ?? []).forEach((p) => URL.revokeObjectURL(p.preview));
       }
       setTaskDlg(null);
       load();
@@ -130,9 +145,11 @@ export default function BoardPage() {
     }
   };
 
-  const openTaskCreate = (column) => setTaskDlg({ mode: 'create', column, form: { ...emptyTask } });
+  const openTaskCreate = (column) => setTaskDlg({
+    mode: 'create', column, form: { ...emptyTask }, pending: [],
+  });
   const openTaskEdit = (task) => setTaskDlg({
-    mode: 'edit', task,
+    mode: 'edit', task, pending: [],
     form: { title: task.title, text: task.text ?? '' },
   });
 
@@ -267,18 +284,25 @@ export default function BoardPage() {
               ...d, form: { ...d.form, title: e.target.value },
             }))}
           />
-          <TextField
-            fullWidth
-            multiline
-            minRows={3}
-            label="Текст задачи"
-            sx={{ mt: 1.5 }}
-            autoComplete="off"
-            value={taskDlg?.form.text ?? ''}
-            onChange={(e) => setTaskDlg((d) => ({
-              ...d, form: { ...d.form, text: e.target.value },
-            }))}
-          />
+          <Box sx={{ mt: 1.5 }}>
+            <RichTextEditor
+              value={taskDlg?.form.text ?? ''}
+              onChange={(html) => setTaskDlg((d) => ({
+                ...d, form: { ...d.form, text: html },
+              }))}
+              placeholder="Описание задачи"
+            />
+          </Box>
+          <Box sx={{ mt: 1.5 }}>
+            <TaskAttachments
+              taskId={taskDlg?.mode === 'edit' ? taskDlg.task.id : null}
+              attachments={taskDlg?.task?.attachments ?? []}
+              pending={taskDlg?.pending ?? []}
+              onPending={(pending) => setTaskDlg((d) => ({ ...d, pending }))}
+              onChanged={load}
+              onError={setNotice}
+            />
+          </Box>
         </DialogContent>
         <DialogActions sx={{ justifyContent: 'space-between' }}>
           {taskDlg?.mode === 'edit' ? (

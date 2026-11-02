@@ -48,6 +48,10 @@ class BoardController extends Controller
     public function destroy(Request $request, Board $board)
     {
         abort_unless($board->user_id === $request->user()->id, 403);
+        $board->load('columns.tasks.attachments');
+        $board->columns->each(
+            fn ($column) => $column->tasks->each(fn ($task) => $task->attachments->each->deleteFile())
+        );
         $board->delete();
 
         return response()->noContent();

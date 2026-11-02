@@ -55,6 +55,7 @@ class BoardTaskController extends Controller
     public function destroy(Request $request, BoardTask $boardTask)
     {
         abort_unless($boardTask->column->board->user_id === $request->user()->id, 403);
+        $boardTask->attachments->each->deleteFile();
         $boardTask->delete();
 
         return response()->noContent();

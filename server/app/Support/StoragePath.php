@@ -17,6 +17,17 @@ class StoragePath
     }
 
     /**
+     * Вложение задачи доски: attachments/{ab}/{cd}/{uuid}.{ext}.
+     * Отдельный каталог — вложения не попадают в files/ и синк.
+     */
+    public static function attachment(string $uuid, string $extension): string
+    {
+        $clean = str_replace('-', '', $uuid);
+
+        return 'attachments/'.substr($clean, 0, 2).'/'.substr($clean, 2, 2).'/'.$uuid.'.'.$extension;
+    }
+
+    /**
      * Каталог производных файла конвертации:
      * derivatives/{ab}/{cd}/{uuid}/ — миниатюры, страницы, mp4, pdf.
      */
