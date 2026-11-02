@@ -395,9 +395,35 @@ export default function Layout() {
         </Typography>
       </Drawer>
 
-      <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, md: 3 }, minWidth: 0 }}>
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          p: { xs: 2, md: 3 },
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         <Toolbar variant="dense" />
         <Outlet />
+        {/* Футер только на десктопе — в мобильном приложении скрыт */}
+        <Typography
+          component="footer"
+          variant="caption"
+          color="text.disabled"
+          sx={{
+            mt: 'auto',
+            pt: 3,
+            pb: 0.5,
+            textAlign: 'center',
+            display: { xs: 'none', md: 'block' },
+            '@media (display-mode: standalone)': { display: 'none' },
+          }}
+        >
+          Разработано Изорин Игорь Алексеевич, {new Date().getFullYear()},
+          v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'}
+        </Typography>
       </Box>
 
       <Snackbar open={!!notice} autoHideDuration={3500} onClose={() => setNotice('')} message={notice} />

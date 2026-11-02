@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Board;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class BoardController extends Controller
 {
@@ -45,6 +46,31 @@ class BoardController extends Controller
         ]));
 
         return $board;
+    }
+
+    /** Гостевая ссылка: лениво создаёт токен и отдаёт публичный URL. */
+    public function shareLink(Request $request, Board $board)
+    {
+        abort_unless($board->user_id === $request->user()->id, 403);
+
+        if (! $board->share_token) {
+            $board->update(['share_token' => Str::random(48)]);
+        }
+
+        return ['url' => "/b/{$board->share_token}"];
+    }
+
+    /** Публичный просмотр доски по токену — без авторизации, read-only. */
+    public function publicShow(string $token)
+    {
+        $board = Board::where('share_token', $token)->firstOrFail();
+
+        return [
+            'board' => $board->only('id', 'name', 'prefix'),
+            'columns' => $board->columns()->with([
+                'tasks' => fn ($q) => $q->withCount(['comments', 'attachments']),
+            ])->get(),
+        ];
     }
 
     public function destroy(Request $request, Board $board)

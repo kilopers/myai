@@ -7,10 +7,12 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
   Snackbar,
   TextField,
   Typography,
 } from '@mui/material';
+import LinkIcon from '@mui/icons-material/Link';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
@@ -90,6 +92,23 @@ export default function BoardsPage() {
               can: { create: true, edit: true, delete: true },
             }}
             fetch={fetchBoards}
+            extraActions={(b) => (
+              <IconButton
+                size="small"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    const { data } = await client.post(`/api/boards/${b.id}/share-link`);
+                    await navigator.clipboard.writeText(location.origin + data.url);
+                    setNotice('Гостевая ссылка скопирована');
+                  } catch {
+                    setNotice('Не удалось создать ссылку');
+                  }
+                }}
+              >
+                <LinkIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            )}
             onAdd={() => setNameDlg({ mode: 'create', name: '', prefix: '' })}
             onEdit={(b) => setNameDlg({ mode: 'edit', board: b, name: b.name, prefix: b.prefix ?? '' })}
             onDelete={(b) => setDelDlg(b)}

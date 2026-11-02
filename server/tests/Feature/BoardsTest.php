@@ -167,4 +167,23 @@ class BoardsTest extends TestCase
         $this->actingAs($user)->postJson('/api/board-tasks', ['board_column_id' => $col->id, 'title' => 'T2'])
             ->assertCreated()->assertJsonPath('number', 2);
     }
+
+    public function test_board_guest_share_link(): void
+    {
+        $user = User::factory()->create();
+        $board = Board::create(['user_id' => $user->id, 'name' => 'B', 'prefix' => 'PROJ']);
+        $col = $board->columns()->create(['name' => 'C', 'color' => '#fff000', 'position' => 0]);
+        $this->actingAs($user)->postJson('/api/board-tasks', ['board_column_id' => $col->id, 'title' => 'T']);
+
+        // Ссылка создаётся один раз, повторный запрос отдаёт ту же
+        $r1 = $this->actingAs($user)->postJson("/api/boards/{$board->id}/share-link")->assertOk();
+        $r2 = $this->actingAs($user)->postJson("/api/boards/{$board->id}/share-link")->assertOk();
+        $this->assertSame($r1->json('url'), $r2->json('url'));
+
+        // Гость видит доску read-only без авторизации
+        $token = $board->fresh()->share_token;
+        $res = $this->getJson("/api/public/boards/{$token}")->assertOk();
+        $this->assertSame('B', $res->json('board.name'));
+        $this->assertSame(1, $res->json('columns.0.tasks.0.number'));
+    }
 }
