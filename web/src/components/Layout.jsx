@@ -133,11 +133,13 @@ export default function Layout() {
                 sx={{
                   borderRadius: 1.5,
                   mb: 0.125,
-                  py: 0.375,
-                  px: 0.75,
+                  // В свёрнутой колонке (56px) больше вертикальных паддингов —
+                  // иконка с ховером становится квадратной, а не прямоугольной.
+                  py: open || isMobile ? 0.375 : 1.75,
+                  px: open || isMobile ? 0.75 : 0.5,
                   color: 'rgb(113, 116, 132)',
                   justifyContent: open || isMobile ? 'initial' : 'center',
-                  '& .MuiListItemIcon-root': { color: 'rgb(113, 116, 132)', minWidth: 38 },
+                  '& .MuiListItemIcon-root': { color: 'rgb(113, 116, 132)', minWidth: open || isMobile ? 38 : 0 },
                   '& .MuiListItemIcon-root svg': { fontSize: 18 },
                   '&:hover': { bgcolor: 'rgb(229, 233, 251)' },
                   '&.Mui-selected': {
