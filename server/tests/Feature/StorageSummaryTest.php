@@ -52,6 +52,6 @@ class StorageSummaryTest extends TestCase
         $this->assertGreaterThan(0, $res->json('disk.total'));
 
         $this->actingAs($user)->getJson('/api/storage/real-size')
-            ->assertOk()->assertJsonStructure(['paths' => ['files', 'torrents'], 'total']);
+            ->assertOk()->assertJsonStructure(['parts' => ['other'], 'torrents', 'total']);
     }
 }

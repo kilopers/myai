@@ -62,23 +62,31 @@ class StorageController extends Controller
     /**
      * Реальный размер каталогов хранилища на диске (du -sb) —
      * медленно на больших деревьях, фронт дёргает отдельно.
+     * Каждый подкаталог public-диска меряем отдельно: рядом с
+     * files/ и derivatives/ лежат desktop-релизы и служебные файлы,
+     * которых нет в БД — поэтому du не обязан сходиться с суммой из БД.
      */
     public function realSize(Request $request): JsonResponse
     {
-        $paths = [
-            'files' => (string) config('filesystems.disks.public.root'),
-            'torrents' => (string) config('filesystems.disks.torrents.root'),
-        ];
-
-        $sizes = [];
+        $publicRoot = (string) config('filesystems.disks.public.root');
+        $parts = [];
         $total = 0;
-        foreach ($paths as $key => $path) {
-            $size = $this->dirSize($path);
-            $sizes[$key] = $size;
-            $total += $size;
+        if (is_dir($publicRoot)) {
+            $total = $this->dirSize($publicRoot);
+            foreach (glob(rtrim($publicRoot, '/').'/*', GLOB_ONLYDIR) ?: [] as $dir) {
+                $parts[basename($dir)] = $this->dirSize($dir);
+            }
+            arsort($parts);
         }
+        // Остаток — корневые файлы и накладные расходы ФС на сами каталоги.
+        $parts['other'] = max(0, $total - array_sum($parts));
+        $torrents = $this->dirSize((string) config('filesystems.disks.torrents.root'));
 
-        return response()->json(['paths' => $sizes, 'total' => $total]);
+        return response()->json([
+            'parts' => $parts,
+            'torrents' => $torrents,
+            'total' => $total + $torrents,
+        ]);
     }
 
     private function dirSize(string $path): int

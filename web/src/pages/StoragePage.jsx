@@ -15,6 +15,14 @@ import client from '../api/client';
 
 const mb = (b) => `${(b / 1048576).toFixed(1)} МБ`;
 
+/** Человеческие подписи для каталогов public-диска в реальном замере. */
+const PART_LABELS = {
+  files: 'Файлы и скриншоты (files/)',
+  derivatives: 'Производные — конвертация, миниатюры (derivatives/)',
+  desktop: 'Релизы десктоп-приложения (desktop/)',
+  other: 'Прочее (служебные файлы, накладные расходы ФС)',
+};
+
 /** Донат-диаграмма «занято/свободно» без внешних библиотек. */
 function Donut({ used, total }) {
   const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
@@ -128,22 +136,31 @@ export default function StoragePage() {
               <Typography variant="body2" color="text.secondary">Измеряем каталоги…</Typography>
             </Box>
           ) : (
-            <Table size="small" sx={{ maxWidth: 520 }}>
-              <TableBody>
-                <TableRow>
-                  <TableCell>Файлы и производные</TableCell>
-                  <TableCell align="right">{mb(real.paths.files)}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>Торренты (staging)</TableCell>
-                  <TableCell align="right">{mb(real.paths.torrents)}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 700 }}>Всего занято</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>{mb(real.total)}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+            <>
+              <Table size="small" sx={{ maxWidth: 560 }}>
+                <TableBody>
+                  {Object.entries(real.parts).map(([dir, size]) => (
+                    <TableRow key={dir}>
+                      <TableCell>{PART_LABELS[dir] ?? `${dir}/`}</TableCell>
+                      <TableCell align="right">{mb(size)}</TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow>
+                    <TableCell>Торренты (staging)</TableCell>
+                    <TableCell align="right">{mb(real.torrents)}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 700 }}>Всего занято</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>{mb(real.total)}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', maxWidth: 560 }}>
+                Замер du не обязан сходиться с суммой из БД: на диске лежат
+                данные корзины до автоочистки, desktop-релизы и служебные
+                файлы, которых нет в БД, плюс накладные расходы ФС на сами каталоги.
+              </Typography>
+            </>
           )}
         </CardContent>
       </Card>
