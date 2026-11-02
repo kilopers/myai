@@ -5,7 +5,6 @@ import {
   Card,
   CardActions,
   CardMedia,
-  Dialog,
   IconButton,
   ImageList,
   ImageListItem,
@@ -17,6 +16,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteIcon from '@mui/icons-material/Delete';
 import UploadIcon from '@mui/icons-material/Upload';
 import client from '../api/client';
+import AppDialog from '../components/AppDialog';
 import { onWsEvent } from '../api/ws';
 
 export default function GalleryPage() {
@@ -157,9 +157,9 @@ export default function GalleryPage() {
         </Box>
       )}
 
-      <Dialog open={!!preview} onClose={() => setPreview(null)} maxWidth="xl">
+      <AppDialog open={!!preview} onClose={() => setPreview(null)} maxWidth="xl">
         <img src={preview} alt="" style={{ maxWidth: '90vw', maxHeight: '85vh', display: 'block' }} />
-      </Dialog>
+      </AppDialog>
     </Box>
   );
 }

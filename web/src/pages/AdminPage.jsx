@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Box,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -23,6 +22,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import client from '../api/client';
+import AppDialog from '../components/AppDialog';
 import { useAuth } from '../context/AuthContext';
 
 export default function AdminPage() {
@@ -171,7 +171,7 @@ export default function AdminPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!editUser} onClose={() => setEditUser(null)} maxWidth="xs" fullWidth>
+      <AppDialog open={!!editUser} onClose={() => setEditUser(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Пользователь</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
           <TextField
@@ -192,7 +192,7 @@ export default function AdminPage() {
           <Button onClick={() => setEditUser(null)}>Отмена</Button>
           <Button variant="contained" onClick={saveUser}>Сохранить</Button>
         </DialogActions>
-      </Dialog>
+      </AppDialog>
 
       <Snackbar open={!!message} autoHideDuration={3000} onClose={() => setMessage('')} message={message} />
     </Box>

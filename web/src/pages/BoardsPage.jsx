@@ -5,7 +5,6 @@ import {
   Card,
   CardContent,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -27,6 +26,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
+import AppDialog from '../components/AppDialog';
 import PageHeader from '../components/PageHeader';
 
 export const notifyBoardsChanged = () => window.dispatchEvent(new Event('boards-changed'));
@@ -186,7 +186,7 @@ export default function BoardsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!nameDlg} onClose={() => setNameDlg(null)} maxWidth="xs" fullWidth>
+      <AppDialog open={!!nameDlg} onClose={() => setNameDlg(null)} maxWidth="xs" fullWidth>
         <DialogTitle>{nameDlg?.mode === 'edit' ? 'Переименовать доску' : 'Новая доска'}</DialogTitle>
         <DialogContent>
           <TextField
@@ -209,9 +209,9 @@ export default function BoardsPage() {
             Сохранить
           </Button>
         </DialogActions>
-      </Dialog>
+      </AppDialog>
 
-      <Dialog open={!!delDlg} onClose={() => setDelDlg(null)} maxWidth="xs">
+      <AppDialog open={!!delDlg} onClose={() => setDelDlg(null)} maxWidth="xs">
         <DialogTitle>Удалить доску?</DialogTitle>
         <DialogContent>
           <Typography>
@@ -222,7 +222,7 @@ export default function BoardsPage() {
           <Button onClick={() => setDelDlg(null)}>Отмена</Button>
           <Button color="error" variant="contained" onClick={removeBoard}>Удалить</Button>
         </DialogActions>
-      </Dialog>
+      </AppDialog>
 
       <Snackbar
         open={!!notice}

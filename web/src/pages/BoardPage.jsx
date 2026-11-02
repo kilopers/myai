@@ -6,7 +6,6 @@ import {
   Link,
   Tooltip,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -17,6 +16,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import client from '../api/client';
+import AppDialog from '../components/AppDialog';
 import PageHeader from '../components/PageHeader';
 import BoardColumn from '../components/board/BoardColumn';
 
@@ -193,7 +193,7 @@ export default function BoardPage() {
         </Box>
       )}
 
-      <Dialog open={!!colDlg} onClose={() => setColDlg(null)} maxWidth="xs" fullWidth>
+      <AppDialog open={!!colDlg} onClose={() => setColDlg(null)} maxWidth="xs" fullWidth>
         <DialogTitle>
           {colDlg?.mode === 'edit' ? 'Колонка' : 'Новая колонка'}
         </DialogTitle>
@@ -248,9 +248,9 @@ export default function BoardPage() {
             </Button>
           </Box>
         </DialogActions>
-      </Dialog>
+      </AppDialog>
 
-      <Dialog open={!!taskDlg} onClose={() => setTaskDlg(null)} maxWidth="sm" fullWidth>
+      <AppDialog open={!!taskDlg} onClose={() => setTaskDlg(null)} maxWidth="sm" fullWidth>
         <DialogTitle>
           {taskDlg?.mode === 'edit' ? 'Задача' : 'Новая задача'}
         </DialogTitle>
@@ -299,7 +299,7 @@ export default function BoardPage() {
             </Button>
           </Box>
         </DialogActions>
-      </Dialog>
+      </AppDialog>
 
       <Snackbar
         open={!!notice}

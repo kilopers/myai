@@ -5,7 +5,6 @@ import {
   Box,
   Button,
   Checkbox,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -33,6 +32,7 @@ import HomeIcon from '@mui/icons-material/Home';
 import TouchAppIcon from '@mui/icons-material/TouchApp';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
 import client from '../api/client';
+import AppDialog from './AppDialog';
 
 const TTL_OPTIONS = [
   { value: '', label: 'Вечно / наследовать' },
@@ -394,7 +394,7 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
       </Menu>
 
       {/* Создать / переименовать */}
-      <Dialog open={!!nameDialog} onClose={() => setNameDialog(null)} maxWidth="xs" fullWidth>
+      <AppDialog open={!!nameDialog} onClose={() => setNameDialog(null)} maxWidth="xs" fullWidth>
         <DialogTitle>
           {nameDialog?.mode === 'create' ? `Подпапка в «${nameDialog?.folder?.name}»` : 'Переименовать папку'}
         </DialogTitle>
@@ -414,10 +414,10 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
           <Button onClick={() => setNameDialog(null)}>Отмена</Button>
           <Button variant="contained" onClick={submitName}>Сохранить</Button>
         </DialogActions>
-      </Dialog>
+      </AppDialog>
 
       {/* Срок хранения */}
-      <Dialog open={!!ttlDialog} onClose={() => setTtlDialog(null)} maxWidth="xs" fullWidth>
+      <AppDialog open={!!ttlDialog} onClose={() => setTtlDialog(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Папка «{ttlDialog?.folder?.name}»</DialogTitle>
         <DialogContent sx={{ pt: 4 }}>
           <FormControl size="small" fullWidth>
@@ -437,10 +437,10 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
           <Button onClick={() => setTtlDialog(null)}>Отмена</Button>
           <Button variant="contained" onClick={saveTtl}>Сохранить</Button>
         </DialogActions>
-      </Dialog>
+      </AppDialog>
 
       {/* Ссылка на папку */}
-      <Dialog open={!!shareDialog} onClose={() => setShareDialog(null)} maxWidth="xs" fullWidth>
+      <AppDialog open={!!shareDialog} onClose={() => setShareDialog(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Ссылка на папку «{shareDialog?.folder?.name}»</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 4 }}>
           <FormControl size="small" fullWidth>
@@ -483,7 +483,7 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
           <Button onClick={() => setShareDialog(null)}>Закрыть</Button>
           <Button variant="contained" onClick={createShare}>Создать ссылку</Button>
         </DialogActions>
-      </Dialog>
+      </AppDialog>
     </>
   );
 }

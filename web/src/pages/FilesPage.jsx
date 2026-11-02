@@ -8,7 +8,6 @@ import {
   CardContent,
   Checkbox,
   Chip,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -51,6 +50,7 @@ import PauseIcon from '@mui/icons-material/Pause';
 import ChecklistIcon from '@mui/icons-material/Checklist';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import client from '../api/client';
+import AppDialog from '../components/AppDialog';
 import { onWsEvent } from '../api/ws';
 import { notifyFoldersChanged } from '../components/FolderTree';
 import FileViewerDialog, { isOfficeMime, viewMode } from '../components/FileViewerDialog';
@@ -879,7 +879,7 @@ export default function FilesPage() {
       )}
 
       {/* Новая папка */}
-      <Dialog open={newFolderOpen} onClose={() => setNewFolderOpen(false)}>
+      <AppDialog open={newFolderOpen} onClose={() => setNewFolderOpen(false)}>
         <DialogTitle>Новая папка</DialogTitle>
         <DialogContent>
           <TextField
@@ -896,10 +896,10 @@ export default function FilesPage() {
           <Button onClick={() => setNewFolderOpen(false)}>Отмена</Button>
           <Button variant="contained" onClick={createFolder}>Создать</Button>
         </DialogActions>
-      </Dialog>
+      </AppDialog>
 
       {/* Ссылка с TTL */}
-      <Dialog open={!!shareDialog} onClose={() => setShareDialog(null)} maxWidth="xs" fullWidth>
+      <AppDialog open={!!shareDialog} onClose={() => setShareDialog(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Ссылка на {shareDialog?.type === 'folder' ? 'папку' : 'файл'}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 4 }}>
           <Typography variant="body2" color="text.secondary" noWrap>
@@ -927,10 +927,10 @@ export default function FilesPage() {
           <Button onClick={() => setShareDialog(null)}>Закрыть</Button>
           <Button variant="contained" onClick={createLink}>Создать ссылку</Button>
         </DialogActions>
-      </Dialog>
+      </AppDialog>
 
       {/* Срок хранения файла */}
-      <Dialog open={!!editFile} onClose={() => setEditFile(null)} maxWidth="xs" fullWidth>
+      <AppDialog open={!!editFile} onClose={() => setEditFile(null)} maxWidth="xs" fullWidth>
         <DialogTitle>{editFile?.name}</DialogTitle>
         <DialogContent sx={{ pt: 4 }}>
           <FormControl size="small" fullWidth>
@@ -953,12 +953,12 @@ export default function FilesPage() {
           <Button onClick={() => setEditFile(null)}>Отмена</Button>
           <Button variant="contained" onClick={saveFile}>Сохранить</Button>
         </DialogActions>
-      </Dialog>
+      </AppDialog>
 
       {/* Настройки торрента: выбор файлов + лимит скорости. Доступны
           в любом статусе — на живой задаче применяются на лету, на
           завершённой запускают докачку. */}
-      <Dialog open={!!torrentDialog} onClose={() => setTorrentDialog(null)} maxWidth="sm" fullWidth>
+      <AppDialog open={!!torrentDialog} onClose={() => setTorrentDialog(null)} maxWidth="sm" fullWidth>
         <DialogTitle>Настройки торрента «{torrentDialog?.name}»</DialogTitle>
         <DialogContent sx={{ pt: 1 }}>
           <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
@@ -1037,10 +1037,10 @@ export default function FilesPage() {
               : 'Сохранить'}
           </Button>
         </DialogActions>
-      </Dialog>
+      </AppDialog>
 
       {/* Лог загрузки торрента: живые статы + журнал событий */}
-      <Dialog open={!!torrentLog} onClose={() => setTorrentLog(null)} maxWidth="sm" fullWidth>
+      <AppDialog open={!!torrentLog} onClose={() => setTorrentLog(null)} maxWidth="sm" fullWidth>
         <DialogTitle>
           Лог загрузки «{torrentLog?.data?.name ?? '…'}»
         </DialogTitle>
@@ -1104,7 +1104,7 @@ export default function FilesPage() {
         <DialogActions>
           <Button onClick={() => setTorrentLog(null)}>Закрыть</Button>
         </DialogActions>
-      </Dialog>
+      </AppDialog>
 
       {/* Удаление торрента: только задача или вместе с данными */}
       <Menu

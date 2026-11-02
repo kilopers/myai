@@ -6,7 +6,6 @@ import {
   CardContent,
   Checkbox,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -50,6 +49,7 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
 import client from '../api/client';
+import AppDialog from '../components/AppDialog';
 import PageHeader from '../components/PageHeader';
 
 dayjs.locale('ru');
@@ -645,7 +645,7 @@ export default function PasswordsPage() {
       )}
 
       {/* Диалог папки */}
-      <Dialog open={!!folderDlg} onClose={() => setFolderDlg(null)} maxWidth="xs" fullWidth>
+      <AppDialog open={!!folderDlg} onClose={() => setFolderDlg(null)} maxWidth="xs" fullWidth>
         <DialogTitle>{folderDlg?.id ? 'Переименовать папку' : 'Новая папка'}</DialogTitle>
         <DialogContent>
           <TextField
@@ -664,10 +664,10 @@ export default function PasswordsPage() {
             Сохранить
           </Button>
         </DialogActions>
-      </Dialog>
+      </AppDialog>
 
       {/* Диалог записи */}
-      <Dialog open={!!entryDlg} onClose={() => setEntryDlg(null)} maxWidth="sm" fullWidth>
+      <AppDialog open={!!entryDlg} onClose={() => setEntryDlg(null)} maxWidth="sm" fullWidth>
         <DialogTitle>{entryDlg?.id ? 'Редактировать запись' : 'Новая запись'}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
           <FormControl size="small" fullWidth>
@@ -762,10 +762,10 @@ export default function PasswordsPage() {
             Сохранить
           </Button>
         </DialogActions>
-      </Dialog>
+      </AppDialog>
 
       {/* Диалог алгоритма генерации */}
-      <Dialog open={!!genDlg} onClose={() => setGenDlg(null)} maxWidth="sm" fullWidth>
+      <AppDialog open={!!genDlg} onClose={() => setGenDlg(null)} maxWidth="sm" fullWidth>
         <DialogTitle>{genDlg?.id ? 'Редактировать алгоритм' : 'Новый алгоритм'}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pt: '8px !important' }}>
           <TextField
@@ -833,7 +833,7 @@ export default function PasswordsPage() {
             Сохранить
           </Button>
         </DialogActions>
-      </Dialog>
+      </AppDialog>
 
       <Snackbar
         open={!!message}

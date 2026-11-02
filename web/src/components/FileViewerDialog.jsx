@@ -3,7 +3,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -15,6 +14,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CloseIcon from '@mui/icons-material/Close';
 import DownloadIcon from '@mui/icons-material/Download';
 import client from '../api/client';
+import AppDialog from './AppDialog';
 
 export const isOfficeMime = (mime) =>
   mime === 'application/msword' ||
@@ -234,7 +234,7 @@ export default function FileViewerDialog({ file, onClose }) {
   if (!file) return null;
 
   return (
-    <Dialog open onClose={handleClose} maxWidth="lg" fullWidth>
+    <AppDialog open onClose={handleClose} maxWidth="lg" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
           {file.name}
@@ -301,6 +301,6 @@ export default function FileViewerDialog({ file, onClose }) {
           Скачать оригинал
         </Button>
       </DialogActions>
-    </Dialog>
+    </AppDialog>
   );
 }
