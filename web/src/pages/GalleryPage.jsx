@@ -6,9 +6,6 @@ import {
   CardActions,
   CardMedia,
   IconButton,
-  ImageList,
-  ImageListItem,
-  ImageListItemBar,
   Pagination,
   Typography,
 } from '@mui/material';
@@ -100,55 +97,48 @@ export default function GalleryPage() {
       {items.length === 0 ? (
         <Typography color="text.secondary">Пока пусто — сделай первый скриншот из приложения или загрузи файл.</Typography>
       ) : (
-        <ImageList
-          cols={8}
-          gap={10}
+        <Box
           sx={{
-            gridTemplateColumns: {
-              xs: 'repeat(2, 1fr) !important',
-              sm: 'repeat(4, 1fr) !important',
-              md: 'repeat(6, 1fr) !important',
-              lg: 'repeat(8, 1fr) !important',
-            },
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+            gap: 1.25,
           }}
         >
           {items.map((s) => (
-            <ImageListItem key={s.id}>
-              <Card>
-                <CardMedia
-                  component="img"
-                  image={s.url}
-                  height="130"
-                  sx={{ objectFit: 'cover', cursor: 'pointer' }}
-                  onClick={() => setPreview(s.url)}
-                  loading="lazy"
-                />
-                <CardActions
-                  sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    px: 1.5,
-                    py: 0.75,
-                  }}
-                >
-                  <Typography variant="caption" color="text.secondary" noWrap>
-                    {new Date(s.created_at).toLocaleDateString()}
-                    {s.expires_at && ` · до ${new Date(s.expires_at).toLocaleDateString()}`}
-                  </Typography>
-                  <Box sx={{ display: 'flex' }}>
-                    <IconButton size="small" onClick={() => copyUrl(s.url)}>
-                      <ContentCopyIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton size="small" onClick={() => onDelete(s.id)}>
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </Box>
-                </CardActions>
-              </Card>
-            </ImageListItem>
+            <Card key={s.id}>
+              <CardMedia
+                component="img"
+                image={s.url}
+                height="130"
+                sx={{ objectFit: 'cover', cursor: 'pointer' }}
+                onClick={() => setPreview(s.url)}
+                loading="lazy"
+              />
+              <CardActions
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  px: 1.5,
+                  py: 0.75,
+                }}
+              >
+                <Typography variant="caption" color="text.secondary" noWrap>
+                  {new Date(s.created_at).toLocaleDateString()}
+                  {s.expires_at && ` · до ${new Date(s.expires_at).toLocaleDateString()}`}
+                </Typography>
+                <Box sx={{ display: 'flex' }}>
+                  <IconButton size="small" onClick={() => copyUrl(s.url)}>
+                    <ContentCopyIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton size="small" onClick={() => onDelete(s.id)}>
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              </CardActions>
+            </Card>
           ))}
-        </ImageList>
+        </Box>
       )}
 
       {meta?.last_page > 1 && (

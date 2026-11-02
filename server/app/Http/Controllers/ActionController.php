@@ -99,7 +99,7 @@ class ActionController extends Controller
     private function screenshotsState(Request $request): array
     {
         $shots = Screenshot::where('user_id', $request->user()->id)
-            ->latest()->paginate(60);
+            ->latest()->paginate(20);
 
         return [
             'screenshots' => ScreenshotResource::collection($shots)->resolve(),
