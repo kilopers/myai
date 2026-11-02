@@ -16,9 +16,18 @@ interface TorrentEngine
      * @param  string  $dir  каталог загрузки (в координатах движка)
      * @param  list<int>|null  $selectIndexes  индексы файлов (0-based);
      *                                         null — качать все
+     * @param  int  $maxDownloadRate  лимит скорости, байт/с; 0 — без ограничений
      * @return string — gid задачи в движке
      */
-    public function addTorrent(string $contents, string $dir, ?array $selectIndexes = null): string;
+    public function addTorrent(string $contents, string $dir, ?array $selectIndexes = null, int $maxDownloadRate = 0): string;
+
+    /**
+     * Смена опций живой задачи (select-file, max-download-limit) —
+     * применение настроек без перезапуска загрузки.
+     *
+     * @param  array<string, string>  $options  опции в терминах aria2
+     */
+    public function changeOptions(string $gid, array $options): void;
 
     /**
      * Текущее состояние задачи.

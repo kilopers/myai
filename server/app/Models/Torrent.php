@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable(['user_id', 'folder_id', 'stored_file_id', 'result_folder_id', 'gid', 'info_hash', 'name', 'status', 'files', 'total_size', 'downloaded_size', 'progress', 'download_rate', 'error', 'log'])]
 class Torrent extends Model
@@ -75,5 +76,11 @@ class Torrent extends Model
     public function resultFolder(): BelongsTo
     {
         return $this->belongsTo(Folder::class, 'result_folder_id');
+    }
+
+    /** Настройки загрузки (выбор файлов, лимит скорости) — torrent_settings. */
+    public function settings(): HasOne
+    {
+        return $this->hasOne(TorrentSetting::class);
     }
 }

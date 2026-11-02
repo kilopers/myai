@@ -12,7 +12,7 @@ use Illuminate\Support\Str;
  */
 class Aria2Engine implements TorrentEngine
 {
-    public function addTorrent(string $contents, string $dir, ?array $selectIndexes = null): string
+    public function addTorrent(string $contents, string $dir, ?array $selectIndexes = null, int $maxDownloadRate = 0): string
     {
         $options = [
             'dir' => $dir,
@@ -23,11 +23,23 @@ class Aria2Engine implements TorrentEngine
             // aria2 нумерует файлы с 1, у нас — с 0.
             $options['select-file'] = implode(',', array_map(fn (int $i) => $i + 1, $selectIndexes));
         }
+        if ($maxDownloadRate > 0) {
+            $options['max-download-limit'] = (string) $maxDownloadRate;
+        }
 
         /** @var string $gid */
         $gid = $this->call('aria2.addTorrent', [base64_encode($contents), [], $options]);
 
         return $gid;
+    }
+
+    /** {@inheritdoc} */
+    public function changeOptions(string $gid, array $options): void
+    {
+        if ($options === []) {
+            return;
+        }
+        $this->call('aria2.changeOption', [$gid, $options]);
     }
 
     public function status(string $gid): array

@@ -512,14 +512,36 @@ export default function FilesPage() {
     try {
       const { data } = await client.get(`/api/torrents/${f.torrent.id}`);
       const list = data.files ?? [];
+      const rate = (data.settings?.max_download_rate ?? 0) / 1048576;
       setTorrentDialog({
         id: f.torrent.id,
         name: data.name,
+        status: data.status,
         files: list,
-        checked: new Set(list.map((x) => x.index)),
+        rate,
+        checked: new Set(list.filter((x) => x.selected !== false).map((x) => x.index)),
       });
     } catch {
       setMessage('Не удалось получить список файлов торрента');
+    }
+  };
+
+  // Сохранение настроек торрента: на живой задаче применяется на лету,
+  // на завершённой — запускает докачку недостающих файлов.
+  const torrentSaveSettings = async (d) => {
+    try {
+      await client.put(`/api/torrents/${d.id}/settings`, {
+        file_indexes: [...d.checked],
+        max_download_rate: Math.max(0, Math.round(Number(d.rate || 0) * 1048576)),
+      });
+      // В ожидании выбора сохранение настроек = старт загрузки.
+      if (d.status === 'awaiting_selection') {
+        await client.post(`/api/torrents/${d.id}/start`, {});
+      }
+      setTorrentDialog(null);
+      load();
+    } catch (e) {
+      setMessage(e.response?.data?.message || 'Не удалось сохранить настройки');
     }
   };
 
@@ -790,14 +812,9 @@ export default function FilesPage() {
                   )}
                   <Box sx={{ display: 'flex', mt: 0.25 }}>
                     {f.torrent.status === 'awaiting_selection' && (
-                      <>
-                        <IconButton size="small" title="Выбрать файлы" onClick={() => openTorrentSelect(f)}>
-                          <ChecklistIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton size="small" title="Скачать все файлы" onClick={() => torrentStart(f.torrent.id)}>
-                          <PlayArrowIcon fontSize="small" />
-                        </IconButton>
-                      </>
+                      <IconButton size="small" title="Скачать все файлы" onClick={() => torrentStart(f.torrent.id)}>
+                        <PlayArrowIcon fontSize="small" />
+                      </IconButton>
                     )}
                     {f.torrent.status === 'error' && (
                       <IconButton size="small" title="Повторить загрузку" onClick={() => torrentStart(f.torrent.id)}>
@@ -814,6 +831,9 @@ export default function FilesPage() {
                         <PlayArrowIcon fontSize="small" />
                       </IconButton>
                     )}
+                    <IconButton size="small" title="Настройки торрента" onClick={() => openTorrentSelect(f)}>
+                      <ChecklistIcon fontSize="small" />
+                    </IconButton>
                     <IconButton
                       size="small"
                       title="Удалить торрент"
@@ -931,9 +951,11 @@ export default function FilesPage() {
         </DialogActions>
       </Dialog>
 
-      {/* Выбор файлов торрента */}
+      {/* Настройки торрента: выбор файлов + лимит скорости. Доступны
+          в любом статусе — на живой задаче применяются на лету, на
+          завершённой запускают докачку. */}
       <Dialog open={!!torrentDialog} onClose={() => setTorrentDialog(null)} maxWidth="sm" fullWidth>
-        <DialogTitle>Файлы торрента «{torrentDialog?.name}»</DialogTitle>
+        <DialogTitle>Настройки торрента «{torrentDialog?.name}»</DialogTitle>
         <DialogContent sx={{ pt: 1 }}>
           <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
             <Button
@@ -957,9 +979,14 @@ export default function FilesPage() {
                 key={tf.index}
                 disableGutters
                 secondaryAction={
-                  <Typography variant="caption" color="text.secondary">
-                    {fmtSize(tf.size)}
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {tf.done && (
+                      <Chip size="small" color="success" variant="outlined" label="скачан" />
+                    )}
+                    <Typography variant="caption" color="text.secondary">
+                      {fmtSize(tf.size)}
+                    </Typography>
+                  </Box>
                 }
               >
                 <ListItemIcon sx={{ minWidth: 32 }}>
@@ -983,18 +1010,27 @@ export default function FilesPage() {
               </ListItem>
             ))}
           </List>
+          <TextField
+            size="small"
+            type="number"
+            label="Лимит скорости, МБ/с (0 — без ограничений)"
+            value={torrentDialog?.rate ?? 0}
+            onChange={(e) => setTorrentDialog((d) => (d ? { ...d, rate: e.target.value } : d))}
+            inputProps={{ min: 0 }}
+            sx={{ mt: 1.5 }}
+            fullWidth
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setTorrentDialog(null)}>Отмена</Button>
           <Button
             variant="contained"
             disabled={!torrentDialog || torrentDialog.checked.size === 0}
-            onClick={() => {
-              torrentStart(torrentDialog.id, [...torrentDialog.checked]);
-              setTorrentDialog(null);
-            }}
+            onClick={() => torrentSaveSettings(torrentDialog)}
           >
-            Скачать выбранные ({torrentDialog?.checked.size ?? 0})
+            {torrentDialog?.status === 'awaiting_selection'
+              ? `Скачать выбранные (${torrentDialog.checked.size})`
+              : 'Сохранить'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -60,6 +60,34 @@ class TorrentController extends Controller
         return response()->json($this->toArray($torrent->refresh()));
     }
 
+    /**
+     * Настройки торрента: {file_indexes: int[]|null, max_download_rate: int}.
+     * Выбор файлов — 0-based индексы ([] или отсутствие — все);
+     * лимит — байт/с, 0 — без ограничений. На живой задаче применяется
+     * через changeOption, на завершённой — запускает докачку.
+     */
+    public function updateSettings(Request $request, Torrent $torrent, TorrentService $service): JsonResponse
+    {
+        $this->authorize($request, $torrent);
+        $validated = $request->validate([
+            'file_indexes' => ['nullable', 'array'],
+            'file_indexes.*' => ['integer', 'min:0'],
+            'max_download_rate' => ['nullable', 'integer', 'min:0', 'max:10995116277760'],
+        ]);
+
+        try {
+            $service->applySettings(
+                $torrent,
+                array_key_exists('file_indexes', $validated) ? $validated['file_indexes'] : null,
+                $validated['max_download_rate'] ?? null,
+            );
+        } catch (\Throwable $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json($this->toArray($torrent->refresh()));
+    }
+
     public function pause(Request $request, Torrent $torrent, TorrentService $service): JsonResponse
     {
         $this->authorize($request, $torrent);
@@ -97,6 +125,8 @@ class TorrentController extends Controller
     /** @return array<string, mixed> */
     private function toArray(Torrent $torrent): array
     {
+        $settings = $torrent->settings()->first();
+
         return [
             'id' => $torrent->id,
             'stored_file_id' => $torrent->stored_file_id,
@@ -112,6 +142,10 @@ class TorrentController extends Controller
             'download_rate' => $torrent->download_rate,
             'error' => $torrent->error,
             'log' => $torrent->log ?? [],
+            'settings' => [
+                'selected_indexes' => $settings?->selected_indexes,
+                'max_download_rate' => (int) ($settings?->max_download_rate ?? 0),
+            ],
             'created_at' => $torrent->created_at?->toIso8601String(),
         ];
     }

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Folder;
 use App\Models\StoredFile;
 use App\Models\Torrent;
+use App\Models\TorrentSetting;
 use App\Models\User;
 use App\Services\Torrent\TorrentEngine;
 use App\Services\Torrent\TorrentService;
@@ -38,15 +39,19 @@ class FakeTorrentEngine implements TorrentEngine
     /** @var array<string, array{status:string,total:int,completed:int,rate:int,error:?string}> */
     public array $statuses = [];
 
+    /** @var list<array{gid:string,options:array}> */
+    public array $changed = [];
+
     private int $seq = 0;
 
-    public function addTorrent(string $contents, string $dir, ?array $selectIndexes = null): string
+    public function addTorrent(string $contents, string $dir, ?array $selectIndexes = null, int $maxDownloadRate = 0): string
     {
         $gid = 'gid-'.(++$this->seq);
         $this->added[] = [
             'gid' => $gid,
             'dir' => $dir,
             'select' => $selectIndexes,
+            'rate' => $maxDownloadRate,
             'contents' => $contents,
         ];
         $this->statuses[$gid] = [
@@ -58,6 +63,11 @@ class FakeTorrentEngine implements TorrentEngine
         ];
 
         return $gid;
+    }
+
+    public function changeOptions(string $gid, array $options): void
+    {
+        $this->changed[] = ['gid' => $gid, 'options' => $options];
     }
 
     public function status(string $gid): array
@@ -190,6 +200,102 @@ class TorrentApiTest extends TestCase
         $this->assertFalse($selected[0]);
         $this->assertTrue($selected[1]);
         $this->assertTrue($selected[2]);
+    }
+
+    public function test_settings_persist_and_drive_start(): void
+    {
+        $user = User::factory()->create();
+        $folder = Folder::create([
+            'user_id' => $user->id,
+            'name' => 'Manual',
+            'torrent_mode' => 'manual',
+        ]);
+        $this->upload($user, $folder)->assertCreated();
+        $torrent = Torrent::firstOrFail();
+
+        // Сохраняем выбор и лимит — пока awaiting_selection движок не дёргается.
+        $this->actingAs($user)->putJson("/api/torrents/{$torrent->id}/settings", [
+            'file_indexes' => [0, 2],
+            'max_download_rate' => 5 * 1048576,
+        ])->assertOk();
+
+        $s = TorrentSetting::firstOrFail();
+        $this->assertSame([0, 2], $s->selected_indexes);
+        $this->assertSame(5 * 1048576, $s->max_download_rate);
+        $this->assertSame([], $this->engine->added);
+
+        // Старт без параметров берёт выбор и лимит из настроек.
+        $this->actingAs($user)->postJson("/api/torrents/{$torrent->id}/start", [])->assertOk();
+        $this->assertSame([0, 2], $this->engine->added[0]['select']);
+        $this->assertSame(5 * 1048576, $this->engine->added[0]['rate']);
+    }
+
+    public function test_settings_apply_live_to_running_download(): void
+    {
+        $user = User::factory()->create();
+        $this->upload($user)->assertCreated();
+        $torrent = Torrent::firstOrFail(); // downloading, gid-1
+
+        $this->actingAs($user)->putJson("/api/torrents/{$torrent->id}/settings", [
+            'file_indexes' => [1],
+            'max_download_rate' => 1048576,
+        ])->assertOk();
+
+        // changeOption живой задаче: select-file 1-based, лимит строкой.
+        $this->assertSame('gid-1', $this->engine->changed[0]['gid']);
+        $this->assertSame('2', $this->engine->changed[0]['options']['select-file']);
+        $this->assertSame('1048576', $this->engine->changed[0]['options']['max-download-limit']);
+        $this->assertSame([1], $torrent->fresh()->settings->selected_indexes);
+    }
+
+    public function test_settings_on_completed_torrent_starts_pending_download(): void
+    {
+        $user = User::factory()->create();
+        $folder = Folder::create([
+            'user_id' => $user->id,
+            'name' => 'Manual',
+            'torrent_mode' => 'manual',
+        ]);
+        $this->upload($user, $folder)->assertCreated();
+        $torrent = Torrent::firstOrFail();
+
+        // Качаем только файл 0 → complete → done выставлен у него одного.
+        $this->actingAs($user)
+            ->postJson("/api/torrents/{$torrent->id}/start", ['file_indexes' => [0]])
+            ->assertOk();
+        $dir = (string) $torrent->id;
+        Storage::disk('torrents')->put("{$dir}/{$torrent->files[0]['path']}", 'data');
+        $torrent->refresh();
+        $this->engine->statuses[$torrent->gid] = [
+            'status' => 'complete', 'total' => 2648, 'completed' => 600, 'rate' => 0, 'error' => null,
+        ];
+        app(TorrentService::class)->poll($torrent->fresh());
+        $torrent->refresh();
+        $this->assertSame(Torrent::STATUS_COMPLETED, $torrent->status);
+        $resultFolder = $torrent->result_folder_id;
+        $byIndex = collect($torrent->files)->keyBy('index');
+        $this->assertTrue($byIndex[0]['done'] ?? false);
+        $this->assertFalse($byIndex[1]['done'] ?? false);
+
+        // Новый выбор + файл 1 → автостарт докачки только его.
+        $this->actingAs($user)->putJson("/api/torrents/{$torrent->id}/settings", [
+            'file_indexes' => [0, 1],
+        ])->assertOk()->assertJsonPath('status', Torrent::STATUS_DOWNLOADING);
+        $this->assertSame([1], $this->engine->added[1]['select']);
+
+        // Повторный finalize сливается в ту же result-папку.
+        $torrent->refresh();
+        Storage::disk('torrents')->put("{$dir}/{$torrent->files[1]['path']}", 'data');
+        $this->engine->statuses[$torrent->gid] = [
+            'status' => 'complete', 'total' => 2648, 'completed' => 2648, 'rate' => 0, 'error' => null,
+        ];
+        app(TorrentService::class)->poll($torrent->fresh());
+        $this->assertSame($resultFolder, $torrent->fresh()->result_folder_id);
+        // Выбранные [0,1] докачаны и слиты в ту же папку; файл 2 не трогали.
+        $done = collect($torrent->fresh()->files)->pluck('done', 'index');
+        $this->assertTrue($done[0]);
+        $this->assertTrue($done[1]);
+        $this->assertFalse($done[2]);
     }
 
     public function test_pause_and_resume(): void
@@ -392,7 +498,7 @@ class TorrentApiTest extends TestCase
         // но сам .torrent загружен успешно.
         $this->app->instance(TorrentEngine::class, new class extends FakeTorrentEngine
         {
-            public function addTorrent(string $contents, string $dir, ?array $selectIndexes = null): string
+            public function addTorrent(string $contents, string $dir, ?array $selectIndexes = null, int $maxDownloadRate = 0): string
             {
                 throw new \RuntimeException('aria2: connection refused');
             }

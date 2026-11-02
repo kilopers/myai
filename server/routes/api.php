@@ -86,6 +86,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/torrents/{torrent}/start', [TorrentController::class, 'start']);
     Route::post('/torrents/{torrent}/pause', [TorrentController::class, 'pause']);
     Route::post('/torrents/{torrent}/resume', [TorrentController::class, 'resume']);
+    Route::put('/torrents/{torrent}/settings', [TorrentController::class, 'updateSettings']);
     Route::delete('/torrents/{torrent}', [TorrentController::class, 'destroy']);
 
     // Корзина

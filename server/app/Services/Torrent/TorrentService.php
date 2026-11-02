@@ -6,6 +6,7 @@ use App\Events\TorrentUpdated;
 use App\Models\Folder;
 use App\Models\StoredFile;
 use App\Models\Torrent;
+use App\Models\TorrentSetting;
 use App\Models\User;
 use App\Services\StoredFileWriter;
 use App\Services\TrashService;
@@ -96,9 +97,35 @@ class TorrentService
             || $file->mime_type === 'application/x-bittorrent';
     }
 
+    /** Строка настроек торрента; создаётся по первому обращению. */
+    public function settingsFor(Torrent $torrent): TorrentSetting
+    {
+        return TorrentSetting::firstOrCreate(['torrent_id' => $torrent->id]);
+    }
+
+    /**
+     * Выбранные и ещё не скачанные файлы (selected ∩ ¬done).
+     *
+     * @param  list<array<string, mixed>>  $files
+     * @param  list<int>  $selectedSet
+     * @return list<int>
+     */
+    private function pendingIndexes(array $files, array $selectedSet): array
+    {
+        return array_values(array_map(
+            fn (array $f) => $f['index'],
+            array_filter(
+                $files,
+                fn (array $f) => in_array($f['index'], $selectedSet, true) && empty($f['done']),
+            ),
+        ));
+    }
+
     /**
      * Старт загрузки. $indexes — 0-based индексы файлов из
-     * $torrent->files; null/пустой список — качать все.
+     * $torrent->files; null — выбор из сохранённых настроек (по
+     * умолчанию все). Уже скачанные (done) файлы пропускаются —
+     * поэтому завершённый торрент можно перезапустить на докачку.
      *
      * @param  list<int>|null  $indexes
      */
@@ -107,11 +134,10 @@ class TorrentService
         abort_if(
             in_array($torrent->status, [
                 Torrent::STATUS_DOWNLOADING,
-                Torrent::STATUS_COMPLETED,
                 Torrent::STATUS_PAUSED, // у paused есть gid — дубль задачи; resume() снимает с паузы
             ], true),
             422,
-            'Торрент уже качается, на паузе или скачан.',
+            'Торрент уже качается или на паузе — выбор меняется через настройки.',
         );
 
         $file = $torrent->storedFile;
@@ -119,26 +145,38 @@ class TorrentService
         $raw = Storage::disk('public')->get($file->path);
         abort_if($raw === null, 422, 'Не удалось прочитать .torrent-файл.');
 
-        // Выбор файлов: null → все; иначе помечаем selected в метаданных.
+        // Эффективный выбор: параметр → сохранённые настройки → все.
         $files = $torrent->files ?? [];
         $known = array_column($files, 'index');
-        $select = $indexes === null || $indexes === []
-            ? null
-            : array_values(array_intersect($indexes, $known));
-        if ($select !== null) {
-            $files = array_map(
-                fn (array $f) => [...$f, 'selected' => in_array($f['index'], $select, true)],
-                $files,
-            );
+        $settings = $this->settingsFor($torrent);
+        if ($indexes !== null) {
+            $settings->selected_indexes = $indexes === []
+                ? null
+                : array_values(array_intersect($indexes, $known));
+            $settings->save();
         }
+        $selectedSet = $settings->selected_indexes ?? $known;
+        $pending = $this->pendingIndexes($files, $selectedSet);
+        abort_if($pending === [], 422, 'Все выбранные файлы уже скачаны.');
+
+        $files = array_map(
+            fn (array $f) => [...$f, 'selected' => in_array($f['index'], $selectedSet, true)],
+            $files,
+        );
 
         Storage::disk('torrents')->makeDirectory($this->stagingDir($torrent));
+
+        if ($torrent->gid !== null) {
+            // Снятый/упавший gid — зачищаем запись результата в движке.
+            $this->engine->purge($torrent->gid);
+        }
 
         try {
             $gid = $this->engine->addTorrent(
                 $raw,
                 rtrim((string) config('services.torrent.download_dir', '/downloads'), '/').'/'.$torrent->id,
-                $select,
+                $pending === $known ? null : $pending,
+                (int) $settings->max_download_rate,
             );
         } catch (\Throwable $e) {
             $torrent->appendLog('Ошибка запуска загрузки: '.mb_substr($e->getMessage(), 0, 300));
@@ -152,9 +190,9 @@ class TorrentService
             throw $e;
         }
 
-        $selected = $select === null ? count($files) : count($select);
+        $selected = count($pending);
         $torrent->appendLog(
-            $select === null
+            $pending === $known
                 ? "Загрузка запущена: все файлы ({$selected} шт.)"
                 : "Загрузка запущена: выбрано {$selected} из ".count($files).' файлов'
         );
@@ -192,6 +230,82 @@ class TorrentService
         $this->engine->resume($torrent->gid);
         $torrent->appendLog('Загрузка продолжена');
         $torrent->forceFill(['status' => Torrent::STATUS_DOWNLOADING])->save();
+        $this->broadcast($torrent);
+    }
+
+    /**
+     * Настройки торрента (выбор файлов + лимит скорости) хранятся в
+     * torrent_settings и переживают рестарт. Живой задаче
+     * (downloading/paused) опции применяются через changeOptions;
+     * завершённый/упавший торрент с новым выбором — автозапуск
+     * докачки недостающих файлов.
+     *
+     * @param  list<int>|null  $indexes  0-based индексы; [] — все файлы
+     */
+    public function applySettings(Torrent $torrent, ?array $indexes, ?int $maxRate): void
+    {
+        $settings = $this->settingsFor($torrent);
+        $files = $torrent->files ?? [];
+        $known = array_column($files, 'index');
+
+        if ($indexes !== null) {
+            $settings->selected_indexes = $indexes === []
+                ? null
+                : array_values(array_intersect($indexes, $known));
+        }
+        if ($maxRate !== null) {
+            $settings->max_download_rate = $maxRate;
+        }
+        $settings->save();
+
+        $selectedSet = $settings->selected_indexes ?? $known;
+        $files = array_map(
+            fn (array $f) => [...$f, 'selected' => in_array($f['index'], $selectedSet, true)],
+            $files,
+        );
+        $torrent->files = $files;
+        $pending = $this->pendingIndexes($files, $selectedSet);
+
+        if ($torrent->gid !== null && in_array($torrent->status, [
+            Torrent::STATUS_DOWNLOADING,
+            Torrent::STATUS_PAUSED,
+        ], true)) {
+            // Живая задача — меняем опции в движке без перезапуска.
+            $options = ['max-download-limit' => (string) (int) $settings->max_download_rate];
+            if ($pending !== []) {
+                // aria2 нумерует файлы с 1.
+                $options['select-file'] = implode(',', array_map(fn (int $i) => $i + 1, $pending));
+            }
+            try {
+                $this->engine->changeOptions($torrent->gid, $options);
+                $torrent->appendLog(sprintf(
+                    'Настройки применены: файлов %d, лимит %s',
+                    count($pending),
+                    $settings->max_download_rate > 0
+                        ? $this->humanSize($settings->max_download_rate).'/с'
+                        : 'без ограничений',
+                ));
+            } catch (\Throwable $e) {
+                $torrent->appendLog('Настройки сохранены, но движок их не принял: '.mb_substr($e->getMessage(), 0, 300));
+            }
+            $torrent->save();
+            $this->broadcast($torrent);
+
+            return;
+        }
+
+        // Завершён или упал (gid снят либо мёртв): появилось
+        // недокачанное — запускаем докачку в ту же result-папку.
+        if ($pending !== [] && in_array($torrent->status, [
+            Torrent::STATUS_COMPLETED,
+            Torrent::STATUS_ERROR,
+        ], true)) {
+            $this->start($torrent);
+
+            return;
+        }
+
+        $torrent->save();
         $this->broadcast($torrent);
     }
 
@@ -323,17 +437,24 @@ class TorrentService
 
         $torrent->appendLog('Скачивание завершено — перенос файлов в файловый менеджер');
 
-        $result = Folder::create([
-            'user_id' => $user->id,
-            'parent_id' => $parent?->id,
-            'name' => $this->uniqueFolderName($user->id, $parent?->id, $torrent->name),
-            'default_ttl_days' => $parent?->default_ttl_days,
-            'conversion_enabled' => $parent?->conversion_enabled ?? true,
-        ]);
+        // Повторная докачка сливается в существующую result-папку;
+        // первая — создаёт папку с именем торрента (коллизия — « (N)»).
+        $result = $torrent->resultFolder;
+        if ($result === null || $result->trashed()) {
+            $result = Folder::create([
+                'user_id' => $user->id,
+                'parent_id' => $parent?->id,
+                'name' => $this->uniqueFolderName($user->id, $parent?->id, $torrent->name),
+                'default_ttl_days' => $parent?->default_ttl_days,
+                'conversion_enabled' => $parent?->conversion_enabled ?? true,
+            ]);
+        }
 
         $dirs = ['' => $result];
+        $movedRels = [];
         foreach ($disk->allFiles($staging) as $path) {
             $rel = substr($path, strlen($staging) + 1);
+            $movedRels[] = $rel;
             $relDir = str_contains($rel, '/') ? dirname($rel) : '';
             $target = $this->ensureDir($user, $result, $dirs, $relDir);
 
@@ -359,12 +480,26 @@ class TorrentService
             ], detectTorrents: false);
         }
 
+        // Помечаем скачанные файлы (done) — по ним pending вычисляет
+        // докачку при смене выбора после завершения.
+        $doneSet = array_fill_keys($movedRels, true);
+        $movedSize = 0;
+        $doneFiles = array_map(function (array $f) use ($doneSet, &$movedSize) {
+            $done = ! empty($f['done']) || isset($doneSet[$f['path']]);
+            if ($done) {
+                $movedSize += (int) ($f['size'] ?? 0);
+            }
+
+            return [...$f, 'done' => $done];
+        }, $torrent->files ?? []);
+
         $gid = $torrent->gid;
         $torrent->appendLog("Готово: файлы перенесены в папку «{$result->name}»");
         $torrent->forceFill([
             'status' => Torrent::STATUS_COMPLETED,
             'progress' => 100,
-            'downloaded_size' => $torrent->total_size,
+            'downloaded_size' => $movedSize,
+            'files' => $doneFiles,
             'download_rate' => 0,
             'result_folder_id' => $result->id,
             'gid' => null,
