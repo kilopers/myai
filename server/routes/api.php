@@ -10,6 +10,7 @@ use App\Http\Controllers\FolderController;
 use App\Http\Controllers\InviteController;
 use App\Http\Controllers\PasswordEntryController;
 use App\Http\Controllers\PasswordFolderController;
+use App\Http\Controllers\PasswordGeneratorController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicShareController;
 use App\Http\Controllers\ScreenshotController;
@@ -72,6 +73,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('folders', FolderController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('password-folders', PasswordFolderController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('password-entries', PasswordEntryController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('password-generators', PasswordGeneratorController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::post('/password-generators/{passwordGenerator}/generate', [PasswordGeneratorController::class, 'generate']);
     Route::apiResource('files', FileController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
     Route::get('/files/{file}/download', [FileController::class, 'download']);
     // Производные файла фоновой конвертации (v1.3.0)

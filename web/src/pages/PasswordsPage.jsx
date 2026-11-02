@@ -4,12 +4,14 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   FormControl,
+  FormControlLabel,
   IconButton,
   InputAdornment,
   InputLabel,
@@ -17,20 +19,24 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Menu,
   MenuItem,
   Select,
   Snackbar,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TablePagination,
   TableRow,
+  Tabs,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import CasinoIcon from '@mui/icons-material/Casino';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import FolderIcon from '@mui/icons-material/Folder';
@@ -40,7 +46,20 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import client from '../api/client';
 
-const emptyForm = { name: '', login: '', password: '', note: '', password_folder_id: null };
+const emptyForm = { name: '', login: '', password: '', note: '', expires_at: '', password_folder_id: null };
+const emptyGen = {
+  name: '', min_length: 12, max_length: 20,
+  use_lower: true, use_upper: true, use_digits: true, use_symbols: false,
+  symbols: '!@#$%^&*_-+=',
+};
+
+/** Краткое описание наборов символов алгоритма для таблицы. */
+const describeGen = (g) => [
+  g.use_lower && 'a–z',
+  g.use_upper && 'A–Z',
+  g.use_digits && '0–9',
+  g.use_symbols && (g.symbols ? `«${g.symbols}»` : 'спец'),
+].filter(Boolean).join(' + ');
 
 export default function PasswordsPage() {
   const [folders, setFolders] = useState(null);
@@ -58,6 +77,13 @@ export default function PasswordsPage() {
   const [form, setForm] = useState(emptyForm);
   const [showPass, setShowPass] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Вкладки: 0 — записи, 1 — алгоритмы генерации.
+  const [tab, setTab] = useState(0);
+  const [generators, setGenerators] = useState([]);
+  const [genDlg, setGenDlg] = useState(null); // {id?}
+  const [genForm, setGenForm] = useState(emptyGen);
+  // Меню «сгенерировать пароль» у поля пароля.
+  const [genMenu, setGenMenu] = useState(null);
 
   const loadFolders = useCallback(async () => {
     try {
@@ -83,7 +109,16 @@ export default function PasswordsPage() {
     }
   }, []);
 
-  useEffect(() => { loadFolders(); }, [loadFolders]);
+  const loadGenerators = useCallback(async () => {
+    try {
+      const { data } = await client.get('/api/password-generators');
+      setGenerators(data.data ?? []);
+    } catch {
+      setGenerators([]);
+    }
+  }, []);
+
+  useEffect(() => { loadFolders(); loadGenerators(); }, [loadFolders, loadGenerators]);
   // Поиск с дебаунсом: непустой запрос ищет по всему справочнику,
   // пустой — показывает выбранную папку (или все записи при activeId=0).
   useEffect(() => {
@@ -148,6 +183,7 @@ export default function PasswordsPage() {
       login: entry.login ?? '',
       password: entry.password ?? '',
       note: entry.note ?? '',
+      expires_at: entry.expires_at ? entry.expires_at.slice(0, 10) : '',
       password_folder_id: entry.password_folder_id,
     } : {
       ...emptyForm,
@@ -167,6 +203,7 @@ export default function PasswordsPage() {
         login: form.login.trim() || null,
         password: form.password,
         note: form.note.trim() || null,
+        expires_at: form.expires_at || null,
       };
       if (entryDlg.id) {
         await client.put(`/api/password-entries/${entryDlg.id}`, payload);
@@ -192,6 +229,67 @@ export default function PasswordsPage() {
     }
   };
 
+  const openGenDlg = (g) => {
+    setGenForm(g ? {
+      name: g.name,
+      min_length: g.min_length,
+      max_length: g.max_length,
+      use_lower: g.use_lower,
+      use_upper: g.use_upper,
+      use_digits: g.use_digits,
+      use_symbols: g.use_symbols,
+      symbols: g.symbols ?? '',
+    } : emptyGen);
+    setGenDlg({ id: g?.id ?? null });
+  };
+
+  const saveGen = async () => {
+    if (!genForm.name.trim()) return;
+    setSaving(true);
+    try {
+      const payload = {
+        ...genForm,
+        name: genForm.name.trim(),
+        symbols: genForm.symbols || null,
+      };
+      if (genDlg.id) {
+        await client.put(`/api/password-generators/${genDlg.id}`, payload);
+      } else {
+        await client.post('/api/password-generators', payload);
+      }
+      setGenDlg(null);
+      await loadGenerators();
+    } catch (e) {
+      setMessage(e.response?.data?.message ?? 'Не удалось сохранить алгоритм');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeGen = async (g) => {
+    if (!window.confirm(`Удалить алгоритм «${g.name}»?`)) return;
+    try {
+      await client.delete(`/api/password-generators/${g.id}`);
+      await loadGenerators();
+    } catch {
+      setMessage('Не удалось удалить алгоритм');
+    }
+  };
+
+  // Кубик у поля пароля: выбор алгоритма → генерация на сервере →
+  // пароль в форму и сразу в буфер обмена.
+  const runGenerate = async (gen) => {
+    setGenMenu(null);
+    try {
+      const { data } = await client.post(`/api/password-generators/${gen.id}/generate`);
+      setForm((f) => ({ ...f, password: data.password }));
+      await navigator.clipboard.writeText(data.password);
+      setMessage(`Пароль сгенерирован по «${gen.name}» и скопирован в буфер обмена`);
+    } catch {
+      setMessage('Не удалось сгенерировать пароль');
+    }
+  };
+
   const copyCellSx = {
     cursor: 'pointer',
     borderRadius: 1,
@@ -209,7 +307,57 @@ export default function PasswordsPage() {
 
   return (
     <Box sx={{ p: 2 }}>
-      <Typography variant="h5" sx={{ mb: 2 }}>Пароли</Typography>
+      <Typography variant="h5" sx={{ mb: 1 }}>Пароли</Typography>
+      <Tabs value={tab} onChange={(e, v) => setTab(v)} sx={{ mb: 2 }}>
+        <Tab label="Записи" />
+        <Tab label="Алгоритмы генерации" />
+      </Tabs>
+      {tab === 1 ? (
+        <Card>
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+              <Typography variant="subtitle1">Алгоритмы генерации паролей</Typography>
+              <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={() => openGenDlg(null)}>
+                Создать
+              </Button>
+            </Box>
+            <Table size="small" sx={{ maxWidth: 720 }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Название</TableCell>
+                  <TableCell>Длина</TableCell>
+                  <TableCell>Наборы символов</TableCell>
+                  <TableCell align="right">Действия</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {generators.map((g) => (
+                  <TableRow key={g.id} hover>
+                    <TableCell sx={{ fontWeight: 500 }}>{g.name}</TableCell>
+                    <TableCell>{g.min_length}–{g.max_length}</TableCell>
+                    <TableCell sx={{ color: 'text.secondary' }}>{describeGen(g)}</TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      <IconButton size="small" onClick={() => openGenDlg(g)}>
+                        <EditIcon sx={{ fontSize: 16 }} />
+                      </IconButton>
+                      <IconButton size="small" onClick={() => removeGen(g)}>
+                        <DeleteIcon sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {generators.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} sx={{ color: 'text.secondary' }}>
+                      Алгоритмов нет — создайте, чтобы генерировать пароли кубиком в диалоге записи.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      ) : (
       <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <Card sx={{ width: 260, flexShrink: 0 }}>
           <CardContent>
@@ -316,6 +464,7 @@ export default function PasswordsPage() {
                     <TableCell>Название</TableCell>
                     <TableCell>Логин</TableCell>
                     <TableCell>Пароль</TableCell>
+                    <TableCell>Срок</TableCell>
                     <TableCell>Информация</TableCell>
                     {showFolderCol && <TableCell>Папка</TableCell>}
                     <TableCell align="right">Действия</TableCell>
@@ -345,6 +494,9 @@ export default function PasswordsPage() {
                           </Box>
                         </Tooltip>
                       </TableCell>
+                      <TableCell sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                        {e.expires_at ? new Date(e.expires_at).toLocaleDateString('ru-RU') : '∞'}
+                      </TableCell>
                       <TableCell sx={{ color: 'text.secondary', maxWidth: 220 }}>
                         <Box component="span" sx={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {e.note || '—'}
@@ -365,7 +517,7 @@ export default function PasswordsPage() {
                   ))}
                   {entries.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={showFolderCol ? 6 : 5} sx={{ color: 'text.secondary' }}>
+                      <TableCell colSpan={showFolderCol ? 7 : 6} sx={{ color: 'text.secondary' }}>
                         {searching ? 'Ничего не найдено.' : 'Записей пока нет — нажмите «Создать».'}
                       </TableCell>
                     </TableRow>
@@ -387,6 +539,7 @@ export default function PasswordsPage() {
           </CardContent>
         </Card>
       </Box>
+      )}
 
       {/* Диалог папки */}
       <Dialog open={!!folderDlg} onClose={() => setFolderDlg(null)} maxWidth="xs" fullWidth>
@@ -446,6 +599,17 @@ export default function PasswordsPage() {
               input: {
                 endAdornment: (
                   <InputAdornment position="end">
+                    <Tooltip title="Сгенерировать по алгоритму">
+                      <span>
+                        <IconButton
+                          size="small"
+                          onClick={(e) => setGenMenu(e.currentTarget)}
+                          disabled={!generators.length}
+                        >
+                          <CasinoIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                     <IconButton size="small" onClick={() => setShowPass((v) => !v)} edge="end">
                       {showPass ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
                     </IconButton>
@@ -453,6 +617,24 @@ export default function PasswordsPage() {
                 ),
               },
             }}
+          />
+          {/* Выбор алгоритма генерации */}
+          <Menu anchorEl={genMenu} open={!!genMenu} onClose={() => setGenMenu(null)}>
+            {generators.map((g) => (
+              <MenuItem key={g.id} onClick={() => runGenerate(g)}>
+                <ListItemText
+                  primary={g.name}
+                  secondary={`${g.min_length}–${g.max_length}, ${describeGen(g)}`}
+                />
+              </MenuItem>
+            ))}
+          </Menu>
+          <TextField
+            label="Срок действия (пусто — навсегда)"
+            type="date"
+            value={form.expires_at}
+            onChange={(e) => setForm((f) => ({ ...f, expires_at: e.target.value }))}
+            slotProps={{ inputLabel: { shrink: true } }}
           />
           <TextField
             label="Доп. информация"
@@ -468,6 +650,77 @@ export default function PasswordsPage() {
             variant="contained"
             onClick={saveEntry}
             disabled={saving || !form.name.trim() || !form.password || !form.password_folder_id}
+          >
+            Сохранить
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Диалог алгоритма генерации */}
+      <Dialog open={!!genDlg} onClose={() => setGenDlg(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>{genDlg?.id ? 'Редактировать алгоритм' : 'Новый алгоритм'}</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pt: '8px !important' }}>
+          <TextField
+            autoFocus
+            label="Название"
+            value={genForm.name}
+            onChange={(e) => setGenForm((f) => ({ ...f, name: e.target.value }))}
+          />
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <TextField
+              label="Длина от"
+              type="number"
+              value={genForm.min_length}
+              onChange={(e) => setGenForm((f) => ({ ...f, min_length: Number(e.target.value) }))}
+              slotProps={{ htmlInput: { min: 4, max: 512 } }}
+              fullWidth
+            />
+            <TextField
+              label="Длина до"
+              type="number"
+              value={genForm.max_length}
+              onChange={(e) => setGenForm((f) => ({ ...f, max_length: Number(e.target.value) }))}
+              slotProps={{ htmlInput: { min: 4, max: 512 } }}
+              fullWidth
+            />
+          </Box>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
+            <FormControlLabel
+              control={<Checkbox checked={genForm.use_lower} onChange={(e) => setGenForm((f) => ({ ...f, use_lower: e.target.checked }))} />}
+              label="Строчные латиница (a–z)"
+            />
+            <FormControlLabel
+              control={<Checkbox checked={genForm.use_upper} onChange={(e) => setGenForm((f) => ({ ...f, use_upper: e.target.checked }))} />}
+              label="Заглавные латиница (A–Z)"
+            />
+            <FormControlLabel
+              control={<Checkbox checked={genForm.use_digits} onChange={(e) => setGenForm((f) => ({ ...f, use_digits: e.target.checked }))} />}
+              label="Цифры (0–9)"
+            />
+            <FormControlLabel
+              control={<Checkbox checked={genForm.use_symbols} onChange={(e) => setGenForm((f) => ({ ...f, use_symbols: e.target.checked }))} />}
+              label="Спецсимволы"
+            />
+          </Box>
+          {genForm.use_symbols && (
+            <TextField
+              label="Набор спецсимволов"
+              helperText="Символы, из которых будет выбираться пароль (например подчёркивание _)"
+              value={genForm.symbols}
+              onChange={(e) => setGenForm((f) => ({ ...f, symbols: e.target.value }))}
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setGenDlg(null)}>Отмена</Button>
+          <Button
+            variant="contained"
+            onClick={saveGen}
+            disabled={
+              saving || !genForm.name.trim()
+              || !(genForm.use_lower || genForm.use_upper || genForm.use_digits || genForm.use_symbols)
+              || genForm.min_length > genForm.max_length
+            }
           >
             Сохранить
           </Button>

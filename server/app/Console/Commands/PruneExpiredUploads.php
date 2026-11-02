@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\DeletedFile;
 use App\Models\Folder;
+use App\Models\PasswordEntry;
 use App\Models\Screenshot;
 use App\Models\ShareLink;
 use App\Models\StoredFile;
@@ -69,6 +70,10 @@ class PruneExpiredUploads extends Command
         $links = ShareLink::whereNotNull('expires_at')
             ->where('expires_at', '<=', now())->delete();
 
+        // Пароли с истёкшим сроком действия — без корзины, удаление сразу.
+        $passwords = PasswordEntry::whereNotNull('expires_at')
+            ->where('expires_at', '<=', now())->delete();
+
         // Недособранные чанковые загрузки старше суток
         $chunks = 0;
         foreach (Storage::directories('chunks') as $userDir) {
@@ -90,7 +95,7 @@ class PruneExpiredUploads extends Command
 
         $this->info("Expired → trash: {$screenshots->count()} shots, {$files->count()} files. "
             ."Purged: {$purgedShots} shots, {$purgedFiles} files, {$purgedFolders} folders. "
-            ."Tombstones: {$tombs}, links: {$links}, stale uploads: {$chunks}.");
+            ."Tombstones: {$tombs}, links: {$links}, passwords: {$passwords}, stale uploads: {$chunks}.");
 
         return self::SUCCESS;
     }

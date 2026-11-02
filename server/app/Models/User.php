@@ -75,6 +75,14 @@ class User extends Authenticatable
     }
 
     /**
+     * @return HasMany<PasswordGenerator, $this>
+     */
+    public function passwordGenerators(): HasMany
+    {
+        return $this->hasMany(PasswordGenerator::class);
+    }
+
+    /**
      * @return HasMany<Invite, $this>
      */
     public function invites(): HasMany

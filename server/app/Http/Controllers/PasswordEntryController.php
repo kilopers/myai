@@ -53,6 +53,7 @@ class PasswordEntryController extends Controller
             'login' => ['nullable', 'string', 'max:300'],
             'password' => ['required', 'string', 'max:2000'],
             'note' => ['nullable', 'string', 'max:5000'],
+            'expires_at' => ['nullable', 'date'],
         ]);
 
         $entry = $request->user()->passwordEntries()->create($validated);
@@ -74,6 +75,7 @@ class PasswordEntryController extends Controller
             'login' => ['nullable', 'string', 'max:300'],
             'password' => ['sometimes', 'string', 'max:2000'],
             'note' => ['nullable', 'string', 'max:5000'],
+            'expires_at' => ['nullable', 'date'],
         ]);
 
         $passwordEntry->update($validated);

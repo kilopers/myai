@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['user_id', 'password_folder_id', 'name', 'login', 'password', 'note'])]
+#[Fillable(['user_id', 'password_folder_id', 'name', 'login', 'password', 'note', 'expires_at'])]
 class PasswordEntry extends Model
 {
     protected function casts(): array
@@ -14,6 +14,7 @@ class PasswordEntry extends Model
         return [
             // Пароль лежит в БД зашифрованным ключом приложения.
             'password' => 'encrypted',
+            'expires_at' => 'datetime',
         ];
     }
 

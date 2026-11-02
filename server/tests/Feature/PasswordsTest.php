@@ -166,5 +166,96 @@ class PasswordsTest extends TestCase
     {
         $this->getJson('/api/password-folders')->assertUnauthorized();
         $this->getJson('/api/password-entries?password_folder_id=1')->assertUnauthorized();
+        $this->getJson('/api/password-generators')->assertUnauthorized();
+    }
+
+    public function test_generators_crud_and_generate(): void
+    {
+        $user = User::factory()->create();
+
+        $gen = $this->actingAs($user)->postJson('/api/password-generators', [
+            'name' => 'Только цифры',
+            'min_length' => 6,
+            'max_length' => 8,
+            'use_lower' => false,
+            'use_upper' => false,
+            'use_digits' => true,
+            'use_symbols' => false,
+        ])->assertCreated()->json('data');
+        $this->assertSame(6, $gen['min_length']);
+
+        // Без единого набора символов — 422.
+        $this->actingAs($user)->postJson('/api/password-generators', [
+            'name' => 'Пустой', 'min_length' => 8, 'max_length' => 8,
+            'use_lower' => false, 'use_upper' => false,
+            'use_digits' => false, 'use_symbols' => false,
+        ])->assertUnprocessable();
+        // max < min — 422.
+        $this->actingAs($user)->postJson('/api/password-generators', [
+            'name' => 'Наоборот', 'min_length' => 20, 'max_length' => 8, 'use_digits' => true,
+        ])->assertUnprocessable();
+
+        // Генерация: длина в диапазоне, только цифры.
+        for ($i = 0; $i < 20; $i++) {
+            $pwd = $this->actingAs($user)
+                ->postJson("/api/password-generators/{$gen['id']}/generate")
+                ->assertOk()->json('password');
+            $this->assertMatchesRegularExpression('/^\d{6,8}$/', $pwd);
+        }
+
+        // Чужой алгоритм недоступен.
+        $other = User::factory()->create();
+        $this->actingAs($other)->postJson("/api/password-generators/{$gen['id']}/generate")
+            ->assertForbidden();
+        $this->actingAs($other)->deleteJson("/api/password-generators/{$gen['id']}")
+            ->assertForbidden();
+
+        $this->actingAs($user)->deleteJson("/api/password-generators/{$gen['id']}")->assertOk();
+        $this->assertDatabaseMissing('password_generators', ['id' => $gen['id']]);
+    }
+
+    public function test_generate_contains_each_selected_pool(): void
+    {
+        $user = User::factory()->create();
+        $gen = $user->passwordGenerators()->create([
+            'name' => 'Полный', 'min_length' => 16, 'max_length' => 16,
+            'use_lower' => true, 'use_upper' => true,
+            'use_digits' => true, 'use_symbols' => true, 'symbols' => '_-',
+        ]);
+
+        $pwd = $this->actingAs($user)
+            ->postJson("/api/password-generators/{$gen->id}/generate")
+            ->assertOk()->json('password');
+        $this->assertSame(16, mb_strlen($pwd));
+        $this->assertMatchesRegularExpression('/[a-z]/', $pwd);
+        $this->assertMatchesRegularExpression('/[A-Z]/', $pwd);
+        $this->assertMatchesRegularExpression('/\d/', $pwd);
+        $this->assertMatchesRegularExpression('/[_-]/', $pwd);
+    }
+
+    public function test_expired_password_entry_is_pruned(): void
+    {
+        $user = User::factory()->create();
+        $folder = $user->passwordFolders()->create(['name' => 'Временные']);
+        $old = $user->passwordEntries()->create([
+            'password_folder_id' => $folder->id,
+            'name' => 'Протухший', 'password' => 'x',
+            'expires_at' => now()->subDay(),
+        ]);
+        $fresh = $user->passwordEntries()->create([
+            'password_folder_id' => $folder->id,
+            'name' => 'Живой', 'password' => 'x',
+            'expires_at' => now()->addMonth(),
+        ]);
+        $forever = $user->passwordEntries()->create([
+            'password_folder_id' => $folder->id,
+            'name' => 'Навсегда', 'password' => 'x',
+        ]);
+
+        $this->artisan('uploads:prune')->assertSuccessful();
+
+        $this->assertDatabaseMissing('password_entries', ['id' => $old->id]);
+        $this->assertDatabaseHas('password_entries', ['id' => $fresh->id]);
+        $this->assertDatabaseHas('password_entries', ['id' => $forever->id]);
     }
 }
