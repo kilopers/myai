@@ -19,10 +19,13 @@ class BoardTaskController extends Controller
         $column = BoardColumn::findOrFail($data['board_column_id']);
         abort_unless($column->board->user_id === $request->user()->id, 403);
 
+        // Новая задача — первой в колонке: раздвигаем остальные.
+        $column->tasks()->increment('position');
+
         $task = $column->tasks()->create([
             'title' => $data['title'],
             'text' => $data['text'] ?? null,
-            'position' => (int) $column->tasks()->max('position') + 1,
+            'position' => 0,
         ]);
 
         return response()->json($task, 201);
