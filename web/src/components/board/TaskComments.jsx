@@ -55,7 +55,7 @@ const chatAdapter = {
  * дата-разделители) + композер: текст, фото с камеры/устройства,
  * любой файл — отправка одним multipart-запросом.
  */
-export default function TaskComments({ taskId, onCount, onError }) {
+export default function TaskComments({ taskId, onCount, onError, apiBase = '/api', guestName = '' }) {
   const [comments, setComments] = useState(null);
   const [text, setText] = useState('');
   const [pending, setPending] = useState([]); // [{file, preview}]
@@ -68,7 +68,7 @@ export default function TaskComments({ taskId, onCount, onError }) {
 
   const load = useCallback(async () => {
     try {
-      const { data } = await client.get('/api/board-task-comments', {
+      const { data } = await client.get(`${apiBase}/board-task-comments`, {
         params: { board_task_id: taskId },
       });
       const list = data.data ?? data;
@@ -81,15 +81,19 @@ export default function TaskComments({ taskId, onCount, onError }) {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    client.get('/api/auth/me').then(({ data }) => setMe(data)).catch(() => {});
-  }, []);
+    if (guestName) {
+      setMe({ id: `guest:${guestName}`, name: guestName });
+    } else {
+      client.get('/api/auth/me').then(({ data }) => setMe(data)).catch(() => {});
+    }
+  }, [guestName]);
 
   // Миниатюры фото — blob'ами через Bearer
   useEffect(() => {
     (comments ?? []).flatMap((c) => c.attachments ?? [])
       .filter((a) => a.kind === 'photo' && !thumbs[a.id])
       .forEach((a) => {
-        client.get(`/api/board-task-attachments/${a.id}`, { responseType: 'blob' })
+        client.get(`${apiBase}/board-task-attachments/${a.id}`, { responseType: 'blob' })
           .then(({ data }) => setThumbs((t) => ({ ...t, [a.id]: URL.createObjectURL(data) })))
           .catch(() => {});
       });
@@ -122,9 +126,10 @@ export default function TaskComments({ taskId, onCount, onError }) {
     try {
       const fd = new FormData();
       fd.append('board_task_id', taskId);
+      if (guestName) fd.append('guest_name', guestName);
       if (body) fd.append('text', body);
       pending.forEach((p) => fd.append('files[]', p.file));
-      await client.post('/api/board-task-comments', fd);
+      await client.post(`${apiBase}/board-task-comments`, fd);
       pending.forEach((p) => URL.revokeObjectURL(p.preview));
       setPending([]);
       setText('');
@@ -138,7 +143,13 @@ export default function TaskComments({ taskId, onCount, onError }) {
 
   const removeComment = async (comment) => {
     try {
-      await client.delete(`/api/board-task-comments/${comment.id}`);
+      if (guestName) {
+        await client.post(`${apiBase}/board-task-comments/${comment.id}/delete`, {
+          guest_name: guestName,
+        });
+      } else {
+        await client.delete(`${apiBase}/board-task-comments/${comment.id}`);
+      }
       load();
     } catch {
       onError?.('Не удалось удалить комментарий');
@@ -147,7 +158,7 @@ export default function TaskComments({ taskId, onCount, onError }) {
 
   const download = async (att) => {
     try {
-      const { data } = await client.get(`/api/board-task-attachments/${att.id}`, { responseType: 'blob' });
+      const { data } = await client.get(`${apiBase}/board-task-attachments/${att.id}`, { responseType: 'blob' });
       const url = URL.createObjectURL(data);
       const a = document.createElement('a');
       a.href = url;
@@ -170,14 +181,14 @@ export default function TaskComments({ taskId, onCount, onError }) {
     createdAt: c.created_at,
     // role 'user' даёт класс MuiChatMessage-roleUser — по нему
     // смягчаем слишком насыщенный синий пузырь своих сообщений
-    role: me && c.user_id === me.id ? 'user' : 'assistant',
+    role: me && (c.user_id === me.id || (guestName && c.guest_name === me.name)) ? 'user' : 'assistant',
     author: { id: String(c.user_id ?? ''), displayName: c.user?.name ?? c.guest_name ?? 'Пользователь' },
     parts: [
       ...(c.text ? [{ type: 'text', text: c.text }] : []),
       ...(c.attachments ?? []).map((a) => a.kind === 'photo'
         ? { type: 'data-photo', id: `photo-${a.id}`, data: a }
         : { type: 'data-file', id: `file-${a.id}`, data: a }),
-      ...(me && c.user_id === me.id
+      ...(me && (c.user_id === me.id || (guestName && c.guest_name === me.name))
         ? [{ type: 'data-delete', id: `del-${c.id}`, data: c }] : []),
     ],
   })), [comments, me]); // eslint-disable-line react-hooks/exhaustive-deps

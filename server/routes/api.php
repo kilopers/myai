@@ -17,6 +17,7 @@ use App\Http\Controllers\PasswordEntryController;
 use App\Http\Controllers\PasswordFolderController;
 use App\Http\Controllers\PasswordGeneratorController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicBoardController;
 use App\Http\Controllers\PublicShareController;
 use App\Http\Controllers\ScreenshotController;
 use App\Http\Controllers\ShareLinkController;
@@ -50,10 +51,22 @@ Route::middleware('throttle:120,1')->group(function () {
     Route::get('/share/{token}/file/{uuid}/pages/{page}', [PublicShareController::class, 'page']);
     Route::get('/share/{token}/file/{uuid}/converted', [PublicShareController::class, 'converted']);
     Route::get('/share-shot/{uuid}', [PublicShareController::class, 'screenshot']);
-    // Гостевой просмотр доски по share_token (SPA-страница /b/:token)
-    Route::get('/public/boards/{token}', [BoardController::class, 'publicShow']);
-    Route::get('/public/boards/{token}/tasks/{task}/comments', [BoardController::class, 'publicComments']);
-    Route::post('/public/boards/{token}/tasks/{task}/comments', [BoardController::class, 'publicStoreComment']);
+    // Гостевая доска по share_token (SPA-страница /b/:token):
+    // просмотр + полное редактирование — токен ссылки и есть доступ.
+    Route::get('/public/boards/{token}', [PublicBoardController::class, 'show']);
+    Route::post('/public/boards/{token}/board-columns', [PublicBoardController::class, 'storeColumn']);
+    Route::put('/public/boards/{token}/board-columns/{column}', [PublicBoardController::class, 'updateColumn']);
+    Route::delete('/public/boards/{token}/board-columns/{column}', [PublicBoardController::class, 'destroyColumn']);
+    Route::put('/public/boards/{token}/board-columns/{column}/reorder-tasks', [PublicBoardController::class, 'reorderTasks']);
+    Route::post('/public/boards/{token}/board-tasks', [PublicBoardController::class, 'storeTask']);
+    Route::put('/public/boards/{token}/board-tasks/{task}', [PublicBoardController::class, 'updateTask']);
+    Route::delete('/public/boards/{token}/board-tasks/{task}', [PublicBoardController::class, 'destroyTask']);
+    Route::post('/public/boards/{token}/board-task-attachments', [PublicBoardController::class, 'storeAttachment']);
+    Route::get('/public/boards/{token}/board-task-attachments/{attachment}', [PublicBoardController::class, 'showAttachment']);
+    Route::delete('/public/boards/{token}/board-task-attachments/{attachment}', [PublicBoardController::class, 'destroyAttachment']);
+    Route::get('/public/boards/{token}/board-task-comments', [PublicBoardController::class, 'comments']);
+    Route::post('/public/boards/{token}/board-task-comments', [PublicBoardController::class, 'storeComment']);
+    Route::post('/public/boards/{token}/board-task-comments/{comment}/delete', [PublicBoardController::class, 'destroyComment']);
 });
 Route::post('/share/{token}/upload', [PublicShareController::class, 'upload'])
     ->middleware('throttle:30,1');

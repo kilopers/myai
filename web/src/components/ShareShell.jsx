@@ -2,16 +2,23 @@ import { AppBar, Box, Divider, Toolbar, Typography } from '@mui/material';
 
 /**
  * Минимальный каркас публичных страниц шаринга: только шапка
- * (название сервиса + имя объекта + действия справа), без меню
- * и сайдбара. Контент центрируется по вертикали.
+ * (иконка + название сервиса + имя объекта + действия справа)
+ * и футер в цвет шапки, без меню и сайдбара.
+ * fill — контент растягивается на всю высоту (доска), иначе центрируется.
  */
-export default function ShareShell({ title, actions, children }) {
+export default function ShareShell({ title, actions, children, fill = false }) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <AppBar position="fixed">
         <Toolbar variant="dense">
+          <Box
+            component="img"
+            src="/icons/icon-192.png"
+            alt=""
+            sx={{ width: 26, height: 26, borderRadius: 1, mr: 1.25 }}
+          />
           <Typography variant="h6" noWrap>Мой AI ассистент</Typography>
-          <Divider orientation="vertical" flexItem sx={{ mx: 2, borderColor: 'rgba(255,255,255,.35)' }} />
+          <Divider orientation="vertical" flexItem sx={{ mx: 2, borderColor: 'rgba(255,255,255,.18)' }} />
           <Typography variant="body1" noWrap sx={{ flexGrow: 1, minWidth: 0 }} title={title}>
             {title}
           </Typography>
@@ -25,9 +32,9 @@ export default function ShareShell({ title, actions, children }) {
           flexGrow: 1,
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          p: 2,
+          alignItems: fill ? 'stretch' : 'center',
+          justifyContent: fill ? 'flex-start' : 'center',
+          p: fill ? { xs: 1, md: 2 } : 2,
           minWidth: 0,
         }}
       >
@@ -36,8 +43,8 @@ export default function ShareShell({ title, actions, children }) {
       <Box
         component="footer"
         sx={{
-          bgcolor: 'primary.main',
-          color: 'primary.contrastText',
+          bgcolor: '#171321',
+          color: '#fff',
           py: 0.25,
           textAlign: 'center',
         }}

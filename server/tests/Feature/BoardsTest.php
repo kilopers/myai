@@ -198,16 +198,53 @@ class BoardsTest extends TestCase
             ->json('url') ? $board->fresh()->share_token : null;
 
         // Гость пишет комментарий под именем — user_id NULL
-        $c = $this->postJson("/api/public/boards/{$token}/tasks/{$task->id}/comments", [
-            'guest_name' => 'Иван Петров', 'text' => 'Привет',
+        $c = $this->postJson("/api/public/boards/{$token}/board-task-comments", [
+            'board_task_id' => $task->id, 'guest_name' => 'Иван Петров', 'text' => 'Привет',
         ])->assertCreated();
         $this->assertSame('Иван Петров', $c->json('guest_name'));
         $this->assertNull($c->json('user_id'));
-        $this->assertSame(1, $this->getJson("/api/public/boards/{$token}/tasks/{$task->id}/comments")
+        $this->assertSame(1, $this->getJson("/api/public/boards/{$token}/board-task-comments?board_task_id={$task->id}")
             ->assertOk()->json('*.guest_name') === ['Иван Петров'] ? 1 : 0);
+
+        // Гость удаляет свой комментарий — только под тем же именем
+        $this->postJson("/api/public/boards/{$token}/board-task-comments/{$c->json('id')}/delete", [
+            'guest_name' => 'Чужой',
+        ])->assertForbidden();
+        $this->postJson("/api/public/boards/{$token}/board-task-comments/{$c->json('id')}/delete", [
+            'guest_name' => 'Иван Петров',
+        ])->assertNoContent();
 
         // Отзыв ссылки — гостевой доступ закрыт
         $this->actingAs($user)->deleteJson("/api/boards/{$board->id}/share-link")->assertNoContent();
         $this->getJson("/api/public/boards/{$token}")->assertNotFound();
+    }
+
+    public function test_guest_full_board_editing(): void
+    {
+        $user = User::factory()->create();
+        $board = Board::create(['user_id' => $user->id, 'name' => 'B', 'prefix' => 'X']);
+        $this->actingAs($user)->postJson("/api/boards/{$board->id}/share-link")->assertOk();
+        $token = $board->fresh()->share_token;
+        $base = "/api/public/boards/{$token}";
+
+        // Колонка: создать, переименовать, задача, перенос, удаление
+        $col = $this->postJson("{$base}/board-columns", ['name' => 'ToDo', 'color' => '#526de3'])
+            ->assertCreated()->json('id');
+        $this->putJson("{$base}/board-columns/{$col}", ['name' => 'Doing'])->assertOk();
+        $task = $this->postJson("{$base}/board-tasks", ['board_column_id' => $col, 'title' => 'T1'])
+            ->assertCreated()->json('id');
+        $this->putJson("{$base}/board-tasks/{$task}", ['title' => 'T1*'])->assertOk();
+        $col2 = $this->postJson("{$base}/board-columns", ['name' => 'Done'])->assertCreated()->json('id');
+        $this->putJson("{$base}/board-tasks/{$task}", ['board_column_id' => $col2])->assertOk();
+        $this->putJson("{$base}/board-columns/{$col2}/reorder-tasks", ['task_ids' => [$task]])
+            ->assertNoContent();
+
+        // Чужая доска по тому же токену — 404
+        $other = Board::create(['user_id' => $user->id, 'name' => 'Secret']);
+        $this->putJson("{$base}/board-tasks/{$task}", ['board_column_id' => $other->columns()->create(['name' => 'x', 'position' => 0])->id])
+            ->assertNotFound();
+
+        $this->deleteJson("{$base}/board-tasks/{$task}")->assertNoContent();
+        $this->deleteJson("{$base}/board-columns/{$col}")->assertNoContent();
     }
 }

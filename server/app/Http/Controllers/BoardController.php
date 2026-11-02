@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Board;
-use App\Models\BoardTask;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -59,46 +58,6 @@ class BoardController extends Controller
         }
 
         return ['url' => "/b/{$board->share_token}"];
-    }
-
-    /** Публичный просмотр доски по токену — без авторизации, read-only. */
-    public function publicShow(string $token)
-    {
-        $board = Board::where('share_token', $token)->firstOrFail();
-
-        return [
-            'board' => $board->only('id', 'name', 'prefix'),
-            'columns' => $board->columns()->with([
-                'tasks' => fn ($q) => $q->withCount(['comments', 'attachments']),
-            ])->get(),
-        ];
-    }
-
-    /** Комментарии задачи публичной доски — токен должен совпасть. */
-    public function publicComments(string $token, BoardTask $task)
-    {
-        abort_unless($task->column->board->share_token === $token, 404);
-
-        return $task->comments()->with('user:id,name')->get();
-    }
-
-    /** Комментарий гостя: user_id пуст, имя — в guest_name. */
-    public function publicStoreComment(Request $request, string $token, BoardTask $task)
-    {
-        abort_unless($task->column->board->share_token === $token, 404);
-
-        $data = $request->validate([
-            'guest_name' => ['required', 'string', 'max:120'],
-            'text' => ['required', 'string', 'max:2000'],
-        ]);
-
-        $comment = $task->comments()->create([
-            'user_id' => null,
-            'guest_name' => trim($data['guest_name']),
-            'text' => trim($data['text']),
-        ]);
-
-        return response()->json($comment->load('user:id,name'), 201);
     }
 
     /** Отзыв гостевой ссылки — старый URL перестаёт работать. */

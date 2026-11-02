@@ -22,6 +22,7 @@ const fmtSize = (b) => (b >= 1048576
  * новая — файлы копятся в pending и уезжают после сохранения.
  */
 export default function TaskAttachments({
+  apiBase = '/api',
   taskId,
   attachments = [],
   pending = [],
@@ -38,7 +39,7 @@ export default function TaskAttachments({
     const photos = attachments.filter((a) => a.kind === 'photo');
     photos.forEach((a) => {
       if (thumbs[a.id]) return;
-      client.get(`/api/board-task-attachments/${a.id}`, { responseType: 'blob' })
+      client.get(`${apiBase}/board-task-attachments/${a.id}`, { responseType: 'blob' })
         .then(({ data }) => setThumbs((t) => ({ ...t, [a.id]: URL.createObjectURL(data) })))
         .catch(() => {});
     });
@@ -59,7 +60,7 @@ export default function TaskAttachments({
       const fd = new FormData();
       fd.append('board_task_id', taskId);
       fd.append('file', file);
-      await client.post('/api/board-task-attachments', fd);
+      await client.post(`${apiBase}/board-task-attachments`, fd);
       onChanged();
       return true;
     } catch {
@@ -70,7 +71,7 @@ export default function TaskAttachments({
 
   const remove = async (att) => {
     try {
-      await client.delete(`/api/board-task-attachments/${att.id}`);
+      await client.delete(`${apiBase}/board-task-attachments/${att.id}`);
       onChanged();
     } catch {
       onError?.('Не удалось удалить вложение');
@@ -79,7 +80,7 @@ export default function TaskAttachments({
 
   const download = async (att) => {
     try {
-      const { data } = await client.get(`/api/board-task-attachments/${att.id}`, { responseType: 'blob' });
+      const { data } = await client.get(`${apiBase}/board-task-attachments/${att.id}`, { responseType: 'blob' });
       const url = URL.createObjectURL(data);
       const a = document.createElement('a');
       a.href = url;

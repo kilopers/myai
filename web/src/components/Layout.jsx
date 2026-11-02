@@ -400,8 +400,8 @@ export default function Layout() {
           component="footer"
           sx={{
             mt: 'auto',
-            bgcolor: 'primary.main',
-            color: 'primary.contrastText',
+            bgcolor: '#171321',
+            color: '#fff',
             py: 0.25,
             textAlign: 'center',
             display: { xs: 'none', md: 'block' },
