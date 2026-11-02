@@ -171,7 +171,7 @@ export default function BoardPage() {
         </Box>
       ) : (
         <Box
-          sx={{ display: 'flex', gap: 1.5, alignItems: 'stretch', overflowX: 'auto', flex: 1, minHeight: 0, pb: 1 }}
+          sx={{ display: 'flex', gap: 1.5, alignItems: 'stretch', overflowX: 'auto', flex: 1, minHeight: 0, pb: 1, scrollSnapType: { xs: 'x mandatory', md: 'none' } }}
           onDragEnd={() => setDragTask(null)}
         >
           {columns.map((c) => (

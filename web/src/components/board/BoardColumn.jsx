@@ -13,8 +13,11 @@ export default function BoardColumn({
   return (
     <Box
       sx={{
-        width: 264,
+        // мобильная — на всю ширину (свайп между колонками),
+        // десктоп — стандартная ширина канбан-колонки
+        width: { xs: 'calc(100% - 8px)', md: 300 },
         flex: '0 0 auto',
+        scrollSnapAlign: 'start',
         bgcolor: 'rgba(0,0,0,0.04)',
         borderRadius: 1.5,
         display: 'flex',
