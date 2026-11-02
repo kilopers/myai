@@ -54,6 +54,41 @@ class PasswordsTest extends TestCase
         $this->assertDatabaseMissing('password_entries', ['id' => $entry['id']]);
     }
 
+    public function test_index_without_folder_returns_all_and_search_matches(): void
+    {
+        $user = User::factory()->create();
+        $work = $user->passwordFolders()->create(['name' => 'Работа']);
+        $home = $user->passwordFolders()->create(['name' => 'Личное']);
+        $user->passwordEntries()->create([
+            'password_folder_id' => $work->id,
+            'name' => 'GitLab',
+            'login' => 'admin@corp',
+            'password' => 'p1',
+            'note' => 'VPN required',
+        ]);
+        $user->passwordEntries()->create([
+            'password_folder_id' => $home->id,
+            'name' => 'Netflix',
+            'login' => 'me@mail',
+            'password' => 'p2',
+        ]);
+
+        // Без folder_id — весь справочник с именами папок.
+        $all = $this->actingAs($user)->getJson('/api/password-entries')->assertOk()->json('data');
+        $this->assertCount(2, $all);
+        $this->assertSame('Работа', collect($all)->firstWhere('name', 'GitLab')['folder']['name']);
+
+        // Поиск по любому совпадению: имя, логин, описание, папка.
+        $this->assertCount(1, $this->actingAs($user)->getJson('/api/password-entries?q=gitlab')->json('data'));
+        $this->assertCount(1, $this->actingAs($user)->getJson('/api/password-entries?q=admin@corp')->json('data'));
+        $this->assertCount(1, $this->actingAs($user)->getJson('/api/password-entries?q=VPN')->json('data'));
+        $this->assertCount(1, $this->actingAs($user)->getJson('/api/password-entries?q=Личное')->json('data'));
+        $this->assertCount(0, $this->actingAs($user)->getJson('/api/password-entries?q=zzz')->json('data'));
+        // Поиск не привязан к папке: «личное» находит и при folder_id=work? — нет, q+folder совместимы.
+        $this->assertCount(0, $this->actingAs($user)
+            ->getJson("/api/password-entries?password_folder_id={$work->id}&q=netflix")->json('data'));
+    }
+
     public function test_users_cannot_touch_foreign_passwords(): void
     {
         $owner = User::factory()->create();

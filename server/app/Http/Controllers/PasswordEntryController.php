@@ -11,14 +11,29 @@ use Illuminate\Validation\Rule;
 
 class PasswordEntryController extends Controller
 {
+    /**
+     * Без password_folder_id — весь справочник; q ищет по названию,
+     * логину, описанию и имени папки (поиск по всему справочнику).
+     */
     public function index(Request $request): AnonymousResourceCollection
     {
         $validated = $request->validate([
-            'password_folder_id' => ['required', 'integer'],
+            'password_folder_id' => ['nullable', 'integer'],
+            'q' => ['nullable', 'string', 'max:200'],
         ]);
 
         $entries = $request->user()->passwordEntries()
-            ->where('password_folder_id', $validated['password_folder_id'])
+            ->with('folder:id,name')
+            ->when($validated['password_folder_id'] ?? null,
+                fn ($query, $folderId) => $query->where('password_folder_id', $folderId))
+            ->when($validated['q'] ?? null, function ($query, $term) {
+                $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $term).'%';
+                $query->where(fn ($q) => $q
+                    ->where('name', 'like', $like)
+                    ->orWhere('login', 'like', $like)
+                    ->orWhere('note', 'like', $like)
+                    ->orWhereHas('folder', fn ($f) => $f->where('name', 'like', $like)));
+            })
             ->orderBy('name')
             ->get();
 
