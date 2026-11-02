@@ -1,0 +1,76 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\PasswordEntry;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Validation\Rule;
+
+class PasswordEntryController extends Controller
+{
+    public function index(Request $request): AnonymousResourceCollection
+    {
+        $validated = $request->validate([
+            'password_folder_id' => ['required', 'integer'],
+        ]);
+
+        $entries = $request->user()->passwordEntries()
+            ->where('password_folder_id', $validated['password_folder_id'])
+            ->orderBy('name')
+            ->get();
+
+        return JsonResource::collection($entries);
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'password_folder_id' => [
+                'required',
+                'integer',
+                Rule::exists('password_folders', 'id')->where('user_id', $request->user()->id),
+            ],
+            'name' => ['required', 'string', 'max:200'],
+            'login' => ['nullable', 'string', 'max:300'],
+            'password' => ['required', 'string', 'max:2000'],
+            'note' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $entry = $request->user()->passwordEntries()->create($validated);
+
+        return (new JsonResource($entry))->response()->setStatusCode(201);
+    }
+
+    public function update(Request $request, PasswordEntry $passwordEntry): JsonResource
+    {
+        abort_unless($passwordEntry->user_id === $request->user()->id, 403);
+
+        $validated = $request->validate([
+            'password_folder_id' => [
+                'sometimes',
+                'integer',
+                Rule::exists('password_folders', 'id')->where('user_id', $request->user()->id),
+            ],
+            'name' => ['sometimes', 'string', 'max:200'],
+            'login' => ['nullable', 'string', 'max:300'],
+            'password' => ['sometimes', 'string', 'max:2000'],
+            'note' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $passwordEntry->update($validated);
+
+        return new JsonResource($passwordEntry);
+    }
+
+    public function destroy(Request $request, PasswordEntry $passwordEntry): JsonResponse
+    {
+        abort_unless($passwordEntry->user_id === $request->user()->id, 403);
+
+        $passwordEntry->delete();
+
+        return response()->json(['message' => 'Deleted.']);
+    }
+}

@@ -9,6 +9,7 @@ import FilesPage from './pages/FilesPage';
 import TrashPage from './pages/TrashPage';
 import ReleasesPage from './pages/ReleasesPage';
 import StoragePage from './pages/StoragePage';
+import PasswordsPage from './pages/PasswordsPage';
 import SettingsPage from './pages/SettingsPage';
 import AdminPage from './pages/AdminPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
@@ -81,6 +82,7 @@ export default function App() {
         <Route path="/trash" element={<TrashPage />} />
         <Route path="/releases" element={<ReleasesPage />} />
         <Route path="/storage" element={<StoragePage />} />
+        <Route path="/passwords" element={<PasswordsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route
           path="/admin"

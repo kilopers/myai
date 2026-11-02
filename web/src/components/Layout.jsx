@@ -24,6 +24,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
 import StorageIcon from '@mui/icons-material/Storage';
+import KeyIcon from '@mui/icons-material/Key';
 import { Outlet, Link as RouterLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import client from '../api/client';
@@ -88,6 +89,7 @@ export default function Layout() {
   const items = [
     { to: '/', label: 'Скриншоты', icon: <ImageIcon /> },
     { to: '/files', label: 'Файлы', icon: <FolderIcon /> },
+    { to: '/passwords', label: 'Пароли', icon: <KeyIcon /> },
     { to: '/trash', label: 'Корзина', icon: <DeleteIcon /> },
     { to: '/releases', label: 'Релизы', icon: <SystemUpdateAltIcon /> },
     { to: '/storage', label: 'Хранилище', icon: <StorageIcon /> },

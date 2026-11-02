@@ -59,6 +59,22 @@ class User extends Authenticatable
     }
 
     /**
+     * @return HasMany<PasswordFolder, $this>
+     */
+    public function passwordFolders(): HasMany
+    {
+        return $this->hasMany(PasswordFolder::class);
+    }
+
+    /**
+     * @return HasMany<PasswordEntry, $this>
+     */
+    public function passwordEntries(): HasMany
+    {
+        return $this->hasMany(PasswordEntry::class);
+    }
+
+    /**
      * @return HasMany<Invite, $this>
      */
     public function invites(): HasMany
