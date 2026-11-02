@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
+import '@fontsource-variable/inter';
 import { AuthProvider } from './context/AuthContext';
 import App from './App';
 
@@ -20,7 +21,8 @@ const theme = createTheme({
   },
   shape: { borderRadius: 4 },
   typography: {
-    fontFamily: '-apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
+    // Self-hosted переменный Inter (один woff2 на все веса), дальше системные фолбэки.
+    fontFamily: '"Inter Variable", Inter, "Inter Fallback", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif',
     h5: { fontSize: '1.1rem', fontWeight: 600 },
     h6: { fontSize: '1rem', fontWeight: 600 },
     body2: { fontSize: '0.8125rem' },

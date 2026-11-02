@@ -6,6 +6,13 @@
 Актуальная версия — в файле `VERSION`.
 
 
+## 1.7.16
+
+- Основной шрифт интерфейса — self-hosted переменный Inter
+  (`@fontsource-variable/inter`, один woff2 на все веса, включая
+  кириллицу). Стек: `Inter Variable, Inter, Inter Fallback, Segoe UI,
+  -apple-system, BlinkMacSystemFont, Helvetica Neue, sans-serif`.
+
 ## 1.7.15
 
 - Раздел «Хранилище»: реальный замер `du` теперь раскладывается по
