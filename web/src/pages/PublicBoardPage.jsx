@@ -8,11 +8,13 @@ import {
   DialogContent,
   DialogTitle,
   Fab,
+  InputAdornment,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import SearchIcon from '@mui/icons-material/Search';
 import { useParams } from 'react-router-dom';
 import client from '../api/client';
 import AppDialog from '../components/AppDialog';
@@ -102,11 +104,28 @@ export default function PublicBoardPage() {
           fetchData={fetchData}
           guestName={displayName}
           height="calc(100dvh - 56px)"
-          header={({ board, openColumnCreate }) => (
+          header={({ board, openColumnCreate, query, setQuery }) => (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
               <Typography variant="h6" noWrap sx={{ flexGrow: 1, fontWeight: 600 }}>
                 {board?.name ?? <CircularProgress size={16} />}
               </Typography>
+              <TextField
+                size="small"
+                placeholder="Поиск по доске…"
+                autoComplete="off"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon fontSize="small" />
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+                sx={{ width: { xs: 140, sm: 220 } }}
+              />
               <Tooltip title="Добавить колонку">
                 <Fab size="small" color="primary" onClick={openColumnCreate}>
                   <AddIcon />

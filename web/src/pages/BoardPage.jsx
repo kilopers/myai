@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
-import { Fab, Link, Tooltip } from '@mui/material';
+import { Fab, InputAdornment, Link, TextField, Tooltip } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import SearchIcon from '@mui/icons-material/Search';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import client from '../api/client';
 import BoardCanvas from '../components/board/BoardCanvas';
@@ -30,7 +31,7 @@ export default function BoardPage() {
     <BoardCanvas
       apiBase="/api"
       fetchData={fetchData}
-      header={({ board, openColumnCreate }) => (
+      header={({ board, openColumnCreate, query, setQuery }) => (
         <PageHeader
           crumbs={(
             <Link component={RouterLink} to="/boards" underline="hover" color="inherit">
@@ -39,11 +40,30 @@ export default function BoardPage() {
           )}
           title={board?.name ?? '…'}
           actions={(
-            <Tooltip title="Добавить колонку">
-              <Fab size="small" color="primary" onClick={openColumnCreate}>
-                <AddIcon />
-              </Fab>
-            </Tooltip>
+            <>
+              <TextField
+                size="small"
+                placeholder="Поиск по доске…"
+                autoComplete="off"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon fontSize="small" />
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+                sx={{ width: { xs: 140, sm: 220 } }}
+              />
+              <Tooltip title="Добавить колонку">
+                <Fab size="small" color="primary" onClick={openColumnCreate}>
+                  <AddIcon />
+                </Fab>
+              </Tooltip>
+            </>
           )}
         />
       )}

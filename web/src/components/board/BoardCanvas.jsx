@@ -52,6 +52,7 @@ export default function BoardCanvas({
   const [taskDlg, setTaskDlg] = useState(null); // {mode:'create'|'edit', column, task, form, confirmDel}
   const [dragTask, setDragTask] = useState(null);
   const [moveAnchor, setMoveAnchor] = useState(null);
+  const [query, setQuery] = useState('');
   const [notice, setNotice] = useState('');
   const taskEditorRef = useRef(null);
 
@@ -226,6 +227,18 @@ export default function BoardCanvas({
     }
   };
 
+  // Живой поиск: подстрока в номере PREFIX-N, названии или тексте описания.
+  const q = query.trim().toLowerCase();
+  const visibleColumns = q === '' ? columns : columns?.map((c) => ({
+    ...c,
+    tasks: (c.tasks ?? []).filter((t) => {
+      const num = board?.prefix && t.number != null ? `${board.prefix}-${t.number}` : '';
+      const text = (t.text ?? '').replace(/<[^>]*>/g, ' ');
+      return [num, t.title, text]
+        .some((s) => (s ?? '').toLowerCase().includes(q));
+    }),
+  }));
+
   const openTaskCreate = (column) => setTaskDlg({
     mode: 'create', column, form: { ...emptyTask }, pending: [], tab: 0,
   });
@@ -242,7 +255,7 @@ export default function BoardCanvas({
       width: '100%',
     }}
     >
-      {header?.({ board, openColumnCreate })}
+      {header?.({ board, openColumnCreate, query, setQuery })}
       {!columns ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
           <CircularProgress size={28} />
@@ -252,7 +265,7 @@ export default function BoardCanvas({
           sx={{ display: 'flex', gap: 1.5, alignItems: 'stretch', overflowX: 'auto', flex: 1, minHeight: 0, pb: 1, scrollSnapType: { xs: 'x mandatory', md: 'none' } }}
           onDragEnd={() => setDragTask(null)}
         >
-          {columns.map((c) => (
+          {visibleColumns.map((c) => (
             <BoardColumn
               key={c.id}
               column={c}
