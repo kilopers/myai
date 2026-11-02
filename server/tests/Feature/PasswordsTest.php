@@ -233,6 +233,35 @@ class PasswordsTest extends TestCase
         $this->assertMatchesRegularExpression('/[_-]/', $pwd);
     }
 
+    public function test_generate_batch_returns_count_per_generator(): void
+    {
+        $user = User::factory()->create();
+        $a = $user->passwordGenerators()->create([
+            'name' => 'Цифры', 'min_length' => 6, 'max_length' => 6,
+            'use_lower' => false, 'use_upper' => false, 'use_digits' => true,
+        ]);
+        $b = $user->passwordGenerators()->create([
+            'name' => 'Буквы', 'min_length' => 8, 'max_length' => 8,
+            'use_lower' => true, 'use_digits' => false, 'use_upper' => false,
+        ]);
+
+        $res = $this->actingAs($user)->postJson('/api/password-generators/generate-batch')
+            ->assertOk()->json('passwords');
+
+        $this->assertCount(15, $res[(string) $a->id]);
+        $this->assertCount(15, $res[(string) $b->id]);
+        foreach ($res[(string) $a->id] as $pwd) {
+            $this->assertMatchesRegularExpression('/^\d{6}$/', $pwd);
+        }
+        foreach ($res[(string) $b->id] as $pwd) {
+            $this->assertMatchesRegularExpression('/^[a-z]{8}$/', $pwd);
+        }
+
+        // Свой count тоже работает, чужой юзер — свои алгоритмы.
+        $this->actingAs($user)->postJson('/api/password-generators/generate-batch', ['count' => 3])
+            ->assertOk()->assertJsonCount(3, "passwords.{$a->id}");
+    }
+
     public function test_expired_password_entry_is_pruned(): void
     {
         $user = User::factory()->create();

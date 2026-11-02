@@ -41,6 +41,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import FolderIcon from '@mui/icons-material/Folder';
 import KeyIcon from '@mui/icons-material/Key';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import SearchIcon from '@mui/icons-material/Search';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
@@ -84,6 +85,9 @@ export default function PasswordsPage() {
   const [genForm, setGenForm] = useState(emptyGen);
   // Меню «сгенерировать пароль» у поля пароля.
   const [genMenu, setGenMenu] = useState(null);
+  // Вкладка «Случайные пароли»: {genId: [пароли]} — грузится одним запросом.
+  const [genBatch, setGenBatch] = useState(null);
+  const [genBatchLoading, setGenBatchLoading] = useState(false);
 
   const loadFolders = useCallback(async () => {
     try {
@@ -119,6 +123,23 @@ export default function PasswordsPage() {
   }, []);
 
   useEffect(() => { loadFolders(); loadGenerators(); }, [loadFolders, loadGenerators]);
+
+  // Пакет «случайных паролей» — грузится при первом входе на вкладку.
+  const loadBatch = useCallback(async () => {
+    setGenBatchLoading(true);
+    try {
+      const { data } = await client.post('/api/password-generators/generate-batch');
+      setGenBatch(data.passwords ?? {});
+    } catch {
+      setGenBatch({});
+    } finally {
+      setGenBatchLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab === 2 && !genBatch && !genBatchLoading) loadBatch();
+  }, [tab, genBatch, genBatchLoading, loadBatch]);
   // Поиск с дебаунсом: непустой запрос ищет по всему справочнику,
   // пустой — показывает выбранную папку (или все записи при activeId=0).
   useEffect(() => {
@@ -177,7 +198,7 @@ export default function PasswordsPage() {
     }
   };
 
-  const openEntryDlg = (entry) => {
+  const openEntryDlg = (entry, presetPassword = '') => {
     setForm(entry ? {
       name: entry.name,
       login: entry.login ?? '',
@@ -187,6 +208,7 @@ export default function PasswordsPage() {
       password_folder_id: entry.password_folder_id,
     } : {
       ...emptyForm,
+      password: presetPassword,
       password_folder_id: activeId || folders?.[0]?.id || null,
     });
     setShowPass(false);
@@ -290,6 +312,18 @@ export default function PasswordsPage() {
     }
   };
 
+  // «В пароли» со вкладки случайных: пароль в буфер + диалог создания
+  // с уже подставленным паролем — остаётся ввести название/логин.
+  const sendToEntry = async (pwd) => {
+    openEntryDlg(null, pwd);
+    try {
+      await navigator.clipboard.writeText(pwd);
+      setMessage('Пароль скопирован и подставлен в новую запись');
+    } catch {
+      setMessage('Пароль подставлен в новую запись');
+    }
+  };
+
   const copyCellSx = {
     cursor: 'pointer',
     borderRadius: 1,
@@ -311,8 +345,69 @@ export default function PasswordsPage() {
       <Tabs value={tab} onChange={(e, v) => setTab(v)} sx={{ mb: 2 }}>
         <Tab label="Записи" />
         <Tab label="Алгоритмы генерации" />
+        <Tab label="Случайные пароли" />
       </Tabs>
-      {tab === 1 ? (
+      {tab === 2 ? (
+        <Card>
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+              <Typography variant="subtitle1">Случайные пароли</Typography>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<RefreshIcon />}
+                onClick={loadBatch}
+                disabled={genBatchLoading}
+              >
+                Обновить
+              </Button>
+            </Box>
+            {generators.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                Нет алгоритмов генерации — создайте их во вкладке «Алгоритмы генерации».
+              </Typography>
+            ) : (
+              <Box sx={{ display: 'flex', gap: 3, overflowX: 'auto', alignItems: 'flex-start' }}>
+                {generators.map((g) => (
+                  <Box key={g.id} sx={{ minWidth: 230, flex: '0 0 auto' }}>
+                    <Typography variant="subtitle2">{g.name}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                      {g.min_length}–{g.max_length}, {describeGen(g)}
+                    </Typography>
+                    {genBatchLoading && !genBatch ? (
+                      <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={20} /></Box>
+                    ) : (
+                      <List dense disablePadding>
+                        {(genBatch?.[g.id] ?? []).map((pwd, i) => (
+                          <Tooltip key={i} title="Клик — скопировать пароль" placement="left">
+                            <ListItemButton
+                              onClick={() => copy(pwd, 'Пароль')}
+                              sx={{ borderRadius: 1, py: 0.2, px: 0.5 }}
+                            >
+                              <ListItemText
+                                primary={pwd}
+                                primaryTypographyProps={{ fontFamily: 'monospace', fontSize: '0.78rem', noWrap: true }}
+                              />
+                              <Tooltip title="В пароли — создать запись с этим паролем">
+                                <IconButton
+                                  size="small"
+                                  onClick={(e) => { e.stopPropagation(); sendToEntry(pwd); }}
+                                >
+                                  <KeyIcon sx={{ fontSize: 14 }} />
+                                </IconButton>
+                              </Tooltip>
+                            </ListItemButton>
+                          </Tooltip>
+                        ))}
+                      </List>
+                    )}
+                  </Box>
+                ))}
+              </Box>
+            )}
+          </CardContent>
+        </Card>
+      ) : tab === 1 ? (
         <Card>
           <CardContent>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
@@ -582,17 +677,21 @@ export default function PasswordsPage() {
           <TextField
             autoFocus
             label="Название"
+            autoComplete="off"
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
           />
           <TextField
             label="Логин"
+            autoComplete="off"
             value={form.login}
             onChange={(e) => setForm((f) => ({ ...f, login: e.target.value }))}
           />
           <TextField
             label="Пароль"
             type={showPass ? 'text' : 'password'}
+            // new-password — браузер не подставляет сохранённые пароли в форму записи.
+            autoComplete="new-password"
             value={form.password}
             onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
             slotProps={{
@@ -640,6 +739,7 @@ export default function PasswordsPage() {
             label="Доп. информация"
             multiline
             minRows={2}
+            autoComplete="off"
             value={form.note}
             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
           />

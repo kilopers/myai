@@ -74,6 +74,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('password-folders', PasswordFolderController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('password-entries', PasswordEntryController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('password-generators', PasswordGeneratorController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::post('/password-generators/generate-batch', [PasswordGeneratorController::class, 'generateBatch']);
     Route::post('/password-generators/{passwordGenerator}/generate', [PasswordGeneratorController::class, 'generate']);
     Route::apiResource('files', FileController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
     Route::get('/files/{file}/download', [FileController::class, 'download']);

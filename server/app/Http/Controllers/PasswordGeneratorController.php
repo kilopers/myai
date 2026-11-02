@@ -47,6 +47,27 @@ class PasswordGeneratorController extends Controller
     }
 
     /**
+     * Пакетная генерация для вкладки «Случайные пароли»:
+     * по count паролей на каждый алгоритм пользователя одним запросом.
+     */
+    public function generateBatch(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'count' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+        $count = $validated['count'] ?? 15;
+
+        $batches = $request->user()->passwordGenerators()
+            ->orderBy('name')
+            ->get()
+            ->mapWithKeys(fn (PasswordGenerator $g) => [
+                $g->id => collect(range(1, $count))->map(fn () => $g->generate())->all(),
+            ]);
+
+        return response()->json(['passwords' => $batches]);
+    }
+
+    /**
      * Выдать свежий пароль по алгоритму — фронт кладёт его в поле
      * формы и сразу копирует в буфер обмена.
      */
