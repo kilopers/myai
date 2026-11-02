@@ -1,5 +1,6 @@
-import { Box, Typography } from '@mui/material';
+import { Box, Chip, Typography } from '@mui/material';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
+import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 
 /** HTML описания задачи → однострочный текст для превью карточки. */
 const plainText = (html) => {
@@ -14,6 +15,7 @@ const plainText = (html) => {
  */
 export default function BoardTask({ task, onClick, onDragStart }) {
   const attCount = task.attachments?.length ?? 0;
+  const commentsCount = task.comments_count ?? 0;
   return (
     <Box
       draggable
@@ -64,15 +66,34 @@ export default function BoardTask({ task, onClick, onDragStart }) {
           {plainText(task.text)}
         </Typography>
       ) : null}
-      {attCount > 0 && (
-        <Box sx={{
-          display: 'flex', alignItems: 'center', gap: 0.25,
-          mt: 0.5, color: 'text.secondary',
-        }}>
-          <AttachFileIcon sx={{ fontSize: 13 }} />
-          <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
-            {attCount}
-          </Typography>
+      {(attCount > 0 || commentsCount > 0) && (
+        <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5 }}>
+          {attCount > 0 && (
+            <Chip
+              icon={<AttachFileIcon />}
+              label={attCount}
+              size="small"
+              variant="outlined"
+              sx={{
+                height: 20, fontSize: '0.7rem',
+                '& .MuiChip-icon': { fontSize: 13, ml: 0.75 },
+                '& .MuiChip-label': { px: 0.5 },
+              }}
+            />
+          )}
+          {commentsCount > 0 && (
+            <Chip
+              icon={<ChatBubbleOutlineIcon />}
+              label={commentsCount}
+              size="small"
+              variant="outlined"
+              sx={{
+                height: 20, fontSize: '0.7rem',
+                '& .MuiChip-icon': { fontSize: 13, ml: 0.75 },
+                '& .MuiChip-label': { px: 0.5 },
+              }}
+            />
+          )}
         </Box>
       )}
     </Box>
