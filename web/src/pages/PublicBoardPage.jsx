@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import ChatBubbleOutlineOutlinedIcon from '@mui/icons-material/ChatBubbleOutlineOutlined';
+import SendIcon from '@mui/icons-material/Send';
 import { useParams } from 'react-router-dom';
 import client from '../api/client';
 import AppDialog from '../components/AppDialog';
@@ -51,6 +52,10 @@ export default function PublicBoardPage() {
   const [guestName, setGuestName] = useState(() => localStorage.getItem(NAME_KEY) ?? '');
   const [nameDlg, setNameDlg] = useState(false);
   const [nameInput, setNameInput] = useState('');
+  const [open, setOpen] = useState(null); // открытая задача
+  const [comments, setComments] = useState(null);
+  const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     client.get(`/api/public/boards/${token}`)
@@ -65,6 +70,31 @@ export default function PublicBoardPage() {
 
   const displayName = user?.name ?? guestName;
   const ini = initials(displayName);
+
+  const openTask = (t) => {
+    setOpen(t);
+    setComments(null);
+    setText('');
+    client.get(`/api/public/boards/${token}/tasks/${t.id}/comments`)
+      .then((r) => setComments(r.data))
+      .catch(() => setComments([]));
+  };
+
+  const sendComment = async () => {
+    const t = text.trim();
+    if (!t || !open) return;
+    setSending(true);
+    try {
+      const { data } = await client.post(
+        `/api/public/boards/${token}/tasks/${open.id}/comments`,
+        { guest_name: displayName || 'Гость', text: t },
+      );
+      setComments((cs) => [...(cs ?? []), data]);
+      setText('');
+    } finally {
+      setSending(false);
+    }
+  };
 
   const saveName = () => {
     const n = nameInput.trim();
@@ -141,6 +171,7 @@ export default function PublicBoardPage() {
                 {(c.tasks ?? []).map((t) => (
                   <Box
                     key={t.id}
+                    onClick={() => openTask(t)}
                     sx={{
                       position: 'relative',
                       bgcolor: 'background.paper',
@@ -148,7 +179,9 @@ export default function PublicBoardPage() {
                       px: 1,
                       py: 0.75,
                       mb: 0.75,
+                      cursor: 'pointer',
                       boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
+                      '&:hover': { boxShadow: '0 2px 5px rgba(0,0,0,0.2)' },
                     }}
                   >
                     {data.board.prefix && t.number != null && (
@@ -218,6 +251,53 @@ export default function PublicBoardPage() {
           ))}
         </Box>
       )}
+
+      {/* Задача гостя: обсуждение — чужие и свои комментарии + ввод */}
+      <AppDialog open={!!open} onClose={() => setOpen(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>{open?.title}</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1, minHeight: 200 }}>
+          {!comments ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={22} /></Box>
+          ) : comments.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">Комментариев нет — напишите первым.</Typography>
+          ) : (
+            comments.map((c) => (
+              <Box key={c.id} sx={{ display: 'flex', gap: 0.75, alignItems: 'flex-start' }}>
+                <Avatar sx={{ width: 22, height: 22, fontSize: 10, mt: 0.25 }}>
+                  {initials(c.user?.name ?? c.guest_name)}
+                </Avatar>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                    {c.user?.name ?? c.guest_name ?? 'Гость'}
+                    <Box component="span" sx={{ fontWeight: 400, color: 'text.secondary', ml: 0.75 }}>
+                      {fmtCreated(c.created_at)}
+                    </Box>
+                  </Typography>
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{c.text}</Typography>
+                </Box>
+              </Box>
+            ))
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, alignItems: 'flex-end' }}>
+          <TextField
+            size="small"
+            fullWidth
+            multiline
+            maxRows={4}
+            placeholder={displayName ? `Комментарий от ${displayName}…` : 'Введите имя, чтобы писать'}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendComment(); }
+            }}
+            disabled={!displayName}
+          />
+          <IconButton color="primary" onClick={sendComment} disabled={!text.trim() || sending || !displayName}>
+            <SendIcon fontSize="small" />
+          </IconButton>
+        </DialogActions>
+      </AppDialog>
 
       {/* Имя гостя — пока не введено, спрашиваем при каждом открытии */}
       <AppDialog open={nameDlg} onClose={() => guestName && setNameDlg(false)} maxWidth="xs" fullWidth>

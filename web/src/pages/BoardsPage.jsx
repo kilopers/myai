@@ -13,6 +13,7 @@ import {
   Typography,
 } from '@mui/material';
 import LinkIcon from '@mui/icons-material/Link';
+import LinkOffIcon from '@mui/icons-material/LinkOff';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
@@ -93,21 +94,43 @@ export default function BoardsPage() {
             }}
             fetch={fetchBoards}
             extraActions={(b) => (
-              <IconButton
-                size="small"
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  try {
-                    const { data } = await client.post(`/api/boards/${b.id}/share-link`);
-                    await navigator.clipboard.writeText(location.origin + data.url);
-                    setNotice('Гостевая ссылка скопирована');
-                  } catch {
-                    setNotice('Не удалось создать ссылку');
-                  }
-                }}
-              >
-                <LinkIcon sx={{ fontSize: 16 }} />
-              </IconButton>
+              <>
+                <IconButton
+                  size="small"
+                  title="Гостевая ссылка — скопировать"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    try {
+                      const { data } = await client.post(`/api/boards/${b.id}/share-link`);
+                      await navigator.clipboard.writeText(location.origin + data.url);
+                      setNotice('Гостевая ссылка скопирована');
+                      setRefKey((k) => k + 1);
+                    } catch {
+                      setNotice('Не удалось создать ссылку');
+                    }
+                  }}
+                >
+                  <LinkIcon sx={{ fontSize: 16 }} color={b.share_token ? 'primary' : undefined} />
+                </IconButton>
+                {b.share_token && (
+                  <IconButton
+                    size="small"
+                    title="Отключить гостевой доступ"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        await client.delete(`/api/boards/${b.id}/share-link`);
+                        setNotice('Гостевая ссылка отключена');
+                        setRefKey((k) => k + 1);
+                      } catch {
+                        setNotice('Не удалось отключить ссылку');
+                      }
+                    }}
+                  >
+                    <LinkOffIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                )}
+              </>
             )}
             onAdd={() => setNameDlg({ mode: 'create', name: '', prefix: '' })}
             onEdit={(b) => setNameDlg({ mode: 'edit', board: b, name: b.name, prefix: b.prefix ?? '' })}

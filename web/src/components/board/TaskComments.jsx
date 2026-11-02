@@ -171,7 +171,7 @@ export default function TaskComments({ taskId, onCount, onError }) {
     // role 'user' даёт класс MuiChatMessage-roleUser — по нему
     // смягчаем слишком насыщенный синий пузырь своих сообщений
     role: me && c.user_id === me.id ? 'user' : 'assistant',
-    author: { id: String(c.user_id ?? ''), displayName: c.user?.name ?? 'Пользователь' },
+    author: { id: String(c.user_id ?? ''), displayName: c.user?.name ?? c.guest_name ?? 'Пользователь' },
     parts: [
       ...(c.text ? [{ type: 'text', text: c.text }] : []),
       ...(c.attachments ?? []).map((a) => a.kind === 'photo'

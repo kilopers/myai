@@ -186,4 +186,28 @@ class BoardsTest extends TestCase
         $this->assertSame('B', $res->json('board.name'));
         $this->assertSame(1, $res->json('columns.0.tasks.0.number'));
     }
+
+    public function test_guest_comments_and_share_revoke(): void
+    {
+        $user = User::factory()->create();
+        $board = Board::create(['user_id' => $user->id, 'name' => 'B']);
+        $col = $board->columns()->create(['name' => 'C', 'color' => '#fff000', 'position' => 0]);
+        $this->actingAs($user)->postJson('/api/board-tasks', ['board_column_id' => $col->id, 'title' => 'T']);
+        $task = $col->tasks()->first();
+        $token = $this->actingAs($user)->postJson("/api/boards/{$board->id}/share-link")->assertOk()
+            ->json('url') ? $board->fresh()->share_token : null;
+
+        // Гость пишет комментарий под именем — user_id NULL
+        $c = $this->postJson("/api/public/boards/{$token}/tasks/{$task->id}/comments", [
+            'guest_name' => 'Иван Петров', 'text' => 'Привет',
+        ])->assertCreated();
+        $this->assertSame('Иван Петров', $c->json('guest_name'));
+        $this->assertNull($c->json('user_id'));
+        $this->assertSame(1, $this->getJson("/api/public/boards/{$token}/tasks/{$task->id}/comments")
+            ->assertOk()->json('*.guest_name') === ['Иван Петров'] ? 1 : 0);
+
+        // Отзыв ссылки — гостевой доступ закрыт
+        $this->actingAs($user)->deleteJson("/api/boards/{$board->id}/share-link")->assertNoContent();
+        $this->getJson("/api/public/boards/{$token}")->assertNotFound();
+    }
 }

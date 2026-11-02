@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['board_task_id', 'user_id', 'text'])]
+#[Fillable(['board_task_id', 'user_id', 'guest_name', 'text'])]
 class BoardTaskComment extends Model
 {
     /**

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Board;
+use App\Models\BoardTask;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -71,6 +72,43 @@ class BoardController extends Controller
                 'tasks' => fn ($q) => $q->withCount(['comments', 'attachments']),
             ])->get(),
         ];
+    }
+
+    /** Комментарии задачи публичной доски — токен должен совпасть. */
+    public function publicComments(string $token, BoardTask $task)
+    {
+        abort_unless($task->column->board->share_token === $token, 404);
+
+        return $task->comments()->with('user:id,name')->get();
+    }
+
+    /** Комментарий гостя: user_id пуст, имя — в guest_name. */
+    public function publicStoreComment(Request $request, string $token, BoardTask $task)
+    {
+        abort_unless($task->column->board->share_token === $token, 404);
+
+        $data = $request->validate([
+            'guest_name' => ['required', 'string', 'max:120'],
+            'text' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $comment = $task->comments()->create([
+            'user_id' => null,
+            'guest_name' => trim($data['guest_name']),
+            'text' => trim($data['text']),
+        ]);
+
+        return response()->json($comment->load('user:id,name'), 201);
+    }
+
+    /** Отзыв гостевой ссылки — старый URL перестаёт работать. */
+    public function revokeShareLink(Request $request, Board $board)
+    {
+        abort_unless($board->user_id === $request->user()->id, 403);
+
+        $board->update(['share_token' => null]);
+
+        return response()->noContent();
     }
 
     public function destroy(Request $request, Board $board)
