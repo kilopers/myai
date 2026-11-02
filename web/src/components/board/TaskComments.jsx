@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Alert from '@mui/material/Alert';
+import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
@@ -7,10 +9,12 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import CloseIcon from '@mui/icons-material/Close';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
+import DeleteIcon from '@mui/icons-material/Delete';
 import DownloadIcon from '@mui/icons-material/Download';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import SendIcon from '@mui/icons-material/Send';
+import { ChatDateDivider, ChatMessage, ChatMessageGroup } from '@mui/x-chat';
+import { ChatProvider } from '@mui/x-chat-headless';
 import client from '../../api/client';
 import CameraCapture from '../CameraCapture';
 import PhotoGallery from '../PhotoGallery';
@@ -19,14 +23,37 @@ const fmtSize = (b) => (b >= 1048576
   ? `${(b / 1048576).toFixed(1)} МБ`
   : `${Math.max(1, Math.round(b / 1024))} КБ`);
 
-const fmtTime = (iso) => new Date(iso).toLocaleString('ru-RU', {
-  day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
-});
+const stringToColor = (s) => {
+  let hash = 0;
+  for (let i = 0; i < s.length; i += 1) hash = s.charCodeAt(i) + ((hash << 5) - hash);
+  let color = '#';
+  for (let i = 0; i < 3; i += 1) color += `00${((hash >> (i * 8)) & 0xff).toString(16)}`.slice(-2);
+  return color;
+};
+
+const avatarProps = (name) => {
+  const initials = (name || '?').trim().split(/\s+/).filter(Boolean)
+    .slice(0, 2).map((p) => p[0].toUpperCase()).join('');
+  const bg = stringToColor(name || '?');
+  const lum = 0.299 * parseInt(bg.slice(1, 3), 16)
+    + 0.587 * parseInt(bg.slice(3, 5), 16)
+    + 0.114 * parseInt(bg.slice(5, 7), 16);
+  return {
+    sx: { bgcolor: bg, color: lum > 128 ? 'rgba(0,0,0,0.87)' : '#fff', width: 36, height: 36, fontSize: 14 },
+    children: initials || '?',
+  };
+};
+
+// Лента read-only: отправка идёт своим multipart-запросом,
+// адаптер провайдеру — заглушка, sendMessage не вызывается.
+const chatAdapter = {
+  sendMessage: async () => new ReadableStream({ start: (c) => c.close() }),
+};
 
 /**
- * Обсуждение задачи: лента комментариев (автор, время, текст,
- * фото-превью и файлы) + композер: текст, фото с камеры/устройства,
- * любой файл — отправляется одним multipart-запросом.
+ * Обсуждение задачи: чат-лента на @mui/x-chat (пузыри, аватары,
+ * дата-разделители) + композер: текст, фото с камеры/устройства,
+ * любой файл — отправка одним multipart-запросом.
  */
 export default function TaskComments({ taskId, onCount, onError }) {
   const [comments, setComments] = useState(null);
@@ -44,8 +71,9 @@ export default function TaskComments({ taskId, onCount, onError }) {
       const { data } = await client.get('/api/board-task-comments', {
         params: { board_task_id: taskId },
       });
-      setComments(data.data ?? data);
-      onCount?.((data.data ?? data).length);
+      const list = data.data ?? data;
+      setComments(list);
+      onCount?.(list.length);
     } catch {
       onError?.('Не удалось загрузить комментарии');
     }
@@ -136,98 +164,131 @@ export default function TaskComments({ taskId, onCount, onError }) {
     .filter((a) => a.kind === 'photo' && thumbs[a.id])
     .map((a) => ({ url: thumbs[a.id], name: a.name }));
 
-  const openGallery = (att) => {
-    const idx = allPhotos.findIndex((p) => p.url === thumbs[att.id]);
-    if (idx >= 0) setGallery({ index: idx });
-  };
+  // Комментарии → сообщения чата: текст + фото + файлы + маркер своего
+  const chatMessages = useMemo(() => (comments ?? []).map((c) => ({
+    id: String(c.id),
+    author: { id: String(c.user_id ?? ''), displayName: c.user?.name ?? 'Пользователь' },
+    parts: [
+      ...(c.text ? [{ type: 'text', text: c.text }] : []),
+      ...(c.attachments ?? []).map((a) => a.kind === 'photo'
+        ? { type: 'data-photo', id: `photo-${a.id}`, data: a }
+        : { type: 'data-file', id: `file-${a.id}`, data: a }),
+      ...(me && c.user_id === me.id
+        ? [{ type: 'data-delete', id: `del-${c.id}`, data: c }] : []),
+    ],
+  })), [comments, me]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const partRenderers = useMemo(() => ({
+    text: ({ part }) => (
+      <Box sx={{ whiteSpace: 'pre-wrap' }}>{part.text}</Box>
+    ),
+    'data-photo': ({ part, message }) => {
+      const photos = message.parts
+        .filter((p) => p.type === 'data-photo')
+        .map((p) => p.data);
+      const index = photos.findIndex((p) => p.id === part.data.id);
+      const url = thumbs[part.data.id];
+      if (!url) return null;
+      return (
+        <Box
+          component="img"
+          src={url}
+          alt={part.data.name}
+          onClick={() => {
+            const gi = allPhotos.findIndex((p) => p.url === url);
+            if (gi >= 0) setGallery({ index: gi });
+          }}
+          sx={{
+            display: 'block',
+            maxWidth: '65%',
+            maxHeight: 200,
+            borderRadius: 1,
+            mt: 0.5,
+            cursor: 'zoom-in',
+            objectFit: 'cover',
+          }}
+        />
+      );
+    },
+    'data-file': ({ part }) => (
+      <Box
+        onClick={() => download(part.data)}
+        sx={{
+          display: 'flex', alignItems: 'center', gap: 0.75,
+          border: 1, borderColor: 'divider', borderRadius: 1,
+          px: 1, py: 0.5, mt: 0.5, cursor: 'pointer',
+          bgcolor: 'background.paper',
+          '&:hover': { bgcolor: 'action.hover' },
+        }}
+      >
+        <InsertDriveFileIcon fontSize="small" color="action" />
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="caption" display="block" noWrap sx={{ maxWidth: 200 }}>
+            {part.data.name}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {fmtSize(part.data.size)}
+          </Typography>
+        </Box>
+        <DownloadIcon fontSize="small" color="action" />
+      </Box>
+    ),
+    'data-delete': ({ part }) => (
+      <Tooltip title="Удалить комментарий" key={part.id}>
+        <IconButton
+          size="small"
+          onClick={() => removeComment(part.data)}
+          sx={{ mt: 0.25, p: 0.25, color: 'error.main' }}
+        >
+          <DeleteIcon sx={{ fontSize: 14 }} />
+        </IconButton>
+      </Tooltip>
+    ),
+  }), [thumbs, allPhotos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pendingPhotos = pending.filter((p) => p.file.type.startsWith('image/'));
   const pendingFiles = pending.filter((p) => !p.file.type.startsWith('image/'));
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 300 }}>
-      <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0, py: 1 }}>
+      <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0, py: 1, overflowX: 'hidden' }}>
         {!comments ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress size={26} />
           </Box>
         ) : comments.length === 0 ? (
-          <Typography variant="body2" color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
+          <Alert severity="info" sx={{ mb: 1 }}>
             Комментариев пока нет — напишите первым.
-          </Typography>
+          </Alert>
         ) : (
-          comments.map((c) => (
-            <Box
-              key={c.id}
-              sx={{
-                mb: 1, mx: { xs: 0, sm: 1 },
-                border: 1, borderColor: 'divider', borderRadius: 2,
-                px: 1.5, py: 1, bgcolor: 'background.paper',
-              }}
+          <Box sx={{ mb: 1 }}>
+            <ChatProvider
+              adapter={chatAdapter}
+              messages={chatMessages}
+              currentUser={me ? { id: String(me.id), role: 'user' } : undefined}
+              partRenderers={partRenderers}
             >
-              <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {c.user?.name ?? 'Пользователь'}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {fmtTime(c.created_at)}
-                </Typography>
-                <Box sx={{ flex: 1 }} />
-                {me && c.user_id === me.id && (
-                  <IconButton size="small" onClick={() => removeComment(c)}>
-                    <DeleteOutlineIcon sx={{ fontSize: 16 }} />
-                  </IconButton>
-                )}
-              </Box>
-              {c.text && (
-                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mt: 0.25 }}>
-                  {c.text}
-                </Typography>
-              )}
-              {(c.attachments ?? []).length > 0 && (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 0.75 }}>
-                  {c.attachments.map((a) => a.kind === 'photo' ? (
-                    thumbs[a.id] && (
-                      <Box
-                        key={a.id}
-                        component="img"
-                        src={thumbs[a.id]}
-                        alt={a.name}
-                        onClick={() => openGallery(a)}
-                        sx={{
-                          width: 56, height: 56, objectFit: 'cover',
-                          borderRadius: 1, cursor: 'pointer',
-                          border: 1, borderColor: 'divider',
-                        }}
-                      />
-                    )
-                  ) : (
-                    <Box
-                      key={a.id}
-                      onClick={() => download(a)}
-                      sx={{
-                        display: 'flex', alignItems: 'center', gap: 0.75,
-                        border: 1, borderColor: 'divider', borderRadius: 1,
-                        px: 1, py: 0.5, cursor: 'pointer',
-                        '&:hover': { bgcolor: 'action.hover' },
-                      }}
-                    >
-                      <InsertDriveFileIcon fontSize="small" color="action" />
-                      <Box>
-                        <Typography variant="caption" display="block" noWrap sx={{ maxWidth: 180 }}>
-                          {a.name}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {fmtSize(a.size)}
-                        </Typography>
-                      </Box>
-                      <DownloadIcon fontSize="small" color="action" />
-                    </Box>
-                  ))}
-                </Box>
-              )}
-            </Box>
-          ))
+              {chatMessages.map((message, index) => (
+                <Fragment key={message.id}>
+                  <ChatDateDivider
+                    messageId={message.id}
+                    index={index}
+                    shouldShowDivider={({ index: i, date, previousDate }) => (
+                      date != null && (i === 0 || previousDate == null
+                        || date.toDateString() !== previousDate.toDateString())
+                    )}
+                  />
+                  <ChatMessageGroup messageId={message.id} index={index}>
+                    <ChatMessage
+                      messageId={message.id}
+                      slots={{ avatar: <Avatar {...avatarProps(message.author.displayName)} /> }}
+                      sx={{ px: 0 }}
+                    />
+                  </ChatMessageGroup>
+                </Fragment>
+              ))}
+            </ChatProvider>
+          </Box>
         )}
         <Box ref={bottomRef} />
       </Box>
@@ -237,13 +298,14 @@ export default function TaskComments({ taskId, onCount, onError }) {
           {pendingPhotos.map((p) => (
             <Box key={p.preview} sx={{ position: 'relative' }}>
               <Box component="img" src={p.preview} alt={p.file.name}
-                sx={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 1 }} />
+                sx={{ display: 'block', width: 48, height: 48, objectFit: 'cover', borderRadius: 1 }} />
               <IconButton size="small" onClick={() => unstage(p)}
                 sx={{
-                  position: 'absolute', top: -6, right: -6, p: 0.25,
+                  position: 'absolute', top: -6, right: -6, width: 20, height: 20,
                   bgcolor: 'background.paper', boxShadow: 1,
+                  '&:hover': { bgcolor: 'background.paper' },
                 }}>
-                <CloseIcon sx={{ fontSize: 12 }} />
+                <CloseIcon sx={{ fontSize: 14 }} />
               </IconButton>
             </Box>
           ))}
