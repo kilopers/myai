@@ -137,7 +137,12 @@ export default function BoardPage() {
   });
 
   return (
-    <Box>
+    <Box sx={{
+      display: 'flex',
+      flexDirection: 'column',
+      // appbar (48) + паддинги Layout main (16 xs / 24 md сверху+снизу)
+      height: { xs: 'calc(100dvh - 80px)', md: 'calc(100dvh - 96px)' },
+    }}>
       <PageHeader
         crumbs={(
           <>
@@ -166,7 +171,7 @@ export default function BoardPage() {
         </Box>
       ) : (
         <Box
-          sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', overflowX: 'auto', pb: 1 }}
+          sx={{ display: 'flex', gap: 1.5, alignItems: 'stretch', overflowX: 'auto', flex: 1, minHeight: 0, pb: 1 }}
           onDragEnd={() => setDragTask(null)}
         >
           {columns.map((c) => (

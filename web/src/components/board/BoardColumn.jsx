@@ -19,7 +19,7 @@ export default function BoardColumn({
         borderRadius: 1.5,
         display: 'flex',
         flexDirection: 'column',
-        maxHeight: 'calc(100vh - 220px)',
+        height: '100%',
       }}
     >
       <Box
