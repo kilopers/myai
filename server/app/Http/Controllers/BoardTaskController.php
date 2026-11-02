@@ -13,7 +13,7 @@ class BoardTaskController extends Controller
         $data = $request->validate([
             'board_column_id' => ['required', 'integer'],
             'title' => ['required', 'string', 'max:200'],
-            'text' => ['nullable', 'string', 'max:10000'],
+            'text' => ['nullable', 'string'],
         ]);
 
         $column = BoardColumn::findOrFail($data['board_column_id']);
@@ -34,7 +34,7 @@ class BoardTaskController extends Controller
 
         $data = $request->validate([
             'title' => ['sometimes', 'required', 'string', 'max:200'],
-            'text' => ['nullable', 'string', 'max:10000'],
+            'text' => ['nullable', 'string'],
             'board_column_id' => ['sometimes', 'integer'],
             'position' => ['sometimes', 'integer', 'min:0'],
         ]);

@@ -5,6 +5,7 @@ import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import Image from '@tiptap/extension-image';
 import FormatBoldIcon from '@mui/icons-material/FormatBold';
 import FormatItalicIcon from '@mui/icons-material/FormatItalic';
 import FormatStrikethroughIcon from '@mui/icons-material/FormatStrikethrough';
@@ -18,14 +19,43 @@ import RedoIcon from '@mui/icons-material/Redo';
 /**
  * WYSIWYG-редактор на TipTap: хранит и отдаёт HTML через onChange(html).
  * Тулбар на MUI IconButton — единый стиль приложения.
+ * Картинки из буфера (Ctrl+V) и drag&drop встраиваются base64 —
+ * описание задачи лежит в board_tasks.text (longText).
  * value — HTML-строка; внешнее изменение (открытие другой задачи)
  * подхватывается через setContent.
  */
+const insertImages = (editor, files) => {
+  const images = [...files].filter((f) => f.type.startsWith('image/'));
+  if (images.length === 0) return false;
+  images.forEach((file) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      editor?.chain().focus()
+        .setImage({ src: reader.result, alt: file.name })
+        .run();
+    };
+    reader.readAsDataURL(file);
+  });
+  return true;
+};
+
 export default function RichTextEditor({ value, onChange, placeholder }) {
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: [StarterKit, Image],
     content: value || '',
     onUpdate: ({ editor: e }) => onChange(e.isEmpty ? '' : e.getHTML()),
+    editorProps: {
+      handlePaste: (_view, event) =>
+        insertImages(editor, event.clipboardData?.files ?? []),
+      handleDrop: (_view, event) => {
+        const files = event.dataTransfer?.files ?? [];
+        if (insertImages(editor, files)) {
+          event.preventDefault();
+          return true;
+        }
+        return false;
+      },
+    },
   });
 
   // Подхват смены редактируемой записи: контент меняем только
@@ -105,6 +135,9 @@ export default function RichTextEditor({ value, onChange, placeholder }) {
             '& blockquote': {
               borderLeft: '3px solid', borderColor: 'divider',
               m: 0, mb: 0.5, pl: 1.5, color: 'text.secondary',
+            },
+            '& img': {
+              maxWidth: '100%', borderRadius: 1, display: 'block',
             },
           },
           '& .ProseMirror p.is-editor-empty:first-of-type::before': {
