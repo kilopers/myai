@@ -48,7 +48,8 @@ export default function Layout() {
   const [folders, setFolders] = useState([]);
   const [boards, setBoards] = useState([]);
   // Свернутые/развёрнутые секции меню — хранится в БД (users.menu_state).
-  const [menuState, setMenuState] = useState({ files: true, boards: true });
+  const [menuState, setMenuState] = useState({ files: true, boards: true, passwords: true });
+  const [pwFolders, setPwFolders] = useState([]);
   useEffect(() => {
     if (user?.menu_state) setMenuState((s) => ({ ...s, ...user.menu_state }));
   }, [user?.menu_state]);
@@ -111,6 +112,22 @@ export default function Layout() {
     return () => window.removeEventListener('boards-changed', onChanged);
   }, [loadBoards, location.pathname]);
 
+  const loadPwFolders = useCallback(async () => {
+    try {
+      const { data } = await client.get('/api/password-folders');
+      setPwFolders(data.data ?? data);
+    } catch {
+      /* список папок не критичен */
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPwFolders();
+    const onChanged = () => loadPwFolders();
+    window.addEventListener('password-folders-changed', onChanged);
+    return () => window.removeEventListener('password-folders-changed', onChanged);
+  }, [loadPwFolders, location.pathname]);
+
   const toggle = () => {
     setOpen((v) => {
       localStorage.setItem(OPEN_KEY, v ? '0' : '1');
@@ -121,7 +138,7 @@ export default function Layout() {
   const items = [
     { to: '/', label: 'Скриншоты', icon: <ImageIcon /> },
     { to: '/files', label: 'Файлы', icon: <FolderIcon />, section: 'files' },
-    { to: '/passwords', label: 'Пароли', icon: <KeyIcon /> },
+    { to: '/passwords', label: 'Пароли', icon: <KeyIcon />, section: 'passwords' },
     { to: '/boards', label: 'Доски', icon: <ViewKanbanIcon />, section: 'boards' },
     { to: '/trash', label: 'Корзина', icon: <DeleteIcon /> },
     { to: '/releases', label: 'Релизы', icon: <SystemUpdateAltIcon /> },
@@ -145,7 +162,7 @@ export default function Layout() {
               <ListItemButton
                 component={RouterLink}
                 to={item.to}
-                selected={selected && (item.to !== '/files' || !currentFolderId) && (item.to !== '/boards' || location.pathname === '/boards')}
+                selected={selected && (item.to !== '/files' || !currentFolderId) && (item.to !== '/boards' || location.pathname === '/boards') && (item.to !== '/passwords' || location.pathname === '/passwords' && !searchParams.get('folder'))}
                 onClick={isMobile ? toggle : undefined}
                 // На пункт «Файлы» можно бросить карточку — перенос в корень.
                 {...(item.to === '/files' ? {
@@ -208,6 +225,37 @@ export default function Layout() {
                 </IconButton>
               )}
               </Box>
+              {item.to === '/passwords' && (open || isMobile) && menuState.passwords && pwFolders.length > 0 && (
+                <Box>
+                  {pwFolders.map((f) => (
+                    <ListItemButton
+                      key={f.id}
+                      selected={location.pathname === '/passwords' && searchParams.get('folder') === String(f.id)}
+                      onClick={() => {
+                        navigate(`/passwords?folder=${f.id}`);
+                        if (isMobile) toggle();
+                      }}
+                      sx={{
+                        borderRadius: 1.5,
+                        pl: 4.5,
+                        py: 0.25,
+                        color: 'rgb(113, 116, 132)',
+                        '&:hover': { bgcolor: 'rgb(229, 233, 251)' },
+                        '&.Mui-selected': {
+                          bgcolor: 'rgb(229, 233, 251)',
+                          color: 'rgb(82, 109, 227)',
+                          '& .MuiListItemText-primary': { fontWeight: 600 },
+                        },
+                      }}
+                    >
+                      <ListItemText
+                        primary={f.name}
+                        primaryTypographyProps={{ fontSize: '0.8rem', noWrap: true }}
+                      />
+                    </ListItemButton>
+                  ))}
+                </Box>
+              )}
               {item.to === '/boards' && (open || isMobile) && menuState.boards && boards.length > 0 && (
                 <Box>
                   {boards.map((b) => (

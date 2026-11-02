@@ -51,6 +51,8 @@ import 'dayjs/locale/ru';
 import client from '../api/client';
 import AppDialog from '../components/AppDialog';
 import PageHeader from '../components/PageHeader';
+import DataList from '../components/DataList';
+import { useSearchParams } from 'react-router-dom';
 
 dayjs.locale('ru');
 
@@ -72,7 +74,12 @@ const describeGen = (g) => [
 export default function PasswordsPage() {
   const [folders, setFolders] = useState(null);
   // 0 — «Все записи»: весь справочник без фильтра по папке.
-  const [activeId, setActiveId] = useState(0);
+  const [searchParams] = useSearchParams();
+  const urlFolder = Number(searchParams.get('folder')) || 0;
+  const [activeId, setActiveId] = useState(urlFolder);
+  useEffect(() => {
+    setActiveId(urlFolder);
+  }, [urlFolder]);
   const [entries, setEntries] = useState(null);
   const [meta, setMeta] = useState(null);
   const [page, setPage] = useState(1);
@@ -181,8 +188,10 @@ export default function PasswordsPage() {
     try {
       if (folderDlg.id) {
         await client.put(`/api/password-folders/${folderDlg.id}`, { name });
+        window.dispatchEvent(new Event('password-folders-changed'));
       } else {
         const { data } = await client.post('/api/password-folders', { name });
+        window.dispatchEvent(new Event('password-folders-changed'));
         setActiveId(data.data?.id ?? 0);
       }
       setFolderDlg(null);
@@ -198,6 +207,7 @@ export default function PasswordsPage() {
     if (!window.confirm(`Удалить папку «${folder.name}» вместе со всеми записями (${folder.entries_count})?`)) return;
     try {
       await client.delete(`/api/password-folders/${folder.id}`);
+      window.dispatchEvent(new Event('password-folders-changed'));
       if (activeId === folder.id) setActiveId(0);
       await loadFolders();
     } catch {
@@ -561,72 +571,54 @@ export default function PasswordsPage() {
             {!entries ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress size={24} /></Box>
             ) : (
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Название</TableCell>
-                    <TableCell>Логин</TableCell>
-                    <TableCell>Пароль</TableCell>
-                    <TableCell>Срок</TableCell>
-                    <TableCell>Информация</TableCell>
-                    {showFolderCol && <TableCell>Папка</TableCell>}
-                    <TableCell align="right">Действия</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {entries.map((e) => (
-                    <TableRow key={e.id} hover>
-                      <TableCell sx={{ fontWeight: 500 }}>{e.name}</TableCell>
-                      <TableCell>
-                        {e.login ? (
-                          <Tooltip title="Клик — скопировать логин">
-                            <Box component="span" sx={copyCellSx} onClick={() => copy(e.login, 'Логин')}>
-                              {e.login}
-                            </Box>
-                          </Tooltip>
-                        ) : '—'}
-                      </TableCell>
-                      <TableCell>
-                        <Tooltip title="Клик — скопировать пароль">
-                          <Box
-                            component="span"
-                            sx={{ ...copyCellSx, fontFamily: 'monospace', letterSpacing: 1 }}
-                            onClick={() => copy(e.password, 'Пароль')}
-                          >
-                            ••••••••
-                          </Box>
-                        </Tooltip>
-                      </TableCell>
-                      <TableCell sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>
-                        {e.expires_at ? new Date(e.expires_at).toLocaleDateString('ru-RU') : '∞'}
-                      </TableCell>
-                      <TableCell sx={{ color: 'text.secondary', maxWidth: 220 }}>
-                        <Box component="span" sx={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {e.note || '—'}
+              <DataList
+                columns={[
+                  { key: 'name', label: 'Название', render: (e) => <Box component="span" sx={{ fontWeight: 500 }}>{e.name}</Box> },
+                  { key: 'login', label: 'Логин', render: (e) => e.login ? (
+                      <Tooltip title="Клик — скопировать логин">
+                        <Box component="span" sx={copyCellSx} onClick={() => copy(e.login, 'Логин')}>
+                          {e.login}
                         </Box>
-                      </TableCell>
-                      {showFolderCol && (
-                        <TableCell sx={{ color: 'text.secondary' }}>{e.folder?.name ?? '—'}</TableCell>
-                      )}
-                      <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                        <IconButton size="small" onClick={() => openEntryDlg(e)}>
-                          <EditIcon sx={{ fontSize: 16 }} />
-                        </IconButton>
-                        <IconButton size="small" onClick={() => removeEntry(e)}>
-                          <DeleteIcon sx={{ fontSize: 16 }} />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {entries.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={showFolderCol ? 7 : 6} sx={{ color: 'text.secondary' }}>
-                        {searching ? 'Ничего не найдено.' : 'Записей пока нет — нажмите «Создать».'}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                      </Tooltip>
+                    ) : '—' },
+                  { key: 'password', label: 'Пароль', render: (e) => (
+                      <Tooltip title="Клик — скопировать пароль">
+                        <Box
+                          component="span"
+                          sx={{ ...copyCellSx, fontFamily: 'monospace', letterSpacing: 1 }}
+                          onClick={() => copy(e.password, 'Пароль')}
+                        >
+                          ••••••••
+                        </Box>
+                      </Tooltip>
+                    ) },
+                  { key: 'expires_at', label: 'Срок', render: (e) => (
+                      <Box component="span" sx={{ color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                        {e.expires_at ? new Date(e.expires_at).toLocaleDateString('ru-RU') : '∞'}
+                      </Box>
+                    ) },
+                  { key: 'note', label: 'Информация', render: (e) => (
+                      <Box component="span" sx={{ color: 'text.secondary', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }}>
+                        {e.note || '—'}
+                      </Box>
+                    ) },
+                  ...(showFolderCol ? [{ key: 'folder', label: 'Папка', render: (e) => (
+                    <Box component="span" sx={{ color: 'text.secondary' }}>{e.folder?.name ?? '—'}</Box>
+                  ) }] : []),
+                ]}
+                rows={entries}
+                empty={searching ? 'Ничего не найдено.' : 'Записей пока нет — нажмите «Создать».'}
+                actions={(e) => (
+                  <>
+                    <IconButton size="small" onClick={() => openEntryDlg(e)}>
+                      <EditIcon sx={{ fontSize: 16 }} />
+                    </IconButton>
+                    <IconButton size="small" onClick={() => removeEntry(e)}>
+                      <DeleteIcon sx={{ fontSize: 16 }} />
+                    </IconButton>
+                  </>
+                )}
+              />
             )}
             {entries && meta && meta.last_page > 1 && (
               <TablePagination
