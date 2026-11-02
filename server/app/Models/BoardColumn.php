@@ -7,9 +7,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['board_id', 'name', 'color', 'position'])]
+#[Fillable(['board_id', 'name', 'color', 'position', 'visible_guests'])]
 class BoardColumn extends Model
 {
+    protected function casts(): array
+    {
+        return ['visible_guests' => 'boolean'];
+    }
+
     /**
      * @return BelongsTo<Board, $this>
      */

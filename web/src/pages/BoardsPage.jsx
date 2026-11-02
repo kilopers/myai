@@ -133,8 +133,8 @@ export default function BoardsPage() {
                 )}
               </>
             )}
-            onAdd={() => setNameDlg({ mode: 'create', name: '', prefix: '', caps: { columns: true, tasks: true, delete_tasks: true } })}
-            onEdit={(b) => setNameDlg({ mode: 'edit', board: b, name: b.name, prefix: b.prefix ?? '', caps: { columns: true, tasks: true, delete_tasks: true, ...(b.guest_permissions ?? {}) } })}
+            onAdd={() => setNameDlg({ mode: 'create', name: '', prefix: '', caps: { columns: true, tasks: true, delete_tasks: true, edit_columns: true, delete_columns: true } })}
+            onEdit={(b) => setNameDlg({ mode: 'edit', board: b, name: b.name, prefix: b.prefix ?? '', caps: { columns: true, tasks: true, delete_tasks: true, edit_columns: true, delete_columns: true, ...(b.guest_permissions ?? {}) } })}
             onDelete={(b) => setDelDlg(b)}
             onRow={(b) => navigate(`/boards/${b.id}`)}
             refreshKey={refKey}
@@ -183,7 +183,7 @@ export default function BoardsPage() {
               Возможности гостя
             </Typography>
             <FormGroup>
-              {[['columns', 'Создавать колонки'], ['tasks', 'Создавать задачи'], ['delete_tasks', 'Удалять задачи']].map(([key, label]) => (
+              {[['columns', 'Создавать колонки'], ['edit_columns', 'Редактировать колонки'], ['delete_columns', 'Удалять колонки'], ['tasks', 'Создавать задачи'], ['delete_tasks', 'Удалять задачи']].map(([key, label]) => (
                 <FormControlLabel
                   key={key}
                   control={(

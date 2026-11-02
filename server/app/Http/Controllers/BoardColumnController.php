@@ -68,6 +68,7 @@ class BoardColumnController extends Controller
         $boardColumn->update($request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:120'],
             'color' => ['sometimes', 'required', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'visible_guests' => ['sometimes', 'boolean'],
         ]));
 
         return $boardColumn;

@@ -277,4 +277,26 @@ class BoardsTest extends TestCase
         $board->update(['guest_permissions' => ['columns' => true, 'tasks' => true, 'delete_tasks' => true]]);
         $this->postJson("{$base}/board-columns", ['name' => 'X'])->assertCreated();
     }
+
+    public function test_guest_column_edit_delete_and_visibility(): void
+    {
+        $user = User::factory()->create();
+        $board = Board::create([
+            'user_id' => $user->id, 'name' => 'B',
+            'guest_permissions' => ['edit_columns' => false, 'delete_columns' => false],
+        ]);
+        $col = $board->columns()->create(['name' => 'C', 'position' => 0]);
+        $hidden = $board->columns()->create(['name' => 'H', 'position' => 1, 'visible_guests' => false]);
+        $this->actingAs($user)->postJson("/api/boards/{$board->id}/share-link")->assertOk();
+        $base = '/api/public/boards/'.$board->fresh()->share_token;
+
+        // Редактирование/удаление колонок запрещено настройкой — 403
+        $this->putJson("{$base}/board-columns/{$col->id}", ['name' => 'X'])->assertForbidden();
+        $this->deleteJson("{$base}/board-columns/{$col->id}")->assertForbidden();
+
+        // Разрешили — правим и флагаем видимость
+        $board->update(['guest_permissions' => ['edit_columns' => true]]);
+        $this->putJson("{$base}/board-columns/{$col->id}", ['visible_guests' => false])->assertOk();
+        $this->assertFalse($col->fresh()->visible_guests);
+    }
 }

@@ -77,10 +77,10 @@ export default function BoardColumn({
         </Typography>
         <IconButton
           size="small"
-          onClick={() => onEditColumn(column)}
+          onClick={onEditColumn ? () => onEditColumn(column) : undefined}
           sx={{ color: '#fff', p: 0.25 }}
         >
-          <EditIcon sx={{ fontSize: 14 }} />
+          {onEditColumn && <EditIcon sx={{ fontSize: 14 }} />}
         </IconButton>
       </Box>
       <Box

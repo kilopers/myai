@@ -85,6 +85,7 @@ export default function BoardCanvas({
       if (colDlg.mode === 'edit') {
         await client.put(api(`/board-columns/${colDlg.column.id}`), {
           name, color: colDlg.color,
+          visible_guests: colDlg.visible_guests !== false,
         });
       } else {
         await client.post(api('/board-columns'), {
@@ -229,11 +230,17 @@ export default function BoardCanvas({
 
   // Возможности гостя с сервера; отсутствие настроек — всё разрешено
   // (у владельца доски поле не приходит — тоже всё разрешено).
-  const caps = { columns: true, tasks: true, delete_tasks: true, ...(board?.guest_permissions ?? {}) };
+  const caps = {
+    columns: true, tasks: true, delete_tasks: true,
+    edit_columns: true, delete_columns: true,
+    ...(board?.guest_permissions ?? {}),
+  };
 
   // Живой поиск: подстрока в номере PREFIX-N, названии или тексте описания.
   const q = query.trim().toLowerCase();
-  const visibleColumns = q === '' ? columns : columns?.map((c) => ({
+  const guest = apiBase.includes('/public/');
+  const shownColumns = guest ? columns?.filter((c) => c.visible_guests !== false) : columns;
+  const visibleColumns = q === '' ? shownColumns : shownColumns?.map((c) => ({
     ...c,
     tasks: (c.tasks ?? []).filter((t) => {
       const num = board?.prefix && t.number != null ? `${board.prefix}-${t.number}` : '';
@@ -275,9 +282,10 @@ export default function BoardCanvas({
               column={c}
               dragActive={!!dragTask}
               onAddTask={caps.tasks ? openTaskCreate : null}
-              onEditColumn={(col) => setColDlg({
+              onEditColumn={caps.edit_columns ? (col) => setColDlg({
                 mode: 'edit', column: col, name: col.name, color: col.color,
-              })}
+                visible_guests: col.visible_guests !== false,
+              }) : null}
               onTaskClick={openTaskEdit}
               onDragTaskStart={setDragTask}
               onDropTask={dropTask}
@@ -327,10 +335,23 @@ export default function BoardCanvas({
               />
             ))}
           </Box>
+          {colDlg?.mode === 'edit' && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1.5 }}>
+              <input
+                id="col-visible-guests"
+                type="checkbox"
+                checked={colDlg?.visible_guests !== false}
+                onChange={(e) => setColDlg((d) => ({ ...d, visible_guests: e.target.checked }))}
+              />
+              <Typography component="label" htmlFor="col-visible-guests" variant="body2">
+                Видна гостям
+              </Typography>
+            </Box>
+          )}
         </DialogContent>
         <DialogActions sx={{ justifyContent: 'space-between' }}>
           {colDlg?.mode === 'edit' ? (
-            colDlg.confirmDel ? (
+            !caps.delete_columns ? <Box /> : colDlg.confirmDel ? (
               <Button color="error" variant="contained" onClick={removeColumn}>
                 Точно удалить?
               </Button>
@@ -543,17 +564,17 @@ export default function BoardCanvas({
         </DialogContent>
         <DialogActions sx={{ justifyContent: 'space-between' }}>
           {taskDlg?.mode === 'edit' ? (
-            taskDlg.confirmDel ? (
-              <Button color="error" variant="contained" onClick={removeTask}>
-                Точно удалить?
-              </Button>
-            ) : (
-              caps.delete_tasks && (
+            <Box>
+              {taskDlg.confirmDel ? (
+                <Button color="error" variant="contained" onClick={removeTask}>
+                  Точно удалить?
+                </Button>
+              ) : caps.delete_tasks && (
                 <Button color="error" onClick={() => setTaskDlg((d) => ({ ...d, confirmDel: true }))}>
                   Удалить
                 </Button>
-              )
-            )
+              )}
+            </Box>
           ) : <Box />}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {taskDlg?.mode === 'edit' && columns && columns.length > 1 && (

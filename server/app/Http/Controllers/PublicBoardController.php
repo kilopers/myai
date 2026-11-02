@@ -61,6 +61,8 @@ class PublicBoardController extends Controller
                     'columns' => $board->guestCan('columns'),
                     'tasks' => $board->guestCan('tasks'),
                     'delete_tasks' => $board->guestCan('delete_tasks'),
+                    'edit_columns' => $board->guestCan('edit_columns'),
+                    'delete_columns' => $board->guestCan('delete_columns'),
                 ],
             ]),
             'columns' => $board->columns()->with([
@@ -95,10 +97,12 @@ class PublicBoardController extends Controller
     public function updateColumn(Request $request, string $token, int $columnId): JsonResponse
     {
         $column = $this->column($token, $columnId);
+        abort_unless($column->board->guestCan('edit_columns'), 403);
 
         $column->update($request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:120'],
             'color' => ['sometimes', 'required', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'visible_guests' => ['sometimes', 'boolean'],
         ]));
 
         return response()->json($column);
@@ -107,6 +111,7 @@ class PublicBoardController extends Controller
     public function destroyColumn(string $token, int $columnId): Response
     {
         $column = $this->column($token, $columnId);
+        abort_unless($column->board->guestCan('delete_columns'), 403);
         $column->tasks->each(fn ($task) => $task->attachments->each->deleteFile());
         $column->delete();
 
