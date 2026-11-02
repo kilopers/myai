@@ -272,6 +272,10 @@ export default function TaskComments({ taskId, onCount, onError }) {
               bgcolor: (t) => t.alpha(t.palette.primary.main, 0.14),
               color: 'text.primary',
             },
+            // Метка времени в своём пузыре — тёмная, иначе белая на бледном
+            '& .MuiChatMessage-roleUser .MuiChatMessage-inlineMeta': {
+              color: 'rgba(0,0,0,0.55)',
+            },
           }}
           >
             <ChatRoot
@@ -279,13 +283,6 @@ export default function TaskComments({ taskId, onCount, onError }) {
               messages={chatMessages}
               currentUser={me ? { id: String(me.id), role: 'user' } : undefined}
               partRenderers={partRenderers}
-              // дата и время в метке сообщения вместо «только HH:MM»
-              localeText={{
-                messageTimestampLabel: (d) => new Date(d).toLocaleString('ru-RU', {
-                  day: '2-digit', month: '2-digit', year: 'numeric',
-                  hour: '2-digit', minute: '2-digit',
-                }),
-              }}
             >
               {chatMessages.map((message, index) => (
                 <Fragment key={message.id}>

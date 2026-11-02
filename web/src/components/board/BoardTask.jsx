@@ -1,4 +1,4 @@
-import { Box, Chip, Typography } from '@mui/material';
+import { Box, Tooltip, Typography } from '@mui/material';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import ChatBubbleOutlineOutlinedIcon from '@mui/icons-material/ChatBubbleOutlineOutlined';
 
@@ -9,9 +9,28 @@ const plainText = (html) => {
   return doc.body.textContent?.trim() ?? '';
 };
 
+const fmtCreated = (s) => (s ? new Date(s).toLocaleString('ru-RU', {
+  day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit',
+}) : '');
+
+/** Иконка + счётчик без окантовки, подпись в тултипе. */
+const counter = (icon, count, tip) => (
+  <Tooltip title={tip} key={tip}>
+    <Box component="span" sx={{
+      display: 'inline-flex', alignItems: 'center', gap: 0.3,
+      color: 'text.secondary',
+    }}
+    >
+      {icon}
+      <Typography component="span" sx={{ fontSize: '0.7rem' }}>{count}</Typography>
+    </Box>
+  </Tooltip>
+);
+
 /**
  * Карточка задачи канбан-колонки: название + усечённый текст,
- * бейдж с числом вложений, drag-источник для переноса между колонками.
+ * счётчики вложений/комментариев и дата создания, drag-источник
+ * для переноса между колонками и внутри колонки.
  */
 export default function BoardTask({ task, onClick, onDragStart }) {
   const attCount = task.attachments?.length ?? 0;
@@ -66,36 +85,20 @@ export default function BoardTask({ task, onClick, onDragStart }) {
           {plainText(task.text)}
         </Typography>
       ) : null}
-      {(attCount > 0 || commentsCount > 0) && (
-        <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5 }}>
-          {attCount > 0 && (
-            <Chip
-              icon={<AttachFileIcon />}
-              label={attCount}
-              size="small"
-              variant="outlined"
-              sx={{
-                height: 20, fontSize: '0.7rem',
-                '& .MuiChip-icon': { fontSize: 13, ml: 0.75 },
-                '& .MuiChip-label': { px: 0.5 },
-              }}
-            />
-          )}
-          {commentsCount > 0 && (
-            <Chip
-              icon={<ChatBubbleOutlineOutlinedIcon />}
-              label={commentsCount}
-              size="small"
-              variant="outlined"
-              sx={{
-                height: 20, fontSize: '0.7rem',
-                '& .MuiChip-icon': { fontSize: 13, ml: 0.75 },
-                '& .MuiChip-label': { px: 0.5 },
-              }}
-            />
-          )}
-        </Box>
-      )}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+        {attCount > 0 && counter(
+          <AttachFileIcon sx={{ fontSize: 13 }} />, attCount,
+          `Прикреплённые файлы: ${attCount}`,
+        )}
+        {commentsCount > 0 && counter(
+          <ChatBubbleOutlineOutlinedIcon sx={{ fontSize: 13 }} />, commentsCount,
+          `Сообщений в обсуждении: ${commentsCount}`,
+        )}
+        <Box sx={{ flex: 1 }} />
+        <Typography sx={{ fontSize: '0.68rem', color: 'text.disabled' }}>
+          {fmtCreated(task.created_at)}
+        </Typography>
+      </Box>
     </Box>
   );
 }

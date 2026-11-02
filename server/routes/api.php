@@ -82,6 +82,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/password-generators/generate-batch', [PasswordGeneratorController::class, 'generateBatch']);
     Route::post('/password-generators/{passwordGenerator}/generate', [PasswordGeneratorController::class, 'generate']);
     Route::apiResource('boards', BoardController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::put('board-columns/{board_column}/reorder-tasks', [BoardColumnController::class, 'reorderTasks']);
     Route::apiResource('board-columns', BoardColumnController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('board-tasks', BoardTaskController::class)->only(['store', 'update', 'destroy']);
     Route::apiResource('board-task-attachments', BoardTaskAttachmentController::class)->only(['store', 'show', 'destroy']);

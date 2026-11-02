@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   Fab,
+  IconButton,
   Link,
   Tooltip,
   CircularProgress,
@@ -16,6 +17,7 @@ import {
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import client from '../api/client';
 import AppDialog from '../components/AppDialog';
@@ -131,6 +133,38 @@ export default function BoardPage() {
     }
   };
 
+  // Точечное сохранение поля задачи + синхронизация карточки на доске
+  const updateTask = async (fields) => {
+    try {
+      const { data: updated } = await client.put(`/api/board-tasks/${taskDlg.task.id}`, fields);
+      setTaskDlg((d) => ({
+        ...d,
+        task: { ...d.task, ...updated },
+        form: { ...d.form, ...fields },
+      }));
+      setColumns((cols) => cols?.map((col) => ({
+        ...col,
+        tasks: (col.tasks ?? []).map((t) => (t.id === taskDlg.task.id ? { ...t, ...updated } : t)),
+      })));
+    } catch {
+      setNotice('Не удалось сохранить задачу');
+    }
+  };
+
+  const saveTaskField = (fields) => {
+    setTaskDlg((d) => ({ ...d, editingTitle: false }));
+    if ('title' in fields && !fields.title) return; // пустой заголовок не сохраняем
+    updateTask(fields);
+  };
+
+  const saveTaskText = () => {
+    const html = taskEditorRef.current
+      ? (taskEditorRef.current.isEmpty ? '' : taskEditorRef.current.getHTML())
+      : taskDlg.task.text;
+    setTaskDlg((d) => ({ ...d, editingText: false }));
+    updateTask({ text: html });
+  };
+
   const removeTask = async () => {
     try {
       await client.delete(`/api/board-tasks/${taskDlg.task.id}`);
@@ -141,10 +175,32 @@ export default function BoardPage() {
     }
   };
 
-  const dropTask = async (column) => {
+  const dropTask = async (column, index = null) => {
     const task = dragTask;
     setDragTask(null);
-    if (!task || task.board_column_id === column.id) return;
+    if (!task) return;
+    if (task.board_column_id === column.id) {
+      // Сортировка внутри колонки: дроп на карточку — вставка перед ней
+      if (index == null) return;
+      const tasks = column.tasks ?? [];
+      const from = tasks.findIndex((t) => t.id === task.id);
+      const to = from !== -1 && from < index ? index - 1 : index;
+      if (from === -1 || to === from) return;
+      const ids = tasks.map((t) => t.id).filter((id) => id !== task.id);
+      ids.splice(to, 0, task.id);
+      // Оптимистично переставляем карточки, откат через load() при ошибке
+      setColumns((cols) => cols?.map((c) => (c.id !== column.id ? c : {
+        ...c,
+        tasks: ids.map((id, i) => ({ ...c.tasks.find((t) => t.id === id), position: i })),
+      })));
+      try {
+        await client.put(`/api/board-columns/${column.id}/reorder-tasks`, { task_ids: ids });
+      } catch {
+        setNotice('Не удалось изменить порядок задач');
+        load();
+      }
+      return;
+    }
     try {
       await client.put(`/api/board-tasks/${task.id}`, { board_column_id: column.id });
       load();
@@ -298,7 +354,115 @@ export default function BoardPage() {
           </Tabs>
         </DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column' }}>
-          {(taskDlg?.tab ?? 0) === 0 && (
+          {(taskDlg?.tab ?? 0) === 0 && (taskDlg?.mode === 'edit' ? (
+            <>
+              {/* Название: текст → иконка по hover → инпут, автосохранение по blur/Enter */}
+              <Box sx={{
+                display: 'flex', alignItems: 'center', gap: 0.5, mt: 1,
+                '&:hover .edit-btn': { opacity: 1 },
+              }}
+              >
+                {taskDlg.editingTitle ? (
+                  <TextField
+                    autoFocus
+                    fullWidth
+                    size="small"
+                    autoComplete="off"
+                    defaultValue={taskDlg.task.title}
+                    onBlur={(e) => saveTaskField({ title: e.target.value.trim() })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.currentTarget.blur();
+                      if (e.key === 'Escape') setTaskDlg((d) => ({ ...d, editingTitle: false }));
+                    }}
+                  />
+                ) : (
+                  <Typography
+                    onClick={() => setTaskDlg((d) => ({ ...d, editingTitle: true }))}
+                    sx={{
+                      flex: 1, fontSize: '0.95rem', fontWeight: 600,
+                      px: '14px', py: '8.5px', borderRadius: 1, cursor: 'text',
+                      '&:hover': { bgcolor: 'action.hover' },
+                    }}
+                  >
+                    {taskDlg.task.title}
+                  </Typography>
+                )}
+                <IconButton
+                  className="edit-btn"
+                  size="small"
+                  sx={{ opacity: 0 }}
+                  onClick={() => setTaskDlg((d) => ({ ...d, editingTitle: true }))}
+                >
+                  <EditIcon fontSize="small" />
+                </IconButton>
+              </Box>
+              {/* Описание: read-only HTML в рамке → иконка справа сверху →
+                  TipTap, автосохранение при потере фокуса */}
+              <Box sx={{ position: 'relative', mt: 1.5, '&:hover .edit-btn': { opacity: 1 } }}>
+                {taskDlg.editingText ? (
+                  <Box onBlur={(e) => {
+                    // Фокус ушёл за пределы редактора (не на тулбар) — сохраняем
+                    if (!e.currentTarget.contains(e.relatedTarget)) saveTaskText();
+                  }}
+                  >
+                    <RichTextEditor
+                      value={taskDlg.task.text ?? ''}
+                      onChange={(html) => setTaskDlg((d) => ({
+                        ...d, form: { ...d.form, text: html },
+                      }))}
+                      placeholder="Описание задачи"
+                      minHeight={200}
+                      editorRef={taskEditorRef}
+                    />
+                  </Box>
+                ) : (
+                  <Box sx={{
+                    border: 1, borderColor: 'divider', borderRadius: 1,
+                    px: 1.5, py: 1, minHeight: 60, fontSize: '0.875rem',
+                    '& p': { m: 0, mb: 0.5 },
+                    '& ul, & ol': { pl: 3, m: 0, mb: 0.5 },
+                    '& blockquote': {
+                      borderLeft: '3px solid', borderColor: 'divider',
+                      m: 0, mb: 0.5, pl: 1.5, color: 'text.secondary',
+                    },
+                    '& img': { maxWidth: '100%', borderRadius: 1 },
+                  }}
+                  >
+                    {taskDlg.task.text
+                      ? <Box dangerouslySetInnerHTML={{ __html: taskDlg.task.text }} />
+                      : (
+                        <Typography color="text.disabled" sx={{ fontSize: '0.85rem' }}>
+                          Описание отсутствует
+                        </Typography>
+                      )}
+                  </Box>
+                )}
+                {!taskDlg.editingText && (
+                  <IconButton
+                    className="edit-btn"
+                    size="small"
+                    sx={{
+                      position: 'absolute', top: 4, right: 4, opacity: 0,
+                      bgcolor: 'background.paper', boxShadow: 1,
+                    }}
+                    onClick={() => setTaskDlg((d) => ({ ...d, editingText: true }))}
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                )}
+              </Box>
+              <Box sx={{ mt: 1.5 }}>
+                <TaskAttachments
+                  taskId={taskDlg.task.id}
+                  attachments={taskDlg?.task?.attachments ?? []}
+                  pending={taskDlg?.pending ?? []}
+                  onPending={(pending) => setTaskDlg((d) => ({ ...d, pending }))}
+                  onChanged={load}
+                  onError={setNotice}
+                />
+              </Box>
+            </>
+          ) : (
             <>
               <TextField
                 autoFocus
@@ -325,8 +489,8 @@ export default function BoardPage() {
               </Box>
               <Box sx={{ mt: 1.5 }}>
                 <TaskAttachments
-                  taskId={taskDlg?.mode === 'edit' ? taskDlg.task.id : null}
-                  attachments={taskDlg?.task?.attachments ?? []}
+                  taskId={null}
+                  attachments={[]}
                   pending={taskDlg?.pending ?? []}
                   onPending={(pending) => setTaskDlg((d) => ({ ...d, pending }))}
                   onChanged={load}
@@ -334,7 +498,7 @@ export default function BoardPage() {
                 />
               </Box>
             </>
-          )}
+          ))}
           {(taskDlg?.tab ?? 0) === 1 && taskDlg?.mode === 'edit' && (
             <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', mt: 1 }}>
               <TaskComments
@@ -368,10 +532,17 @@ export default function BoardPage() {
             )
           ) : <Box />}
           <Box>
-            <Button onClick={() => setTaskDlg(null)}>Отмена</Button>
-            <Button variant="contained" onClick={saveTask} disabled={!taskDlg?.form.title?.trim()}>
-              Сохранить
-            </Button>
+            {taskDlg?.mode === 'edit' ? (
+              // Поля сохраняются инлайн — общая кнопка «Сохранить» не нужна
+              <Button variant="contained" onClick={() => setTaskDlg(null)}>Закрыть</Button>
+            ) : (
+              <>
+                <Button onClick={() => setTaskDlg(null)}>Отмена</Button>
+                <Button variant="contained" onClick={saveTask} disabled={!taskDlg?.form.title?.trim()}>
+                  Сохранить
+                </Button>
+              </>
+            )}
           </Box>
         </DialogActions>
       </AppDialog>

@@ -91,6 +91,37 @@ class BoardsTest extends TestCase
             ->assertNoContent();
     }
 
+    public function test_reorder_tasks_within_column(): void
+    {
+        $user = User::factory()->create();
+        $board = Board::create(['user_id' => $user->id, 'name' => 'B']);
+
+        $col = $this->actingAs($user)->postJson('/api/board-columns', [
+            'board_id' => $board->id, 'name' => 'C',
+        ])->assertCreated()->json();
+
+        $ids = [];
+        foreach (['A', 'B', 'C'] as $title) {
+            $ids[] = $this->actingAs($user)->postJson('/api/board-tasks', [
+                'board_column_id' => $col['id'], 'title' => $title,
+            ])->assertCreated()->json('id');
+        }
+
+        $this->actingAs($user)->putJson('/api/board-columns/'.$col['id'].'/reorder-tasks', [
+            'task_ids' => array_reverse($ids),
+        ])->assertNoContent();
+
+        $cols = $this->actingAs($user)->getJson('/api/board-columns?board_id='.$board->id)
+            ->assertOk()->json();
+        $this->assertSame(array_reverse($ids), array_column($cols[0]['tasks'], 'id'));
+
+        // чужой пользователь не может менять порядок
+        $other = User::factory()->create();
+        $this->actingAs($other)->putJson('/api/board-columns/'.$col['id'].'/reorder-tasks', [
+            'task_ids' => $ids,
+        ])->assertForbidden();
+    }
+
     public function test_foreign_boards_are_forbidden(): void
     {
         $owner = User::factory()->create();

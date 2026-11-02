@@ -67,17 +67,30 @@ export default function BoardColumn({
         } : undefined}
         onDrop={dragActive ? (e) => {
           e.preventDefault();
-          onDropTask(column);
+          onDropTask(column, column.tasks?.length ?? 0);
         } : undefined}
         sx={{ px: 0.75, pt: 0.75, overflowY: 'auto', flexGrow: 1, minHeight: 40 }}
       >
-        {(column.tasks ?? []).map((t) => (
-          <BoardTask
+        {(column.tasks ?? []).map((t, i) => (
+          // Карточка — тоже drop-цель: дроп на карточку вставляет перед ней
+          <Box
             key={t.id}
-            task={t}
-            onClick={onTaskClick}
-            onDragStart={onDragTaskStart}
-          />
+            onDragOver={dragActive ? (e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+            } : undefined}
+            onDrop={dragActive ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onDropTask(column, i);
+            } : undefined}
+          >
+            <BoardTask
+              task={t}
+              onClick={onTaskClick}
+              onDragStart={onDragTaskStart}
+            />
+          </Box>
         ))}
       </Box>
       <Box sx={{ px: 0.75, pb: 0.5 }}>

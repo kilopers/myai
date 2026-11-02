@@ -39,6 +39,28 @@ class BoardColumnController extends Controller
         );
     }
 
+    /**
+     * Порядок задач внутри колонки: полный список id — position = индекс.
+     */
+    public function reorderTasks(Request $request, BoardColumn $boardColumn)
+    {
+        abort_unless($boardColumn->board->user_id === $request->user()->id, 403);
+
+        $data = $request->validate([
+            'task_ids' => ['required', 'array'],
+            'task_ids.*' => ['integer'],
+        ]);
+
+        $tasks = $boardColumn->tasks()->whereIn('id', $data['task_ids'])->get()->keyBy('id');
+        foreach ($data['task_ids'] as $i => $id) {
+            if (isset($tasks[$id])) {
+                $tasks[$id]->update(['position' => $i]);
+            }
+        }
+
+        return response()->noContent();
+    }
+
     public function update(Request $request, BoardColumn $boardColumn)
     {
         abort_unless($boardColumn->board->user_id === $request->user()->id, 403);
