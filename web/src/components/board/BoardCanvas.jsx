@@ -7,15 +7,17 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
+  Menu,
   MenuItem,
-  Select,
   Snackbar,
   Tab,
   Tabs,
   TextField,
   Typography,
 } from '@mui/material';
+import CheckIcon from '@mui/icons-material/Check';
 import EditIcon from '@mui/icons-material/Edit';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import client from '../../api/client';
 import AppDialog from '../AppDialog';
 import RichTextEditor from '../RichTextEditor';
@@ -49,6 +51,7 @@ export default function BoardCanvas({
   const [colDlg, setColDlg] = useState(null); // {mode:'create'|'edit', column, name, color, confirmDel}
   const [taskDlg, setTaskDlg] = useState(null); // {mode:'create'|'edit', column, task, form, confirmDel}
   const [dragTask, setDragTask] = useState(null);
+  const [moveAnchor, setMoveAnchor] = useState(null);
   const [notice, setNotice] = useState('');
   const taskEditorRef = useRef(null);
 
@@ -535,17 +538,54 @@ export default function BoardCanvas({
           ) : <Box />}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {taskDlg?.mode === 'edit' && columns && columns.length > 1 && (
-              <Select
-                size="small"
-                displayEmpty
-                value={taskDlg.task.board_column_id}
-                onChange={(e) => moveTaskToColumn(e.target.value)}
-                sx={{ minWidth: 140 }}
-              >
-                {columns.map((c) => (
-                  <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-                ))}
-              </Select>
+              <>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  endIcon={<KeyboardArrowDownIcon />}
+                  onClick={(e) => setMoveAnchor(e.currentTarget)}
+                  startIcon={(
+                    <Box
+                      component="span"
+                      sx={{
+                        width: 12, height: 12, borderRadius: '50%',
+                        bgcolor: columns.find((c) => c.id === taskDlg.task.board_column_id)?.color,
+                      }}
+                    />
+                  )}
+                >
+                  {columns.find((c) => c.id === taskDlg.task.board_column_id)?.name}
+                </Button>
+                <Menu
+                  anchorEl={moveAnchor}
+                  open={!!moveAnchor}
+                  onClose={() => setMoveAnchor(null)}
+                >
+                  {columns.map((c) => (
+                    <MenuItem
+                      key={c.id}
+                      selected={c.id === taskDlg.task.board_column_id}
+                      onClick={() => {
+                        setMoveAnchor(null);
+                        moveTaskToColumn(c.id);
+                      }}
+                      sx={{ gap: 1 }}
+                    >
+                      <Box
+                        component="span"
+                        sx={{
+                          width: 12, height: 12, borderRadius: '50%',
+                          bgcolor: c.color, flexShrink: 0,
+                        }}
+                      />
+                      <Typography variant="body2" sx={{ flexGrow: 1 }}>{c.name}</Typography>
+                      {c.id === taskDlg.task.board_column_id && (
+                        <CheckIcon fontSize="small" color="primary" />
+                      )}
+                    </MenuItem>
+                  ))}
+                </Menu>
+              </>
             )}
             <Button onClick={() => setTaskDlg(null)}>
               {taskDlg?.mode === 'edit' ? 'Закрыть' : 'Отмена'}
