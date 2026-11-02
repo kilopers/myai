@@ -340,9 +340,17 @@ export default function BoardPage() {
               <TaskComments
                 taskId={taskDlg.task.id}
                 onError={setNotice}
-                onCount={(commentsCount) => setTaskDlg((d) => (d
-                  ? { ...d, commentsCount, task: { ...d.task, comments_count: commentsCount } }
-                  : d))}
+                onCount={(commentsCount) => {
+                  setTaskDlg((d) => (d
+                    ? { ...d, commentsCount, task: { ...d.task, comments_count: commentsCount } }
+                    : d));
+                  // Счётчик на карточке — сразу, без перезагрузки доски
+                  setColumns((cols) => cols?.map((col) => ({
+                    ...col,
+                    tasks: (col.tasks ?? []).map((t) => (t.id === taskDlg.task.id
+                      ? { ...t, comments_count: commentsCount } : t)),
+                  })));
+                }}
               />
             </Box>
           )}
