@@ -391,7 +391,6 @@ export default function Layout() {
             userSelect: 'none',
           }}
         >
-          Разработано Зорин Юрий Алексеевич, {new Date().getFullYear()},
           v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'}
         </Typography>
       </Drawer>
