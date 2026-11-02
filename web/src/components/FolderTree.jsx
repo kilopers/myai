@@ -157,7 +157,7 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
           <ListItemText
             primary={folder.name}
             primaryTypographyProps={{
-              fontSize: '0.82rem',
+              fontSize: '14px',
               noWrap: true,
               fontWeight: selected ? 600 : 400,
             }}
@@ -215,7 +215,7 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
             </ListItemIcon>
             <ListItemText
               primary="В корень"
-              primaryTypographyProps={{ fontSize: '0.82rem', noWrap: true }}
+              primaryTypographyProps={{ fontSize: '14px', noWrap: true }}
             />
           </ListItemButton>
         )}

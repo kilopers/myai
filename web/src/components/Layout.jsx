@@ -209,7 +209,7 @@ export default function Layout() {
                 {(open || isMobile) && (
                   <ListItemText
                     primary={item.label}
-                    primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: selected ? 600 : 400 }}
+                    primaryTypographyProps={{ fontSize: '14px', fontWeight: selected ? 600 : 400 }}
                   />
                 )}
               </ListItemButton>
@@ -250,7 +250,7 @@ export default function Layout() {
                     >
                       <ListItemText
                         primary={f.name}
-                        primaryTypographyProps={{ fontSize: '0.8rem', noWrap: true }}
+                        primaryTypographyProps={{ fontSize: '14px', noWrap: true }}
                       />
                     </ListItemButton>
                   ))}
@@ -281,7 +281,7 @@ export default function Layout() {
                     >
                       <ListItemText
                         primary={b.name}
-                        primaryTypographyProps={{ fontSize: '0.8rem', noWrap: true }}
+                        primaryTypographyProps={{ fontSize: '14px', noWrap: true }}
                       />
                     </ListItemButton>
                   ))}
