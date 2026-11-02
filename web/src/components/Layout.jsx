@@ -145,7 +145,7 @@ export default function Layout() {
               <ListItemButton
                 component={RouterLink}
                 to={item.to}
-                selected={selected && (item.to !== '/files' || !currentFolderId)}
+                selected={selected && (item.to !== '/files' || !currentFolderId) && (item.to !== '/boards' || location.pathname === '/boards')}
                 onClick={isMobile ? toggle : undefined}
                 // На пункт «Файлы» можно бросить карточку — перенос в корень.
                 {...(item.to === '/files' ? {

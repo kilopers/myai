@@ -145,12 +145,9 @@ export default function BoardPage() {
     }}>
       <PageHeader
         crumbs={(
-          <>
-            <Link component={RouterLink} to="/boards" underline="hover" color="inherit">
-              Доски
-            </Link>
-            <Typography color="text.primary">{board?.name ?? '…'}</Typography>
-          </>
+          <Link component={RouterLink} to="/boards" underline="hover" color="inherit">
+            Доски
+          </Link>
         )}
         title={board?.name ?? '…'}
         actions={(
