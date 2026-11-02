@@ -126,11 +126,13 @@ export default function PublicBoardPage() {
                 }}
                 sx={{ width: { xs: 140, sm: 220 } }}
               />
-              <Tooltip title="Добавить колонку">
-                <Fab size="small" color="primary" onClick={openColumnCreate}>
-                  <AddIcon />
-                </Fab>
-              </Tooltip>
+              {openColumnCreate && (
+                <Tooltip title="Добавить колонку">
+                  <Fab size="small" color="primary" onClick={openColumnCreate}>
+                    <AddIcon />
+                  </Fab>
+                </Tooltip>
+              )}
             </Box>
           )}
         />

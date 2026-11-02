@@ -247,4 +247,34 @@ class BoardsTest extends TestCase
         $this->deleteJson("{$base}/board-tasks/{$task}")->assertNoContent();
         $this->deleteJson("{$base}/board-columns/{$col}")->assertNoContent();
     }
+
+    public function test_guest_permissions_limit_actions(): void
+    {
+        $user = User::factory()->create();
+        $board = Board::create([
+            'user_id' => $user->id, 'name' => 'B',
+            'guest_permissions' => ['columns' => false, 'tasks' => false, 'delete_tasks' => false],
+        ]);
+        $col = $board->columns()->create(['name' => 'C', 'color' => '#fff000', 'position' => 0]);
+        $this->actingAs($user)->postJson('/api/board-tasks', ['board_column_id' => $col->id, 'title' => 'T']);
+        $task = $col->tasks()->first();
+        $this->actingAs($user)->postJson("/api/boards/{$board->id}/share-link")->assertOk();
+        $base = '/api/public/boards/'.$board->fresh()->share_token;
+
+        // Настройки приходят гостю, запрещённые действия — 403
+        $res = $this->getJson($base)->assertOk();
+        $this->assertFalse($res->json('board.guest_permissions.columns'));
+        $this->postJson("{$base}/board-columns", ['name' => 'X'])->assertForbidden();
+        $this->postJson("{$base}/board-tasks", ['board_column_id' => $col->id, 'title' => 'T2'])->assertForbidden();
+        $this->deleteJson("{$base}/board-tasks/{$task->id}")->assertForbidden();
+
+        // Комментарии и чтение не затронуты
+        $this->postJson("{$base}/board-task-comments", [
+            'board_task_id' => $task->id, 'guest_name' => 'Гость', 'text' => 'ok',
+        ])->assertCreated();
+
+        // Включили всё — работает снова
+        $board->update(['guest_permissions' => ['columns' => true, 'tasks' => true, 'delete_tasks' => true]]);
+        $this->postJson("{$base}/board-columns", ['name' => 'X'])->assertCreated();
+    }
 }

@@ -127,6 +127,7 @@ export default function BoardColumn({
         {dropAt === tasks.length && tasks.length > 0 && <InsertBar />}
         {dropAt !== null && tasks.length === 0 && <InsertBar />}
       </Box>
+      {onAddTask && (
       <Box sx={{ px: 0.75, pb: 0.5 }}>
         <IconButton
           size="small"
@@ -141,6 +142,7 @@ export default function BoardColumn({
           <AddIcon fontSize="small" />
         </IconButton>
       </Box>
+      )}
     </Box>
   );
 }

@@ -29,6 +29,8 @@ class BoardController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'prefix' => ['nullable', 'string', 'max:10', 'regex:/^[A-Z]+$/'],
+            'guest_permissions' => ['nullable', 'array'],
+            'guest_permissions.*' => ['boolean'],
         ]);
 
         $board = $request->user()->boards()->create($data);
@@ -43,6 +45,8 @@ class BoardController extends Controller
         $board->update($request->validate([
             'name' => ['required', 'string', 'max:120'],
             'prefix' => ['nullable', 'string', 'max:10', 'regex:/^[A-Z]+$/'],
+            'guest_permissions' => ['nullable', 'array'],
+            'guest_permissions.*' => ['boolean'],
         ]));
 
         return $board;

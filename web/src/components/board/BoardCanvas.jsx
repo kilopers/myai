@@ -227,6 +227,10 @@ export default function BoardCanvas({
     }
   };
 
+  // Возможности гостя с сервера; отсутствие настроек — всё разрешено
+  // (у владельца доски поле не приходит — тоже всё разрешено).
+  const caps = { columns: true, tasks: true, delete_tasks: true, ...(board?.guest_permissions ?? {}) };
+
   // Живой поиск: подстрока в номере PREFIX-N, названии или тексте описания.
   const q = query.trim().toLowerCase();
   const visibleColumns = q === '' ? columns : columns?.map((c) => ({
@@ -255,7 +259,7 @@ export default function BoardCanvas({
       width: '100%',
     }}
     >
-      {header?.({ board, openColumnCreate, query, setQuery })}
+      {header?.({ board, openColumnCreate: caps.columns ? openColumnCreate : null, query, setQuery, caps })}
       {!columns ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
           <CircularProgress size={28} />
@@ -270,7 +274,7 @@ export default function BoardCanvas({
               key={c.id}
               column={c}
               dragActive={!!dragTask}
-              onAddTask={openTaskCreate}
+              onAddTask={caps.tasks ? openTaskCreate : null}
               onEditColumn={(col) => setColDlg({
                 mode: 'edit', column: col, name: col.name, color: col.color,
               })}
@@ -544,9 +548,11 @@ export default function BoardCanvas({
                 Точно удалить?
               </Button>
             ) : (
-              <Button color="error" onClick={() => setTaskDlg((d) => ({ ...d, confirmDel: true }))}>
-                Удалить
-              </Button>
+              caps.delete_tasks && (
+                <Button color="error" onClick={() => setTaskDlg((d) => ({ ...d, confirmDel: true }))}>
+                  Удалить
+                </Button>
+              )
             )
           ) : <Box />}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

@@ -56,7 +56,13 @@ class PublicBoardController extends Controller
         $board = $this->board($token);
 
         return response()->json([
-            'board' => $board->only('id', 'name', 'prefix'),
+            'board' => array_merge($board->only('id', 'name', 'prefix'), [
+                'guest_permissions' => [
+                    'columns' => $board->guestCan('columns'),
+                    'tasks' => $board->guestCan('tasks'),
+                    'delete_tasks' => $board->guestCan('delete_tasks'),
+                ],
+            ]),
             'columns' => $board->columns()->with([
                 'tasks.attachments',
                 'tasks' => fn ($q) => $q->withCount(['comments', 'attachments']),
@@ -67,6 +73,7 @@ class PublicBoardController extends Controller
     public function storeColumn(Request $request, string $token): JsonResponse
     {
         $board = $this->board($token);
+        abort_unless($board->guestCan('columns'), 403);
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
@@ -129,6 +136,7 @@ class PublicBoardController extends Controller
     public function storeTask(Request $request, string $token): JsonResponse
     {
         $board = $this->board($token);
+        abort_unless($board->guestCan('tasks'), 403);
 
         $data = $request->validate([
             'board_column_id' => ['required', 'integer'],
@@ -177,6 +185,7 @@ class PublicBoardController extends Controller
     public function destroyTask(string $token, int $taskId): Response
     {
         $task = $this->task($token, $taskId);
+        abort_unless($task->column->board->guestCan('delete_tasks'), 403);
         $task->attachments->each->deleteFile();
         $task->delete();
 

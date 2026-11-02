@@ -17,6 +17,7 @@ import LinkOffIcon from '@mui/icons-material/LinkOff';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
+import { Checkbox, FormControlLabel, FormGroup } from '@mui/material';
 import AppDialog from '../components/AppDialog';
 import PageHeader from '../components/PageHeader';
 import Reference from '../components/Reference';
@@ -44,7 +45,7 @@ export default function BoardsPage() {
   const saveName = async () => {
     const name = nameDlg.name.trim();
     if (!name) return;
-    const payload = { name, prefix: nameDlg.prefix?.trim() || null };
+    const payload = { name, prefix: nameDlg.prefix?.trim() || null, guest_permissions: nameDlg.caps ?? undefined };
     try {
       if (nameDlg.mode === 'edit') {
         await client.put(`/api/boards/${nameDlg.board.id}`, payload);
@@ -132,8 +133,8 @@ export default function BoardsPage() {
                 )}
               </>
             )}
-            onAdd={() => setNameDlg({ mode: 'create', name: '', prefix: '' })}
-            onEdit={(b) => setNameDlg({ mode: 'edit', board: b, name: b.name, prefix: b.prefix ?? '' })}
+            onAdd={() => setNameDlg({ mode: 'create', name: '', prefix: '', caps: { columns: true, tasks: true, delete_tasks: true } })}
+            onEdit={(b) => setNameDlg({ mode: 'edit', board: b, name: b.name, prefix: b.prefix ?? '', caps: { columns: true, tasks: true, delete_tasks: true, ...(b.guest_permissions ?? {}) } })}
             onDelete={(b) => setDelDlg(b)}
             onRow={(b) => navigate(`/boards/${b.id}`)}
             refreshKey={refKey}
@@ -174,6 +175,31 @@ export default function BoardsPage() {
               if (e.key === 'Enter') saveName();
             }}
           />
+          <Box
+            component="fieldset"
+            sx={{ mt: 2, border: 1, borderColor: 'divider', borderRadius: 1, px: 1.5, pb: 0.5, m: 0, ml: 0, mr: 0 }}
+          >
+            <Typography component="legend" variant="caption" color="text.secondary" sx={{ px: 0.5 }}>
+              Возможности гостя
+            </Typography>
+            <FormGroup>
+              {[['columns', 'Создавать колонки'], ['tasks', 'Создавать задачи'], ['delete_tasks', 'Удалять задачи']].map(([key, label]) => (
+                <FormControlLabel
+                  key={key}
+                  control={(
+                    <Checkbox
+                      size="small"
+                      checked={nameDlg?.caps?.[key] ?? true}
+                      onChange={(e) => setNameDlg((d) => ({
+                        ...d, caps: { ...d.caps, [key]: e.target.checked },
+                      }))}
+                    />
+                  )}
+                  label={<Typography variant="body2">{label}</Typography>}
+                />
+              ))}
+            </FormGroup>
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setNameDlg(null)}>Отмена</Button>
