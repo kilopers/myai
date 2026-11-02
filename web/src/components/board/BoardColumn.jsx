@@ -84,7 +84,12 @@ export default function BoardColumn({
         <IconButton
           size="small"
           onClick={() => onAddTask(column)}
-          sx={{ color: 'text.secondary', p: 0.25 }}
+          sx={{
+            color: '#fff',
+            bgcolor: column.color,
+            p: 0.25,
+            '&:hover': { bgcolor: column.color, filter: 'brightness(0.88)' },
+          }}
         >
           <AddIcon fontSize="small" />
         </IconButton>
