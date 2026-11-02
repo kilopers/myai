@@ -281,7 +281,9 @@ export default function TaskComments({ taskId, onCount, onError }) {
                   <ChatMessageGroup messageId={message.id} index={index}>
                     <ChatMessage
                       messageId={message.id}
-                      slots={{ avatar: <Avatar {...avatarProps(message.author.displayName)} /> }}
+                      // slots.avatar ждёт компонент, не элемент —
+                      // иначе React error #130
+                      slots={{ avatar: () => <Avatar {...avatarProps(message.author.displayName)} /> }}
                       sx={{ px: 0 }}
                     />
                   </ChatMessageGroup>
