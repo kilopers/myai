@@ -100,7 +100,7 @@ export default function BoardTask({ task, onClick, onDragStart, prefix }) {
           sx={{
             fontSize: '0.75rem',
             lineHeight: 1.3,
-            mt: 0.25,
+            mt: 0.75,
             display: '-webkit-box',
             WebkitLineClamp: 3,
             WebkitBoxOrient: 'vertical',
@@ -111,7 +111,7 @@ export default function BoardTask({ task, onClick, onDragStart, prefix }) {
           {plainText(task.text)}
         </Typography>
       ) : null}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.75 }}>
         {attCount > 0 && counter(
           <AttachFileIcon sx={{ fontSize: 13 }} />, attCount,
           `Прикреплённые файлы: ${attCount}`,
