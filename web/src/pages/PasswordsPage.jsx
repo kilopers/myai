@@ -27,7 +27,6 @@ import {
   TableBody,
   TableCell,
   TableHead,
-  TablePagination,
   TableRow,
   Tabs,
   TextField,
@@ -41,7 +40,6 @@ import EditIcon from '@mui/icons-material/Edit';
 import FolderIcon from '@mui/icons-material/Folder';
 import KeyIcon from '@mui/icons-material/Key';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import SearchIcon from '@mui/icons-material/Search';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers';
@@ -51,7 +49,7 @@ import 'dayjs/locale/ru';
 import client from '../api/client';
 import AppDialog from '../components/AppDialog';
 import PageHeader from '../components/PageHeader';
-import DataList from '../components/DataList';
+import Reference from '../components/Reference';
 import { useSearchParams } from 'react-router-dom';
 
 dayjs.locale('ru');
@@ -80,10 +78,9 @@ export default function PasswordsPage() {
   useEffect(() => {
     setActiveId(urlFolder);
   }, [urlFolder]);
-  const [entries, setEntries] = useState(null);
-  const [meta, setMeta] = useState(null);
-  const [page, setPage] = useState(1);
-  const [query, setQuery] = useState('');
+  const [refKey, setRefKey] = useState(0);
+  // q из фильтров Reference — для заголовка «Поиск: …» и колонки «Папка»
+  const [searchQ, setSearchQ] = useState('');
   const [message, setMessage] = useState('');
   // Диалог папки: {id?, name} — id есть при переименовании.
   const [folderDlg, setFolderDlg] = useState(null);
@@ -112,19 +109,17 @@ export default function PasswordsPage() {
     }
   }, []);
 
-  const loadEntries = useCallback(async (folderId, q, p) => {
-    setEntries(null);
-    try {
-      const params = new URLSearchParams();
-      if (folderId) params.set('password_folder_id', folderId);
-      if (q?.trim()) params.set('q', q.trim());
-      params.set('page', p);
-      const { data } = await client.get(`/api/password-entries?${params}`);
-      setEntries(data.data ?? []);
-      setMeta(data.meta ?? null);
-    } catch {
-      setEntries([]);
+  // Непустой поиск идёт по всему справочнику (папка игнорируется),
+  // пустой — по выбранной папке.
+  const fetchEntries = useCallback(async ({ q, page, password_folder_id }) => {
+    const params = { page };
+    if (q?.trim()) {
+      params.q = q.trim();
+    } else if (password_folder_id) {
+      params.password_folder_id = password_folder_id;
     }
+    const { data } = await client.get('/api/password-entries', { params });
+    return { data: data.data ?? [], total: data.meta?.total ?? (data.data ?? []).length };
   }, []);
 
   const loadGenerators = useCallback(async () => {
@@ -154,23 +149,7 @@ export default function PasswordsPage() {
   useEffect(() => {
     if (tab === 2 && !genBatch && !genBatchLoading) loadBatch();
   }, [tab, genBatch, genBatchLoading, loadBatch]);
-  // Поиск с дебаунсом: непустой запрос ищет по всему справочнику,
-  // пустой — показывает выбранную папку (или все записи при activeId=0).
-  useEffect(() => {
-    if (!folders) return;
-    const t = setTimeout(() => {
-      setPage(1);
-      loadEntries(query.trim() ? null : activeId, query, 1);
-    }, query.trim() ? 300 : 0);
-    return () => clearTimeout(t);
-  }, [activeId, query, folders, loadEntries]);
-
-  const goPage = (p) => {
-    setPage(p);
-    loadEntries(query.trim() ? null : activeId, query, p);
-  };
-
-  const reloadCurrent = () => loadEntries(query.trim() ? null : activeId, query, page);
+  const reloadCurrent = () => setRefKey((k) => k + 1);
 
   const copy = async (text, what) => {
     try {
@@ -349,11 +328,11 @@ export default function PasswordsPage() {
     '&:hover': { bgcolor: 'rgba(82, 109, 227, 0.08)' },
   };
 
-  const searching = !!query.trim();
+  const searching = !!searchQ.trim();
   // Показываем колонку «Папка», когда строки из разных папок (все записи / поиск).
   const showFolderCol = searching || activeId === 0;
   const title = searching
-    ? `Поиск: «${query.trim()}»`
+    ? `Поиск: «${searchQ.trim()}»`
     : (activeId ? folders?.find((f) => f.id === activeId)?.name ?? 'Записи' : 'Все записи');
 
   return (
@@ -538,41 +517,11 @@ export default function PasswordsPage() {
 
         <Card sx={{ flex: 1, minWidth: 420 }}>
           <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1, flexWrap: 'wrap' }}>
-              <Typography variant="subtitle1" sx={{ flexGrow: 1, minWidth: 120 }}>
-                {title}
-              </Typography>
-              <TextField
-                size="small"
-                placeholder="Поиск по всему справочнику…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                sx={{ width: 260 }}
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon fontSize="small" />
-                      </InputAdornment>
-                    ),
-                  },
-                }}
-              />
-              <Button
-                size="small"
-                variant="contained"
-                startIcon={<AddIcon />}
-                disabled={!folders?.length}
-                onClick={() => openEntryDlg(null)}
-              >
-                Создать
-              </Button>
-            </Box>
-            {!entries ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress size={24} /></Box>
-            ) : (
-              <DataList
-                columns={[
+            <Reference
+              meta={{
+                label: title,
+                addLabel: 'Создать',
+                columns: [
                   { key: 'name', label: 'Название', render: (e) => <Box component="span" sx={{ fontWeight: 500 }}>{e.name}</Box> },
                   { key: 'login', label: 'Логин', render: (e) => e.login ? (
                       <Tooltip title="Клик — скопировать логин">
@@ -605,32 +554,20 @@ export default function PasswordsPage() {
                   ...(showFolderCol ? [{ key: 'folder', label: 'Папка', render: (e) => (
                     <Box component="span" sx={{ color: 'text.secondary' }}>{e.folder?.name ?? '—'}</Box>
                   ) }] : []),
-                ]}
-                rows={entries}
-                empty={searching ? 'Ничего не найдено.' : 'Записей пока нет — нажмите «Создать».'}
-                actions={(e) => (
-                  <>
-                    <IconButton size="small" onClick={() => openEntryDlg(e)}>
-                      <EditIcon sx={{ fontSize: 16 }} />
-                    </IconButton>
-                    <IconButton size="small" onClick={() => removeEntry(e)}>
-                      <DeleteIcon sx={{ fontSize: 16 }} />
-                    </IconButton>
-                  </>
-                )}
-              />
-            )}
-            {entries && meta && meta.last_page > 1 && (
-              <TablePagination
-                component="div"
-                count={meta.total}
-                page={(meta.current_page ?? page) - 1}
-                rowsPerPage={20}
-                rowsPerPageOptions={[20]}
-                onPageChange={(e, p) => goPage(p + 1)}
-                labelDisplayedRows={({ from, to, count }) => `${from}–${to} из ${count}`}
-              />
-            )}
+                ],
+                filters: [{ name: 'q', label: 'Поиск по всему справочнику', type: 'text' }],
+                // Без папок записи не создать — скрываем кнопку.
+                can: { create: !!folders?.length, edit: true, delete: true },
+              }}
+              fetch={fetchEntries}
+              extraParams={{ password_folder_id: activeId || undefined }}
+              refreshKey={refKey}
+              onFiltersChange={(f) => setSearchQ(f.q ?? '')}
+              onAdd={() => openEntryDlg(null)}
+              onEdit={openEntryDlg}
+              onDelete={removeEntry}
+              empty={searching ? 'Ничего не найдено.' : 'Записей пока нет — нажмите «Создать».'}
+            />
           </CardContent>
         </Card>
       </Box>
