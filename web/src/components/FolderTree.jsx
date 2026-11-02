@@ -233,13 +233,18 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
             pl: `${8 + depth * 14}px`,
             pr: 0.5,
             mb: 0.125,
-            color: '#303030',
-            '&:hover': { bgcolor: '#e4e4ee' },
+            color: 'rgb(113, 116, 132)',
+            '&:hover': { bgcolor: 'rgb(229, 233, 251)' },
             '&:hover .folder-menu-btn': { opacity: 1 },
-            '&.Mui-selected': { bgcolor: '#dcdce9', '&:hover': { bgcolor: '#d5d5e3' } },
+            '&.Mui-selected': {
+              bgcolor: 'rgb(229, 233, 251)',
+              color: 'rgb(82, 109, 227)',
+              '&:hover': { bgcolor: 'rgb(229, 233, 251)' },
+              '& .MuiListItemIcon-root': { color: 'rgb(82, 109, 227)' },
+            },
             ...(dropTarget === folder.id && {
-              outline: '2px dashed #1a73e8',
-              bgcolor: '#e8f0fe',
+              outline: '2px dashed rgb(82, 109, 227)',
+              bgcolor: 'rgb(229, 233, 251)',
             }),
           }}
         >
@@ -262,7 +267,7 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
           >
             {isOpen ? <ExpandMoreIcon /> : <ChevronRightIcon />}
           </IconButton>
-          <ListItemIcon sx={{ minWidth: 26, color: '#626168', '& svg': { fontSize: 18 } }}>
+          <ListItemIcon sx={{ minWidth: 26, color: 'rgb(113, 116, 132)', '& svg': { fontSize: 18 } }}>
             <FolderIcon />
           </ListItemIcon>
           <ListItemText
@@ -281,7 +286,7 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
           )}
           {folder.active_links > 0 && (
             <Tooltip title="Есть активная ссылка на папку">
-              <LinkIcon sx={{ fontSize: 14, color: '#1a73e8', mr: 0.3 }} />
+              <LinkIcon sx={{ fontSize: 14, color: 'rgb(82, 109, 227)', mr: 0.3 }} />
             </Tooltip>
           )}
           {folder.conversion_enabled === false && (
@@ -324,12 +329,12 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
               py: 0.3,
               pl: '8px',
               mb: 0.125,
-              color: '#303030',
+              color: 'rgb(113, 116, 132)',
               border: '1px dashed #b8b8c4',
-              ...(dropTarget === 'root' && { borderColor: '#1a73e8', bgcolor: '#e8f0fe' }),
+              ...(dropTarget === 'root' && { borderColor: 'rgb(82, 109, 227)', bgcolor: 'rgb(229, 233, 251)' }),
             }}
           >
-            <ListItemIcon sx={{ minWidth: 26, color: '#626168', '& svg': { fontSize: 18 } }}>
+            <ListItemIcon sx={{ minWidth: 26, color: 'rgb(113, 116, 132)', '& svg': { fontSize: 18 } }}>
               <HomeIcon />
             </ListItemIcon>
             <ListItemText
