@@ -53,6 +53,7 @@ import client from '../api/client';
 import AppDialog from '../components/AppDialog';
 import { onWsEvent } from '../api/ws';
 import { notifyFoldersChanged } from '../components/FolderTree';
+import FolderSettings from '../components/FolderSettings';
 import FileViewerDialog, { isOfficeMime, viewMode } from '../components/FileViewerDialog';
 import PageHeader from '../components/PageHeader';
 
@@ -634,13 +635,16 @@ export default function FilesPage() {
           </Box>
         )}
         actions={(
-          <Button
-            variant="outlined"
-            startIcon={<CreateNewFolderIcon />}
-            onClick={() => setNewFolderOpen(true)}
-          >
-            Папка
-          </Button>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            {folder && <FolderSettings folder={folder} onAction={setMessage} />}
+            <Button
+              variant="outlined"
+              startIcon={<CreateNewFolderIcon />}
+              onClick={() => setNewFolderOpen(true)}
+            >
+              Папка
+            </Button>
+          </Box>
         )}
       />
 
