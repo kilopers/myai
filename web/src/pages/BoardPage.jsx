@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -43,6 +43,7 @@ export default function BoardPage() {
   const [taskDlg, setTaskDlg] = useState(null); // {mode:'create'|'edit', column, task, form, confirmDel}
   const [dragTask, setDragTask] = useState(null);
   const [notice, setNotice] = useState('');
+  const taskEditorRef = useRef(null);
 
   const load = useCallback(async () => {
     try {
@@ -98,7 +99,11 @@ export default function BoardPage() {
   };
 
   const saveTask = async () => {
-    const form = taskDlg.form;
+    // HTML берём напрямую из редактора — base64-картинки не теряются
+    const liveText = taskEditorRef.current
+      ? (taskEditorRef.current.isEmpty ? '' : taskEditorRef.current.getHTML())
+      : null;
+    const form = { ...taskDlg.form, text: liveText ?? taskDlg.form.text };
     if (!form.title.trim()) return;
     try {
       if (taskDlg.mode === 'edit') {
@@ -298,6 +303,7 @@ export default function BoardPage() {
               }))}
               placeholder="Описание задачи"
               minHeight={200}
+              editorRef={taskEditorRef}
             />
           </Box>
           <Box sx={{ mt: 1.5 }}>

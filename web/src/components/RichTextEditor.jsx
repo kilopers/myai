@@ -24,8 +24,11 @@ import RedoIcon from '@mui/icons-material/Redo';
  * value — HTML-строка; внешнее изменение (открытие другой задачи)
  * подхватывается через setContent.
  */
+const imageFiles = (files) =>
+  [...(files ?? [])].filter((f) => f.type.startsWith('image/'));
+
 const insertImages = (editor, files) => {
-  const images = [...files].filter((f) => f.type.startsWith('image/'));
+  const images = imageFiles(files);
   if (images.length === 0) return false;
   images.forEach((file) => {
     const reader = new FileReader();
@@ -39,17 +42,28 @@ const insertImages = (editor, files) => {
   return true;
 };
 
-export default function RichTextEditor({ value, onChange, placeholder, minHeight = 96 }) {
+// Буфер обмена: image может лежать в items, а files быть пустым.
+const clipboardImageFiles = (clipboardData) => {
+  const files = imageFiles(clipboardData?.files);
+  if (files.length > 0) return files;
+  return [...(clipboardData?.items ?? [])]
+    .filter((i) => i.kind === 'file' && i.type.startsWith('image/'))
+    .map((i) => i.getAsFile())
+    .filter(Boolean);
+};
+
+export default function RichTextEditor({
+  value, onChange, placeholder, minHeight = 96, editorRef,
+}) {
   const editor = useEditor({
     extensions: [StarterKit, Image],
     content: value || '',
     onUpdate: ({ editor: e }) => onChange(e.isEmpty ? '' : e.getHTML()),
     editorProps: {
       handlePaste: (_view, event) =>
-        insertImages(editor, event.clipboardData?.files ?? []),
+        insertImages(editor, clipboardImageFiles(event.clipboardData)),
       handleDrop: (_view, event) => {
-        const files = event.dataTransfer?.files ?? [];
-        if (insertImages(editor, files)) {
+        if (insertImages(editor, event.dataTransfer?.files)) {
           event.preventDefault();
           return true;
         }
@@ -57,6 +71,12 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
       },
     },
   });
+
+  // Родитель при сохранении читает HTML напрямую из редактора —
+  // гарантия, что base64-картинки не теряются в гонках state.
+  useEffect(() => {
+    if (editorRef) editorRef.current = editor;
+  }, [editor, editorRef]);
 
   // Подхват смены редактируемой записи: контент меняем только
   // если пришёл другой документ (иначе ломается позиция курсора).
