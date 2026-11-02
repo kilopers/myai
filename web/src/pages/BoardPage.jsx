@@ -264,6 +264,7 @@ export default function BoardPage() {
               onTaskClick={openTaskEdit}
               onDragTaskStart={setDragTask}
               onDropTask={dropTask}
+              prefix={board?.prefix}
             />
           ))}
           {columns.length === 0 && (

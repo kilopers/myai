@@ -23,7 +23,7 @@ const InsertBar = () => (
  * dropAt — позиция, куда встанет карточка (видимая полоса).
  */
 export default function BoardColumn({
-  column, onAddTask, onEditColumn, onTaskClick, onDragTaskStart, onDropTask, dragActive,
+  column, onAddTask, onEditColumn, onTaskClick, onDragTaskStart, onDropTask, dragActive, prefix,
 }) {
   const [dropAt, setDropAt] = useState(null);
   const tasks = column.tasks ?? [];
@@ -120,6 +120,7 @@ export default function BoardColumn({
               task={t}
               onClick={onTaskClick}
               onDragStart={onDragTaskStart}
+              prefix={prefix}
             />
           </Box>
         ))}

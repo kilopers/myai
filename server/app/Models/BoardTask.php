@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['board_column_id', 'title', 'text', 'position'])]
+#[Fillable(['board_column_id', 'title', 'text', 'position', 'number'])]
 class BoardTask extends Model
 {
     /**

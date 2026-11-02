@@ -22,10 +22,15 @@ class BoardTaskController extends Controller
         // Новая задача — первой в колонке: раздвигаем остальные.
         $column->tasks()->increment('position');
 
+        // Сквозной номер в рамках доски — для бейджа PREFIX-N.
+        $number = $column->board->next_task_number;
+        $column->board->increment('next_task_number');
+
         $task = $column->tasks()->create([
             'title' => $data['title'],
             'text' => $data['text'] ?? null,
             'position' => 0,
+            'number' => $number,
         ]);
 
         return response()->json($task, 201);

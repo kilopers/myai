@@ -32,7 +32,7 @@ const counter = (icon, count, tip) => (
  * счётчики вложений/комментариев и дата создания, drag-источник
  * для переноса между колонками и внутри колонки.
  */
-export default function BoardTask({ task, onClick, onDragStart }) {
+export default function BoardTask({ task, onClick, onDragStart, prefix }) {
   const attCount = task.attachments?.length ?? 0;
   const commentsCount = task.comments_count ?? 0;
   return (
@@ -44,6 +44,7 @@ export default function BoardTask({ task, onClick, onDragStart }) {
       }}
       onClick={() => onClick(task)}
       sx={{
+        position: 'relative',
         bgcolor: 'background.paper',
         borderRadius: 1,
         px: 1,
@@ -55,6 +56,30 @@ export default function BoardTask({ task, onClick, onDragStart }) {
         '&:active': { cursor: 'grabbing' },
       }}
     >
+      {prefix && task.number != null && (
+        <Box
+          component="span"
+          sx={{
+            position: 'absolute',
+            top: 4,
+            right: 4,
+            px: 0.5,
+            py: 0.1,
+            border: '1px solid',
+            borderColor: 'primary.main',
+            borderRadius: 1,
+            bgcolor: 'transparent',
+            color: 'primary.main',
+            fontSize: '0.62rem',
+            fontWeight: 600,
+            lineHeight: 1.4,
+            letterSpacing: 0.4,
+            userSelect: 'none',
+          }}
+        >
+          {prefix}-{task.number}
+        </Box>
+      )}
       <Typography
         sx={{
           fontSize: '0.82rem',
@@ -64,6 +89,7 @@ export default function BoardTask({ task, onClick, onDragStart }) {
           WebkitLineClamp: 2,
           WebkitBoxOrient: 'vertical',
           overflow: 'hidden',
+          pr: prefix && task.number != null ? 6 : 0,
         }}
       >
         {task.title}

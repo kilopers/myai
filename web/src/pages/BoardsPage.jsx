@@ -41,11 +41,12 @@ export default function BoardsPage() {
   const saveName = async () => {
     const name = nameDlg.name.trim();
     if (!name) return;
+    const payload = { name, prefix: nameDlg.prefix?.trim() || null };
     try {
       if (nameDlg.mode === 'edit') {
-        await client.put(`/api/boards/${nameDlg.board.id}`, { name });
+        await client.put(`/api/boards/${nameDlg.board.id}`, payload);
       } else {
-        await client.post('/api/boards', { name });
+        await client.post('/api/boards', payload);
       }
       setNameDlg(null);
       notifyBoardsChanged();
@@ -89,8 +90,8 @@ export default function BoardsPage() {
               can: { create: true, edit: true, delete: true },
             }}
             fetch={fetchBoards}
-            onAdd={() => setNameDlg({ mode: 'create', name: '' })}
-            onEdit={(b) => setNameDlg({ mode: 'edit', board: b, name: b.name })}
+            onAdd={() => setNameDlg({ mode: 'create', name: '', prefix: '' })}
+            onEdit={(b) => setNameDlg({ mode: 'edit', board: b, name: b.name, prefix: b.prefix ?? '' })}
             onDelete={(b) => setDelDlg(b)}
             onRow={(b) => navigate(`/boards/${b.id}`)}
             refreshKey={refKey}
@@ -111,6 +112,22 @@ export default function BoardsPage() {
             autoComplete="off"
             value={nameDlg?.name ?? ''}
             onChange={(e) => setNameDlg((d) => ({ ...d, name: e.target.value }))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') saveName();
+            }}
+          />
+          <TextField
+            size="small"
+            label="Префикс задач"
+            placeholder="Например: PROJ"
+            helperText="Только латинские заглавные — номера карточек PREFIX-1, PREFIX-2…"
+            sx={{ mt: 1.5 }}
+            autoComplete="off"
+            value={nameDlg?.prefix ?? ''}
+            onChange={(e) => setNameDlg((d) => ({
+              ...d,
+              prefix: e.target.value.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 10),
+            }))}
             onKeyDown={(e) => {
               if (e.key === 'Enter') saveName();
             }}

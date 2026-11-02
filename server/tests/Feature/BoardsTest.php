@@ -148,4 +148,23 @@ class BoardsTest extends TestCase
         $this->actingAs($other)->getJson('/api/boards?q=B')
             ->assertOk()->assertJsonPath('total', 0);
     }
+
+    public function test_task_numbers_and_board_prefix(): void
+    {
+        $user = User::factory()->create();
+        $board = Board::create(['user_id' => $user->id, 'name' => 'B', 'prefix' => 'PROJ']);
+        $col = $board->columns()->create(['name' => 'C', 'color' => '#fff000', 'position' => 0]);
+
+        // Префикс — только латинские заглавные
+        $this->actingAs($user)->putJson("/api/boards/{$board->id}", ['name' => 'B', 'prefix' => 'abc'])
+            ->assertStatus(422);
+        $this->actingAs($user)->putJson("/api/boards/{$board->id}", ['name' => 'B', 'prefix' => 'OK'])
+            ->assertOk();
+
+        // Сквозная нумерация задач в рамках доски
+        $this->actingAs($user)->postJson('/api/board-tasks', ['board_column_id' => $col->id, 'title' => 'T1'])
+            ->assertCreated()->assertJsonPath('number', 1);
+        $this->actingAs($user)->postJson('/api/board-tasks', ['board_column_id' => $col->id, 'title' => 'T2'])
+            ->assertCreated()->assertJsonPath('number', 2);
+    }
 }
