@@ -45,7 +45,13 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import SearchIcon from '@mui/icons-material/Search';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import dayjs from 'dayjs';
+import 'dayjs/locale/ru';
 import client from '../api/client';
+
+dayjs.locale('ru');
 
 const emptyForm = { name: '', login: '', password: '', note: '', expires_at: '', password_folder_id: null };
 const emptyGen = {
@@ -340,6 +346,7 @@ export default function PasswordsPage() {
     : (activeId ? folders?.find((f) => f.id === activeId)?.name ?? 'Записи' : 'Все записи');
 
   return (
+    <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="ru">
     <Box sx={{ p: 2 }}>
       <Typography variant="h5" sx={{ mb: 1 }}>Пароли</Typography>
       <Tabs value={tab} onChange={(e, v) => setTab(v)} sx={{ mb: 2 }}>
@@ -728,12 +735,12 @@ export default function PasswordsPage() {
               </MenuItem>
             ))}
           </Menu>
-          <TextField
+          <DatePicker
             label="Срок действия (пусто — навсегда)"
-            type="date"
-            value={form.expires_at}
-            onChange={(e) => setForm((f) => ({ ...f, expires_at: e.target.value }))}
-            slotProps={{ inputLabel: { shrink: true } }}
+            value={form.expires_at ? dayjs(form.expires_at) : null}
+            onChange={(v) => setForm((f) => ({ ...f, expires_at: v?.isValid() ? v.format('YYYY-MM-DD') : '' }))}
+            format="DD.MM.YYYY"
+            slotProps={{ textField: { size: 'small' }, field: { clearable: true } }}
           />
           <TextField
             label="Доп. информация"
@@ -834,5 +841,6 @@ export default function PasswordsPage() {
         message={message}
       />
     </Box>
+    </LocalizationProvider>
   );
 }
