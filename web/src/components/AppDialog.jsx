@@ -1,26 +1,13 @@
 import Dialog from '@mui/material/Dialog';
+import useMediaQuery from '@mui/material/useMediaQuery';
 
 /**
- * Единый диалог приложения: на мобильной (xs) почти на весь экран
- * (по 2px слева/справа, до 32px сверху/снизу), на десктопе —
- * обычный MUI Dialog. Использовать вместо прямого Dialog везде.
+ * Единый диалог приложения: на мобильной (xs/sm) — полноэкранный
+ * MUI fullScreen (на всю ширину и высоту), на десктопе — обычный
+ * диалог. Использовать вместо прямого Dialog везде.
  */
-export default function AppDialog({ sx, ...props }) {
-  return (
-    <Dialog
-      fullWidth
-      {...props}
-      sx={{
-        '& .MuiDialog-container > .MuiDialog-paper': {
-          xs: {
-            width: 'calc(100% - 4px)',
-            maxWidth: 'calc(100% - 4px)',
-            m: '2px',
-            maxHeight: 'calc(100% - 32px)',
-          },
-        },
-        ...sx,
-      }}
-    />
-  );
+export default function AppDialog(props) {
+  const fullScreen = useMediaQuery((theme) => theme.breakpoints.down('sm'));
+
+  return <Dialog fullWidth fullScreen={fullScreen} {...props} />;
 }
