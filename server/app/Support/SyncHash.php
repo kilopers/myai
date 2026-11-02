@@ -93,8 +93,12 @@ class SyncHash
         }
         while ($folder !== null) {
             $hash = self::computeDirHash($folder);
-            if ($folder->dir_hash !== $hash) {
+            // Кэш размера папки (сумма файлов прямо в ней) — дешёвый
+            // COUNT/SUM при уже нужном пересчёте хэша.
+            $size = (int) $folder->files()->sum('size');
+            if ($folder->dir_hash !== $hash || (int) $folder->size !== $size) {
                 $folder->dir_hash = $hash;
+                $folder->size = $size;
                 $folder->saveQuietly();
                 $tracker->markFolder($folder);
             }

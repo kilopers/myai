@@ -23,6 +23,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
+import StorageIcon from '@mui/icons-material/Storage';
 import { Outlet, Link as RouterLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import client from '../api/client';
@@ -89,6 +90,7 @@ export default function Layout() {
     { to: '/files', label: 'Файлы', icon: <FolderIcon /> },
     { to: '/trash', label: 'Корзина', icon: <DeleteIcon /> },
     { to: '/releases', label: 'Релизы', icon: <SystemUpdateAltIcon /> },
+    { to: '/storage', label: 'Хранилище', icon: <StorageIcon /> },
     ...(user?.is_admin
       ? [{ to: '/admin', label: 'Админка', icon: <AdminPanelSettingsIcon /> }]
       : []),

@@ -12,6 +12,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicShareController;
 use App\Http\Controllers\ScreenshotController;
 use App\Http\Controllers\ShareLinkController;
+use App\Http\Controllers\StorageController;
 use App\Http\Controllers\SyncController;
 use App\Http\Controllers\TorrentController;
 use App\Http\Controllers\TrashController;
@@ -88,6 +89,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/torrents/{torrent}/resume', [TorrentController::class, 'resume']);
     Route::put('/torrents/{torrent}/settings', [TorrentController::class, 'updateSettings']);
     Route::delete('/torrents/{torrent}', [TorrentController::class, 'destroy']);
+
+    // Хранилище: сводка из БД (быстро) и реальный du каталогов (медленно)
+    Route::get('/storage/summary', [StorageController::class, 'summary']);
+    Route::get('/storage/real-size', [StorageController::class, 'realSize']);
 
     // Корзина
     Route::get('/trash', [TrashController::class, 'index']);
