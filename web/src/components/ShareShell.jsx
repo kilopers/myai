@@ -43,7 +43,7 @@ export default function ShareShell({ title, actions, children }) {
         }}
       >
         <Typography variant="caption" color="text.secondary">
-          Разработано Изорин Игорь Алексеевич, {new Date().getFullYear()},
+          Разработано Зорин Юрий Алексеевич, {new Date().getFullYear()},
           v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'}
         </Typography>
       </Box>

@@ -421,7 +421,7 @@ export default function Layout() {
             '@media (display-mode: standalone)': { display: 'none' },
           }}
         >
-          Разработано Изорин Игорь Алексеевич, {new Date().getFullYear()},
+          Разработано Зорин Юрий Алексеевич, {new Date().getFullYear()},
           v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'}
         </Typography>
       </Box>
