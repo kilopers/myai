@@ -50,6 +50,7 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
 import client from '../api/client';
+import PageHeader from '../components/PageHeader';
 
 dayjs.locale('ru');
 
@@ -347,8 +348,8 @@ export default function PasswordsPage() {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="ru">
-    <Box sx={{ p: 2 }}>
-      <Typography variant="h5" sx={{ mb: 1 }}>Пароли</Typography>
+    <Box>
+      <PageHeader title="Пароли" />
       <Tabs value={tab} onChange={(e, v) => setTab(v)} sx={{ mb: 2 }}>
         <Tab label="Записи" />
         <Tab label="Алгоритмы генерации" />

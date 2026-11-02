@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Box,
   Button,
+  Fab,
+  Link,
+  Tooltip,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -12,9 +15,9 @@ import {
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link as RouterLink, useParams } from 'react-router-dom';
 import client from '../api/client';
+import PageHeader from '../components/PageHeader';
 import BoardColumn from '../components/board/BoardColumn';
 
 const COLUMN_COLORS = [
@@ -32,7 +35,6 @@ const emptyTask = { title: '', text: '' };
 export default function BoardPage() {
   const { id } = useParams();
   const boardId = Number(id);
-  const navigate = useNavigate();
   const [board, setBoard] = useState(null);
   const [columns, setColumns] = useState(null);
   const [colDlg, setColDlg] = useState(null); // {mode:'create'|'edit', column, name, color, confirmDel}
@@ -135,27 +137,29 @@ export default function BoardPage() {
   });
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
-        <Button
-          size="small"
-          startIcon={<ArrowBackIcon />}
-          onClick={() => navigate('/boards')}
-        >
-          Доски
-        </Button>
-        <Typography variant="h5" sx={{ flexGrow: 1 }}>
-          {board?.name ?? '…'}
-        </Typography>
-        <Button
-          size="small"
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setColDlg({ mode: 'create', name: '', color: COLUMN_COLORS[0] })}
-        >
-          Добавить колонку
-        </Button>
-      </Box>
+    <Box>
+      <PageHeader
+        crumbs={(
+          <>
+            <Link component={RouterLink} to="/boards" underline="hover" color="inherit">
+              Доски
+            </Link>
+            <Typography color="text.primary">{board?.name ?? '…'}</Typography>
+          </>
+        )}
+        title={board?.name ?? '…'}
+        actions={(
+          <Tooltip title="Добавить колонку">
+            <Fab
+              size="small"
+              color="primary"
+              onClick={() => setColDlg({ mode: 'create', name: '', color: COLUMN_COLORS[0] })}
+            >
+              <AddIcon />
+            </Fab>
+          </Tooltip>
+        )}
+      />
       {!columns ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
           <CircularProgress size={28} />

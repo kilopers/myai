@@ -51,4 +51,19 @@ class WebSessionTokenTest extends TestCase
         $this->assertContains('desktop-pc', $names);
         $this->assertNotContains('web', $names);
     }
+
+    public function test_menu_state_persisted(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->putJson('/api/me', [
+            'menu_state' => ['files' => false, 'boards' => true],
+        ])->assertOk()->assertJsonPath('data.menu_state.files', false);
+
+        $this->assertFalse($user->fresh()->menu_state['files']);
+
+        $this->actingAs($user)->putJson('/api/me', [
+            'menu_state' => ['files' => 'yes'],
+        ])->assertUnprocessable();
+    }
 }

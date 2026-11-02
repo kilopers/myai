@@ -27,6 +27,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
+import PageHeader from '../components/PageHeader';
 
 export const notifyBoardsChanged = () => window.dispatchEvent(new Event('boards-changed'));
 
@@ -100,8 +101,8 @@ export default function BoardsPage() {
   };
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Typography variant="h5" sx={{ mb: 1 }}>Доски</Typography>
+    <Box>
+      <PageHeader title="Доски" />
       <Card>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1, flexWrap: 'wrap' }}>

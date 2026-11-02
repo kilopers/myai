@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
-  Breadcrumbs,
   Button,
   Card,
   CardContent,
@@ -55,6 +54,7 @@ import client from '../api/client';
 import { onWsEvent } from '../api/ws';
 import { notifyFoldersChanged } from '../components/FolderTree';
 import FileViewerDialog, { isOfficeMime, viewMode } from '../components/FileViewerDialog';
+import PageHeader from '../components/PageHeader';
 
 const TTL_OPTIONS = [
   { value: '', label: 'По умолчанию' },
@@ -591,54 +591,58 @@ export default function FilesPage() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        {folder && (
-          <IconButton
-            onClick={() => {
-              const p = crumbs.length > 1 ? crumbs[crumbs.length - 2] : null;
-              setSearchParams(p ? { folder: String(p.id) } : {});
-              setPage(1);
-            }}
-          >
-            <ArrowBackIcon />
-          </IconButton>
-        )}
-        <Typography variant="h5" sx={{ flexGrow: 1 }}>
-          Файлы{folder ? ` — ${folder.name}` : ''}
-        </Typography>
-        <Button
-          variant="outlined"
-          startIcon={<CreateNewFolderIcon />}
-          onClick={() => setNewFolderOpen(true)}
-        >
-          Папка
-        </Button>
-      </Box>
-
-      {crumbs.length > 1 && (
-        <Breadcrumbs sx={{ mb: 2 }}>
-          <Link
-            component="button"
-            underline="hover"
-            color="inherit"
-            onClick={() => { setSearchParams({}); setPage(1); }}
-          >
-            Файлы
-          </Link>
-          {crumbs.slice(0, -1).map((c) => (
+      <PageHeader
+        crumbs={crumbs.length > 1 ? (
+          <>
             <Link
-              key={c.id}
               component="button"
               underline="hover"
               color="inherit"
-              onClick={() => { setSearchParams({ folder: String(c.id) }); setPage(1); }}
+              onClick={() => { setSearchParams({}); setPage(1); }}
             >
-              {c.name}
+              Файлы
             </Link>
-          ))}
-          <Typography color="text.primary">{crumbs[crumbs.length - 1].name}</Typography>
-        </Breadcrumbs>
-      )}
+            {crumbs.slice(0, -1).map((c) => (
+              <Link
+                key={c.id}
+                component="button"
+                underline="hover"
+                color="inherit"
+                onClick={() => { setSearchParams({ folder: String(c.id) }); setPage(1); }}
+              >
+                {c.name}
+              </Link>
+            ))}
+            <Typography color="text.primary">{crumbs[crumbs.length - 1].name}</Typography>
+          </>
+        ) : null}
+        title={(
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+            {folder && (
+              <IconButton
+                size="small"
+                onClick={() => {
+                  const p = crumbs.length > 1 ? crumbs[crumbs.length - 2] : null;
+                  setSearchParams(p ? { folder: String(p.id) } : {});
+                  setPage(1);
+                }}
+              >
+                <ArrowBackIcon />
+              </IconButton>
+            )}
+            Файлы{folder ? ` — ${folder.name}` : ''}
+          </Box>
+        )}
+        actions={(
+          <Button
+            variant="outlined"
+            startIcon={<CreateNewFolderIcon />}
+            onClick={() => setNewFolderOpen(true)}
+          >
+            Папка
+          </Button>
+        )}
+      />
 
       <Box
         onClick={() => inputRef.current?.click()}

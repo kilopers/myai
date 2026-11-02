@@ -20,6 +20,8 @@ class ProfileController extends Controller
             'default_file_ttl_days' => ['nullable', 'integer', 'min:0', 'max:36500'],
             'default_link_ttl_days' => ['nullable', 'integer', 'min:0', 'max:36500'],
             'trash_retention_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
+            'menu_state' => ['nullable', 'array'],
+            'menu_state.*' => ['boolean'],
         ]);
 
         $request->user()->update($validated);

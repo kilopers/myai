@@ -12,7 +12,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'email', 'password', 'is_admin', 'must_change_password', 'default_screenshot_ttl_days', 'default_file_ttl_days', 'default_link_ttl_days', 'trash_retention_days'])]
+#[Fillable(['name', 'email', 'password', 'is_admin', 'must_change_password', 'default_screenshot_ttl_days', 'default_file_ttl_days', 'default_link_ttl_days', 'trash_retention_days', 'menu_state'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -30,6 +30,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_admin' => 'boolean',
+            'menu_state' => 'array',
             'must_change_password' => 'boolean',
         ];
     }

@@ -26,6 +26,8 @@ import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
 import StorageIcon from '@mui/icons-material/Storage';
 import KeyIcon from '@mui/icons-material/Key';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { Outlet, Link as RouterLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import client from '../api/client';
@@ -45,6 +47,18 @@ export default function Layout() {
   const [open, setOpen] = useState(() => localStorage.getItem(OPEN_KEY) !== '0');
   const [folders, setFolders] = useState([]);
   const [boards, setBoards] = useState([]);
+  // Свернутые/развёрнутые секции меню — хранится в БД (users.menu_state).
+  const [menuState, setMenuState] = useState({ files: true, boards: true });
+  useEffect(() => {
+    if (user?.menu_state) setMenuState((s) => ({ ...s, ...user.menu_state }));
+  }, [user?.menu_state]);
+  const toggleSection = (key) => {
+    setMenuState((s) => {
+      const next = { ...s, [key]: !s[key] };
+      client.put('/api/me', { menu_state: next }).catch(() => {});
+      return next;
+    });
+  };
   const [notice, setNotice] = useState('');
   const [wsState, setWsState] = useState('disconnected');
 
@@ -106,9 +120,9 @@ export default function Layout() {
 
   const items = [
     { to: '/', label: 'Скриншоты', icon: <ImageIcon /> },
-    { to: '/files', label: 'Файлы', icon: <FolderIcon /> },
+    { to: '/files', label: 'Файлы', icon: <FolderIcon />, section: 'files' },
     { to: '/passwords', label: 'Пароли', icon: <KeyIcon /> },
-    { to: '/boards', label: 'Доски', icon: <ViewKanbanIcon /> },
+    { to: '/boards', label: 'Доски', icon: <ViewKanbanIcon />, section: 'boards' },
     { to: '/trash', label: 'Корзина', icon: <DeleteIcon /> },
     { to: '/releases', label: 'Релизы', icon: <SystemUpdateAltIcon /> },
     { to: '/storage', label: 'Хранилище', icon: <StorageIcon /> },
@@ -127,6 +141,7 @@ export default function Layout() {
             : location.pathname.startsWith(item.to);
           const btn = (
             <Box key={item.to}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <ListItemButton
                 component={RouterLink}
                 to={item.to}
@@ -181,7 +196,19 @@ export default function Layout() {
                   />
                 )}
               </ListItemButton>
-              {item.to === '/boards' && (open || isMobile) && boards.length > 0 && (
+              {item.section && (open || isMobile) && (
+                <IconButton
+                  size="small"
+                  onClick={() => toggleSection(item.section)}
+                  sx={{ color: 'rgb(113, 116, 132)', mr: 0.5, p: 0.25 }}
+                >
+                  {menuState[item.section]
+                    ? <ExpandMoreIcon sx={{ fontSize: 16 }} />
+                    : <ChevronRightIcon sx={{ fontSize: 16 }} />}
+                </IconButton>
+              )}
+              </Box>
+              {item.to === '/boards' && (open || isMobile) && menuState.boards && boards.length > 0 && (
                 <Box>
                   {boards.map((b) => (
                     <ListItemButton
@@ -212,7 +239,7 @@ export default function Layout() {
                   ))}
                 </Box>
               )}
-              {item.to === '/files' && (open || isMobile) && (
+              {item.to === '/files' && (open || isMobile) && menuState.files && (
                 <FolderTree
                   folders={folders}
                   currentFolderId={currentFolderId}

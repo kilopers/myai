@@ -12,6 +12,7 @@ import {
   Typography,
 } from '@mui/material';
 import client from '../api/client';
+import PageHeader from '../components/PageHeader';
 
 const mb = (b) => `${(b / 1048576).toFixed(1)} МБ`;
 
@@ -70,8 +71,8 @@ export default function StoragePage() {
     : 0;
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Typography variant="h5" sx={{ mb: 2 }}>Хранилище</Typography>
+    <Box>
+      <PageHeader title="Хранилище" />
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
         <Card sx={{ minWidth: 280, flex: '0 0 auto' }}>
           <CardContent>
