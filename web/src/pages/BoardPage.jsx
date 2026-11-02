@@ -10,6 +10,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  MenuItem,
+  Select,
   Snackbar,
   Tab,
   Tabs,
@@ -203,6 +205,19 @@ export default function BoardPage() {
     }
     try {
       await client.put(`/api/board-tasks/${task.id}`, { board_column_id: column.id });
+      load();
+    } catch {
+      setNotice('Не удалось перенести задачу');
+    }
+  };
+
+  // Перенос открытой задачи в другую колонку из диалога.
+  const moveTaskToColumn = async (columnId) => {
+    const task = taskDlg?.task;
+    if (!task || columnId === task.board_column_id) return;
+    try {
+      await client.put(`/api/board-tasks/${task.id}`, { board_column_id: columnId });
+      setTaskDlg(null);
       load();
     } catch {
       setNotice('Не удалось перенести задачу');
@@ -532,10 +547,42 @@ export default function BoardPage() {
               </Button>
             )
           ) : <Box />}
-          <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {taskDlg?.mode === 'edit' ? (
               // Поля сохраняются инлайн — общая кнопка «Сохранить» не нужна
-              <Button variant="contained" onClick={() => setTaskDlg(null)}>Закрыть</Button>
+              <>
+                <Select
+                  size="small"
+                  value={taskDlg.task.board_column_id}
+                  onChange={(e) => moveTaskToColumn(e.target.value)}
+                  renderValue={(colId) => {
+                    const c = columns?.find((col) => col.id === colId);
+                    return (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+                        <Box sx={{
+                          width: 10, height: 10, borderRadius: '50%',
+                          bgcolor: c?.color, flex: '0 0 auto',
+                        }}
+                        />
+                        <Typography variant="body2" noWrap>{c?.name ?? '…'}</Typography>
+                      </Box>
+                    );
+                  }}
+                >
+                  {(columns ?? []).map((c) => (
+                    <MenuItem key={c.id} value={c.id}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box sx={{
+                          width: 10, height: 10, borderRadius: '50%', bgcolor: c.color,
+                        }}
+                        />
+                        {c.name}
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+                <Button variant="contained" onClick={() => setTaskDlg(null)}>Закрыть</Button>
+              </>
             ) : (
               <>
                 <Button onClick={() => setTaskDlg(null)}>Отмена</Button>
