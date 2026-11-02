@@ -4,6 +4,9 @@ use App\Http\Controllers\ActionController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\ApiTokenController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BoardColumnController;
+use App\Http\Controllers\BoardController;
+use App\Http\Controllers\BoardTaskController;
 use App\Http\Controllers\DesktopReleaseController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\FolderController;
@@ -76,6 +79,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('password-generators', PasswordGeneratorController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::post('/password-generators/generate-batch', [PasswordGeneratorController::class, 'generateBatch']);
     Route::post('/password-generators/{passwordGenerator}/generate', [PasswordGeneratorController::class, 'generate']);
+    Route::apiResource('boards', BoardController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('board-columns', BoardColumnController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('board-tasks', BoardTaskController::class)->only(['store', 'update', 'destroy']);
     Route::apiResource('files', FileController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
     Route::get('/files/{file}/download', [FileController::class, 'download']);
     // Производные файла фоновой конвертации (v1.3.0)

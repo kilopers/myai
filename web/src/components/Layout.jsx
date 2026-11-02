@@ -25,6 +25,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
 import StorageIcon from '@mui/icons-material/Storage';
 import KeyIcon from '@mui/icons-material/Key';
+import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
 import { Outlet, Link as RouterLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import client from '../api/client';
@@ -43,6 +44,7 @@ export default function Layout() {
   const isMobile = useMediaQuery((theme) => theme.breakpoints.down('md'));
   const [open, setOpen] = useState(() => localStorage.getItem(OPEN_KEY) !== '0');
   const [folders, setFolders] = useState([]);
+  const [boards, setBoards] = useState([]);
   const [notice, setNotice] = useState('');
   const [wsState, setWsState] = useState('disconnected');
 
@@ -79,6 +81,22 @@ export default function Layout() {
     loadFolders();
   }, [location.pathname, location.search, loadFolders]);
 
+  const loadBoards = useCallback(async () => {
+    try {
+      const { data } = await client.get('/api/boards', { params: { all: 1 } });
+      setBoards(data.data ?? data);
+    } catch {
+      /* список досок не критичен */
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBoards();
+    const onChanged = () => loadBoards();
+    window.addEventListener('boards-changed', onChanged);
+    return () => window.removeEventListener('boards-changed', onChanged);
+  }, [loadBoards, location.pathname]);
+
   const toggle = () => {
     setOpen((v) => {
       localStorage.setItem(OPEN_KEY, v ? '0' : '1');
@@ -90,6 +108,7 @@ export default function Layout() {
     { to: '/', label: 'Скриншоты', icon: <ImageIcon /> },
     { to: '/files', label: 'Файлы', icon: <FolderIcon /> },
     { to: '/passwords', label: 'Пароли', icon: <KeyIcon /> },
+    { to: '/boards', label: 'Доски', icon: <ViewKanbanIcon /> },
     { to: '/trash', label: 'Корзина', icon: <DeleteIcon /> },
     { to: '/releases', label: 'Релизы', icon: <SystemUpdateAltIcon /> },
     { to: '/storage', label: 'Хранилище', icon: <StorageIcon /> },
@@ -162,6 +181,37 @@ export default function Layout() {
                   />
                 )}
               </ListItemButton>
+              {item.to === '/boards' && (open || isMobile) && boards.length > 0 && (
+                <Box>
+                  {boards.map((b) => (
+                    <ListItemButton
+                      key={b.id}
+                      selected={location.pathname === `/boards/${b.id}`}
+                      onClick={() => {
+                        navigate(`/boards/${b.id}`);
+                        if (isMobile) toggle();
+                      }}
+                      sx={{
+                        borderRadius: 1.5,
+                        pl: 4.5,
+                        py: 0.25,
+                        color: 'rgb(113, 116, 132)',
+                        '&:hover': { bgcolor: 'rgb(229, 233, 251)' },
+                        '&.Mui-selected': {
+                          bgcolor: 'rgb(229, 233, 251)',
+                          color: 'rgb(82, 109, 227)',
+                          '& .MuiListItemText-primary': { fontWeight: 600 },
+                        },
+                      }}
+                    >
+                      <ListItemText
+                        primary={b.name}
+                        primaryTypographyProps={{ fontSize: '0.8rem', noWrap: true }}
+                      />
+                    </ListItemButton>
+                  ))}
+                </Box>
+              )}
               {item.to === '/files' && (open || isMobile) && (
                 <FolderTree
                   folders={folders}

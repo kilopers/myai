@@ -10,6 +10,8 @@ import TrashPage from './pages/TrashPage';
 import ReleasesPage from './pages/ReleasesPage';
 import StoragePage from './pages/StoragePage';
 import PasswordsPage from './pages/PasswordsPage';
+import BoardsPage from './pages/BoardsPage';
+import BoardPage from './pages/BoardPage';
 import SettingsPage from './pages/SettingsPage';
 import AdminPage from './pages/AdminPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
@@ -83,6 +85,8 @@ export default function App() {
         <Route path="/releases" element={<ReleasesPage />} />
         <Route path="/storage" element={<StoragePage />} />
         <Route path="/passwords" element={<PasswordsPage />} />
+        <Route path="/boards" element={<BoardsPage />} />
+        <Route path="/boards/:id" element={<BoardPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route
           path="/admin"

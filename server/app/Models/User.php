@@ -83,6 +83,14 @@ class User extends Authenticatable
     }
 
     /**
+     * @return HasMany<Board, $this>
+     */
+    public function boards(): HasMany
+    {
+        return $this->hasMany(Board::class);
+    }
+
+    /**
      * @return HasMany<Invite, $this>
      */
     public function invites(): HasMany
