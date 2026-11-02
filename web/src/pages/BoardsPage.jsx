@@ -10,10 +10,6 @@ import {
   DialogTitle,
   IconButton,
   InputAdornment,
-  List,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
   Snackbar,
   TablePagination,
   TextField,
@@ -27,6 +23,7 @@ import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import AppDialog from '../components/AppDialog';
+import DataList from '../components/DataList';
 import PageHeader from '../components/PageHeader';
 
 export const notifyBoardsChanged = () => window.dispatchEvent(new Event('boards-changed'));
@@ -141,17 +138,21 @@ export default function BoardsPage() {
               {debounced ? 'Ничего не найдено.' : 'Досок нет — создайте первую.'}
             </Typography>
           ) : (
-            <List dense>
-              {boards.map((b) => (
-                <ListItemButton
-                  key={b.id}
-                  onClick={() => navigate(`/boards/${b.id}`)}
-                  sx={{ borderRadius: 1 }}
-                >
-                  <ListItemIcon sx={{ minWidth: 34 }}>
-                    <ViewKanbanIcon fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText primary={b.name} />
+            <DataList
+              columns={[{
+                key: 'name',
+                label: 'Название',
+                render: (b) => (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <ViewKanbanIcon fontSize="small" color="action" />
+                    {b.name}
+                  </Box>
+                ),
+              }]}
+              rows={boards}
+              onRow={(b) => navigate(`/boards/${b.id}`)}
+              actions={(b) => (
+                <>
                   <IconButton
                     size="small"
                     onClick={(e) => {
@@ -170,9 +171,9 @@ export default function BoardsPage() {
                   >
                     <DeleteIcon fontSize="small" />
                   </IconButton>
-                </ListItemButton>
-              ))}
-            </List>
+                </>
+              )}
+            />
           )}
           <TablePagination
             component="div"
