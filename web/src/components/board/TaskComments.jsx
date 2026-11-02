@@ -167,6 +167,9 @@ export default function TaskComments({ taskId, onCount, onError }) {
   // Комментарии → сообщения чата: текст + фото + файлы + маркер своего
   const chatMessages = useMemo(() => (comments ?? []).map((c) => ({
     id: String(c.id),
+    // role 'user' даёт класс MuiChatMessage-roleUser — по нему
+    // смягчаем слишком насыщенный синий пузырь своих сообщений
+    role: me && c.user_id === me.id ? 'user' : 'assistant',
     author: { id: String(c.user_id ?? ''), displayName: c.user?.name ?? 'Пользователь' },
     parts: [
       ...(c.text ? [{ type: 'text', text: c.text }] : []),
@@ -261,7 +264,15 @@ export default function TaskComments({ taskId, onCount, onError }) {
             Комментариев пока нет — напишите первым.
           </Alert>
         ) : (
-          <Box sx={{ mb: 1 }}>
+          <Box sx={{
+            mb: 1,
+            // Свой пузырь — мягкий оттенок вместо чистого primary.main
+            '& .MuiChatMessage-roleUser .MuiChatMessage-bubble': {
+              bgcolor: (t) => t.alpha(t.palette.primary.main, 0.14),
+              color: 'text.primary',
+            },
+          }}
+          >
             <ChatProvider
               adapter={chatAdapter}
               messages={chatMessages}
