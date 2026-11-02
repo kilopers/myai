@@ -381,6 +381,19 @@ export default function Layout() {
       >
         <Toolbar variant="dense" />
         {nav}
+        <Typography
+          variant="caption"
+          sx={{
+            textAlign: 'center',
+            color: 'rgb(113, 116, 132)',
+            pb: 1,
+            fontSize: '0.7rem',
+            userSelect: 'none',
+          }}
+        >
+          Разработано Зорин Юрий Алексеевич, {new Date().getFullYear()},
+          v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'}
+        </Typography>
       </Drawer>
 
       <Box
@@ -395,33 +408,6 @@ export default function Layout() {
       >
         <Toolbar variant="dense" />
         <Outlet />
-        {/* Отступ под фиксированный футер — контент не уходит под полосу */}
-        <Box sx={{ display: { xs: 'none', md: 'block', '@media (display-mode: standalone)': { display: 'none' } }, height: 22, flexShrink: 0 }} />
-      </Box>
-
-      {/* Футер фиксирован у нижнего края, как шапка сверху:
-          от правого края меню до края экрана. Только десктоп. */}
-      <Box
-        component="footer"
-        sx={{
-          position: 'fixed',
-          bottom: 0,
-          right: 0,
-          left: { md: open ? DRAWER_WIDTH : COLLAPSED_WIDTH },
-          bgcolor: '#171321',
-          color: '#fff',
-          py: 0.25,
-          textAlign: 'center',
-          transition: (theme) => theme.transitions.create('left'),
-          display: { xs: 'none', md: 'block' },
-          '@media (display-mode: standalone)': { display: 'none' },
-          zIndex: (theme) => theme.zIndex.drawer - 1,
-        }}
-      >
-        <Typography variant="caption" sx={{ lineHeight: 1.4 }}>
-          Разработано Зорин Юрий Алексеевич, {new Date().getFullYear()},
-          v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'}
-        </Typography>
       </Box>
 
       <Snackbar open={!!notice} autoHideDuration={3500} onClose={() => setNotice('')} message={notice} />

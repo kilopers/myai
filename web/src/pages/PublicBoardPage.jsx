@@ -101,7 +101,7 @@ export default function PublicBoardPage() {
           apiBase={`/api/public/boards/${token}`}
           fetchData={fetchData}
           guestName={displayName}
-          height="calc(100dvh - 72px)"
+          height="calc(100dvh - 56px)"
           header={({ board, openColumnCreate }) => (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
               <Typography variant="h6" noWrap sx={{ flexGrow: 1, fontWeight: 600 }}>

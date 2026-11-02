@@ -2,8 +2,8 @@ import { AppBar, Box, Divider, Toolbar, Typography } from '@mui/material';
 
 /**
  * Минимальный каркас публичных страниц шаринга: только шапка
- * (иконка + название сервиса + имя объекта + действия справа)
- * и футер в цвет шапки, без меню и сайдбара.
+ * (иконка + название сервиса + имя объекта + действия справа),
+ * без меню и сайдбара.
  * fill — контент растягивается на всю высоту (доска), иначе центрируется.
  */
 export default function ShareShell({ title, actions, children, fill = false }) {
@@ -39,20 +39,6 @@ export default function ShareShell({ title, actions, children, fill = false }) {
         }}
       >
         {children}
-      </Box>
-      <Box
-        component="footer"
-        sx={{
-          bgcolor: '#171321',
-          color: '#fff',
-          py: 0.25,
-          textAlign: 'center',
-        }}
-      >
-        <Typography variant="caption" sx={{ lineHeight: 1.4 }}>
-          Разработано Зорин Юрий Алексеевич, {new Date().getFullYear()},
-          v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'}
-        </Typography>
       </Box>
     </Box>
   );
