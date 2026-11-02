@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\DeletedFile;
 use App\Models\FileDerivative;
 use App\Models\Folder;
 use Illuminate\Http\JsonResponse;
@@ -25,8 +24,13 @@ class StorageController extends Controller
         $derivatives = FileDerivative::query()
             ->whereHas('file', fn ($q) => $q->where('user_id', $user->id)->withTrashed());
 
-        $trashFiles = (int) $user->files()->onlyTrashed()->sum('size');
-        $trashDeleted = (int) DeletedFile::where('user_id', $user->id)->sum('size');
+        // Корзина — только реально лежащие в ней soft-deleted записи.
+        // deleted_files НЕ считаем: это tombstone-журнал десктоп-синка,
+        // он переживает очистку корзины и двоил бы цифры.
+        $trashCount = $user->files()->onlyTrashed()->count()
+            + $user->screenshots()->onlyTrashed()->count();
+        $trashSize = (int) $user->files()->onlyTrashed()->sum('size')
+            + (int) $user->screenshots()->onlyTrashed()->sum('size');
 
         return response()->json([
             'files' => [
@@ -42,9 +46,8 @@ class StorageController extends Controller
                 'size' => (int) $user->screenshots()->sum('size'),
             ],
             'trash' => [
-                'count' => $user->files()->onlyTrashed()->count()
-                    + DeletedFile::where('user_id', $user->id)->count(),
-                'size' => $trashFiles + $trashDeleted,
+                'count' => $trashCount,
+                'size' => $trashSize,
             ],
             // Кэш размеров папок из БД (сумма files.size внутри папок).
             'folders_size' => (int) Folder::where('user_id', $user->id)->sum('size'),
