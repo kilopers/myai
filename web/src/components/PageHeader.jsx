@@ -11,7 +11,7 @@ export default function PageHeader({ crumbs, title, actions }) {
       {crumbs ? (
         <Breadcrumbs sx={{ mb: 1 }}>{crumbs}</Breadcrumbs>
       ) : null}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
         <Typography variant="h5" sx={{ flexGrow: 1, minWidth: 0 }}>
           {title}
         </Typography>

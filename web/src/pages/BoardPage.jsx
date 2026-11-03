@@ -56,7 +56,8 @@ export default function BoardPage() {
                     ),
                   },
                 }}
-                sx={{ width: { xs: 140, sm: 220 } }}
+                // На мобильной — отдельной строкой на всю ширину (после кнопки +)
+                sx={{ width: { xs: '100%', sm: 220 }, order: { xs: 3, sm: 0 } }}
               />
               {openColumnCreate && (
                 <Tooltip title="Добавить колонку">

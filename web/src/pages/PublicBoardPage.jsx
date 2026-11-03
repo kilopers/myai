@@ -105,7 +105,7 @@ export default function PublicBoardPage() {
           guestName={displayName}
           height="calc(100dvh - 56px)"
           header={({ board, openColumnCreate, query, setQuery }) => (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
               <Typography variant="h6" noWrap sx={{ flexGrow: 1, fontWeight: 600 }}>
                 {board?.name ?? <CircularProgress size={16} />}
               </Typography>
@@ -124,7 +124,8 @@ export default function PublicBoardPage() {
                     ),
                   },
                 }}
-                sx={{ width: { xs: 140, sm: 220 } }}
+                // На мобильной — отдельной строкой на всю ширину (после кнопки +)
+                sx={{ width: { xs: '100%', sm: 220 }, order: { xs: 3, sm: 0 } }}
               />
               {openColumnCreate && (
                 <Tooltip title="Добавить колонку">
