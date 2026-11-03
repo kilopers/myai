@@ -75,6 +75,15 @@ export default function BoardColumn({
         <Typography sx={{ fontSize: '0.72rem', opacity: 0.85 }}>
           {column.tasks?.length ?? 0}
         </Typography>
+        {onAddTask && (
+          <IconButton
+            size="small"
+            onClick={() => onAddTask(column)}
+            sx={{ color: '#fff', p: 0.25 }}
+          >
+            <AddIcon sx={{ fontSize: 14 }} />
+          </IconButton>
+        )}
         <IconButton
           size="small"
           onClick={onEditColumn ? () => onEditColumn(column) : undefined}
@@ -127,22 +136,6 @@ export default function BoardColumn({
         {dropAt === tasks.length && tasks.length > 0 && <InsertBar />}
         {dropAt !== null && tasks.length === 0 && <InsertBar />}
       </Box>
-      {onAddTask && (
-      <Box sx={{ px: 0.75, pb: 0.5 }}>
-        <IconButton
-          size="small"
-          onClick={() => onAddTask(column)}
-          sx={{
-            color: '#fff',
-            bgcolor: column.color,
-            p: 0.25,
-            '&:hover': { bgcolor: column.color, filter: 'brightness(0.88)' },
-          }}
-        >
-          <AddIcon fontSize="small" />
-        </IconButton>
-      </Box>
-      )}
     </Box>
   );
 }
