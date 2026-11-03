@@ -256,17 +256,19 @@ export default function BoardCanvas({
     doMoveTask(columnId);
   };
 
-  // Возможности гостя с сервера; отсутствие настроек — всё разрешено
-  // (у владельца доски поле не приходит — тоже всё разрешено).
+  // Возможности гостя — только на гостевой странице (/b/:token);
+  // отсутствие настроек — всё разрешено. Владельцу guest_permissions
+  // приходят сырыми из /api/boards и его не ограничивают —
+  // авторизованному всегда всё можно.
+  const guest = apiBase.includes('/public/');
   const caps = {
     columns: true, tasks: true, delete_tasks: true,
     edit_columns: true, delete_columns: true,
-    ...(board?.guest_permissions ?? {}),
+    ...(guest ? (board?.guest_permissions ?? {}) : {}),
   };
 
   // Живой поиск: подстрока в номере PREFIX-N, названии или тексте описания.
   const q = query.trim().toLowerCase();
-  const guest = apiBase.includes('/public/');
   const shownColumns = guest ? columns?.filter((c) => c.visible_guests !== false) : columns;
   const visibleColumns = q === '' ? shownColumns : shownColumns?.map((c) => ({
     ...c,
