@@ -53,6 +53,7 @@ export default function BoardCanvas({
   const [taskDlg, setTaskDlg] = useState(null); // {mode:'create'|'edit', column, task, form, confirmDel}
   const [dragTask, setDragTask] = useState(null);
   const [moveAnchor, setMoveAnchor] = useState(null);
+  const [confirmMove, setConfirmMove] = useState(null); // columnId скрытой от гостя колонки
   const [query, setQuery] = useState('');
   const [notice, setNotice] = useState('');
   const taskEditorRef = useRef(null);
@@ -220,9 +221,9 @@ export default function BoardCanvas({
   };
 
   // Перенос открытой задачи в другую колонку из диалога.
-  const moveTaskToColumn = async (columnId) => {
+  const doMoveTask = async (columnId) => {
     const task = taskDlg?.task;
-    if (!task || columnId === task.board_column_id) return;
+    if (!task) return;
     try {
       await client.put(api(`/board-tasks/${task.id}`), { board_column_id: columnId });
       closeTaskDlg();
@@ -230,6 +231,19 @@ export default function BoardCanvas({
     } catch {
       setNotice('Не удалось перенести задачу');
     }
+  };
+
+  // Гость → скрытая от него колонка: спрашиваем подтверждение,
+  // т.к. после переноса задача пропадёт с доски.
+  const moveTaskToColumn = (columnId) => {
+    const task = taskDlg?.task;
+    if (!task || columnId === task.board_column_id) return;
+    const target = columns?.find((c) => c.id === columnId);
+    if (apiBase.includes('/public/') && target?.visible_guests === false) {
+      setConfirmMove(columnId);
+      return;
+    }
+    doMoveTask(columnId);
   };
 
   // Возможности гостя с сервера; отсутствие настроек — всё разрешено
@@ -666,6 +680,31 @@ export default function BoardCanvas({
               </Button>
             )}
           </Box>
+        </DialogActions>
+      </AppDialog>
+
+      {/* Перенос в скрытую от гостя колонку — подтверждение */}
+      <AppDialog open={!!confirmMove} onClose={() => setConfirmMove(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Перенос задачи</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            Вы перемещаете задачу в колонку
+            «{columns?.find((c) => c.id === confirmMove)?.name}».
+            После перемещения вы её больше не увидите.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmMove(null)}>Отмена</Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              const id = confirmMove;
+              setConfirmMove(null);
+              doMoveTask(id);
+            }}
+          >
+            Переместить
+          </Button>
         </DialogActions>
       </AppDialog>
 
