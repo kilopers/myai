@@ -37,8 +37,8 @@ export default function BoardColumn({
     <Box
       sx={{
         // мобильная — на всю ширину (свайп между колонками),
-        // десктоп — стандартная ширина канбан-колонки
-        width: { xs: 'calc(100% - 8px)', md: 300 },
+        // десктоп — увеличенная ширина канбан-колонки
+        width: { xs: 'calc(100% - 8px)', md: 380 },
         flex: '0 0 auto',
         scrollSnapAlign: 'start',
         bgcolor: 'rgba(0,0,0,0.04)',
@@ -53,16 +53,16 @@ export default function BoardColumn({
           bgcolor: column.color,
           color: '#fff',
           borderRadius: '6px 6px 0 0',
-          px: 1,
-          py: 0.5,
+          px: 1.25,
+          py: 1,
           display: 'flex',
           alignItems: 'center',
-          gap: 0.5,
+          gap: 0.75,
         }}
       >
         <Typography
           sx={{
-            fontSize: '0.82rem',
+            fontSize: '1rem',
             fontWeight: 600,
             flexGrow: 1,
             overflow: 'hidden',
@@ -72,7 +72,7 @@ export default function BoardColumn({
         >
           {column.name}
         </Typography>
-        <Typography sx={{ fontSize: '0.72rem', opacity: 0.85 }}>
+        <Typography sx={{ fontSize: '0.82rem', opacity: 0.85 }}>
           {column.tasks?.length ?? 0}
         </Typography>
         {onAddTask && (
@@ -81,7 +81,7 @@ export default function BoardColumn({
             onClick={() => onAddTask(column)}
             sx={{ color: '#fff', p: 0.25 }}
           >
-            <AddIcon sx={{ fontSize: 14 }} />
+            <AddIcon sx={{ fontSize: 19 }} />
           </IconButton>
         )}
         <IconButton
@@ -89,7 +89,7 @@ export default function BoardColumn({
           onClick={onEditColumn ? () => onEditColumn(column) : undefined}
           sx={{ color: '#fff', p: 0.25 }}
         >
-          {onEditColumn && <EditIcon sx={{ fontSize: 14 }} />}
+          {onEditColumn && <EditIcon sx={{ fontSize: 18 }} />}
         </IconButton>
       </Box>
       <Box
@@ -106,7 +106,7 @@ export default function BoardColumn({
           e.preventDefault();
           onDropTask(column, dropAt ?? tasks.length);
         } : undefined}
-        sx={{ px: 0.75, pt: 0.75, overflowY: 'auto', flexGrow: 1, minHeight: 40 }}
+        sx={{ px: 1, pt: 1, overflowY: 'auto', flexGrow: 1, minHeight: 40 }}
       >
         {tasks.map((t, i) => (
           // Карточка — тоже drop-цель: дроп на карточку вставляет перед ней
