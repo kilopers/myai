@@ -18,7 +18,7 @@ import {
 import CheckIcon from '@mui/icons-material/Check';
 import EditIcon from '@mui/icons-material/Edit';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import client from '../../api/client';
 import AppDialog from '../AppDialog';
 import RichTextEditor from '../RichTextEditor';
@@ -59,7 +59,14 @@ export default function BoardCanvas({
   const taskEditorRef = useRef(null);
   // Прямая ссылка на задачу: ?task=PREFIX-N — шарится и у владельца, и у гостя.
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const taskParam = searchParams.get('task');
+  // Параметр добавлен нами (push) — «Закрыть» идёт navigate(-1) назад;
+  // пришли по ссылке — просто убираем параметр без ухода со страницы.
+  const urlPushedRef = useRef(false);
+  // Только что закрытая задача — эффект не должен открыть её заново,
+  // пока react-router не применил удаление параметра.
+  const lastClosedParam = useRef(null);
 
   const api = useCallback((path) => `${apiBase}${path}`, [apiBase]);
 
@@ -278,27 +285,49 @@ export default function BoardCanvas({
   const openTaskEdit = (task) => {
     const p = new URLSearchParams(searchParams);
     p.set('task', taskKey(task));
-    setSearchParams(p, { replace: true });
+    setSearchParams(p); // push: «назад» вернёт на доску и закроет диалог
+    urlPushedRef.current = true;
     setTaskDlg({
       mode: 'edit', task, pending: [], tab: 0,
       form: { title: task.title, text: task.text ?? '' },
     });
   };
   const closeTaskDlg = () => {
+    if (urlPushedRef.current) {
+      urlPushedRef.current = false;
+      setTaskDlg(null);
+      navigate(-1); // назад на URL доски без ?task
+      return;
+    }
+    lastClosedParam.current = taskParam;
     setTaskDlg(null);
     const p = new URLSearchParams(searchParams);
     p.delete('task');
     setSearchParams(p, { replace: true });
   };
 
-  // Открыли по ссылке ?task=PREFIX-N — сразу показываем диалог задачи.
+  // Диалог задачи следует за параметром ?task=: появился — открываем,
+  // исчез (навигация «назад») — закрываем.
   useEffect(() => {
-    if (!taskParam || !columns || !board || taskDlg) return;
+    if (!columns || !board) return;
+    if (!taskParam) {
+      lastClosedParam.current = null;
+      urlPushedRef.current = false;
+      if (taskDlg?.mode === 'edit') setTaskDlg(null);
+      return;
+    }
+    if (taskDlg || taskParam === lastClosedParam.current) return;
     const want = taskParam.toLowerCase();
     const task = columns.flatMap((c) => c.tasks ?? []).find((t) => (
       taskKey(t).toLowerCase() === want || String(t.number) === want
     ));
-    if (task) openTaskEdit(task);
+    if (task) {
+      urlPushedRef.current = false; // открыто по ссылке, не нами
+      setTaskDlg({
+        mode: 'edit', task, pending: [], tab: 0,
+        form: { title: task.title, text: task.text ?? '' },
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskParam, columns, board, taskDlg]);
 
