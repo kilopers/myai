@@ -97,7 +97,7 @@ export default function BoardCanvas({
       if (colDlg.mode === 'edit') {
         await client.put(api(`/board-columns/${colDlg.column.id}`), {
           name, color: colDlg.color,
-          visible_guests: colDlg.visible_guests !== false,
+          ...(guest ? {} : { visible_guests: colDlg.visible_guests !== false }),
         });
       } else {
         await client.post(api('/board-columns'), {
@@ -408,7 +408,9 @@ export default function BoardCanvas({
               />
             ))}
           </Box>
-          {colDlg?.mode === 'edit' && (
+          {/* «Видна гостям» — только у владельца, даже если гостю
+              разрешено редактировать колонки */}
+          {colDlg?.mode === 'edit' && !guest && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1.5 }}>
               <input
                 id="col-visible-guests"

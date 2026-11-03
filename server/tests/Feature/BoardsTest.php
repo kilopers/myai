@@ -294,9 +294,14 @@ class BoardsTest extends TestCase
         $this->putJson("{$base}/board-columns/{$col->id}", ['name' => 'X'])->assertForbidden();
         $this->deleteJson("{$base}/board-columns/{$col->id}")->assertForbidden();
 
-        // Разрешили — правим и флагаем видимость
+        // Разрешили — правим имя; видимость гостю менять нельзя —
+        // поле игнорируется публичным API
         $board->update(['guest_permissions' => ['edit_columns' => true]]);
-        $this->putJson("{$base}/board-columns/{$col->id}", ['visible_guests' => false])->assertOk();
-        $this->assertFalse($col->fresh()->visible_guests);
+        $this->putJson("{$base}/board-columns/{$col->id}", [
+            'name' => 'X', 'visible_guests' => false,
+        ])->assertOk();
+        $col->refresh();
+        $this->assertSame('X', $col->name);
+        $this->assertTrue($col->visible_guests);
     }
 }

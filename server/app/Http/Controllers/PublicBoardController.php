@@ -99,10 +99,11 @@ class PublicBoardController extends Controller
         $column = $this->column($token, $columnId);
         abort_unless($column->board->guestCan('edit_columns'), 403);
 
+        // visible_guests намеренно не в валидации — видимостью для
+        // гостей управляет только владелец, даже при edit_columns.
         $column->update($request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:120'],
             'color' => ['sometimes', 'required', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
-            'visible_guests' => ['sometimes', 'boolean'],
         ]));
 
         return response()->json($column);
