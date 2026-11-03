@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Board;
 use App\Models\User;
+use App\Services\BoardIcon;
 use GuzzleHttp\Psr7\Request as Psr7Request;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -110,6 +111,38 @@ class BoardPwaTest extends TestCase
         $this->actingAs($user)->deleteJson("/api/boards/{$board->id}/icon")
             ->assertOk()->assertJsonStructure(['icon_url']);
         $this->assertNull($board->fresh()->icon);
+    }
+
+    public function test_generated_icon_letters_are_centered(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+
+        foreach ([['prefix' => 'DS', 'name' => 'Доска'], ['name' => 'Щиты']] as $attrs) {
+            $board = Board::create(['user_id' => $user->id] + $attrs);
+            app(BoardIcon::class)->generate($board);
+
+            $img = imagecreatefromstring(
+                Storage::disk('public')->get("board-icons/{$board->id}/icon-512.png")
+            );
+            $bg = imagecolorat($img, 0, 0);
+            [$minX, $minY, $maxX, $maxY] = [512, 512, -1, -1];
+            for ($y = 0; $y < 512; $y++) {
+                for ($x = 0; $x < 512; $x++) {
+                    if (imagecolorat($img, $x, $y) !== $bg) {
+                        $minX = min($minX, $x);
+                        $maxX = max($maxX, $x);
+                        $minY = min($minY, $y);
+                        $maxY = max($maxY, $y);
+                    }
+                }
+            }
+
+            // Центр букв — в пределах 2% от центра холста (двухбуквенный
+            // prefix и кириллица с выносными элементами).
+            $this->assertEqualsWithDelta(256, ($minX + $maxX) / 2, 10, $board->name.' X');
+            $this->assertEqualsWithDelta(256, ($minY + $maxY) / 2, 10, $board->name.' Y');
+        }
     }
 
     public function test_push_subscriptions_owner_and_guest(): void

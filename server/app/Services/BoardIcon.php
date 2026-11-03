@@ -107,7 +107,8 @@ class BoardIcon
         $img = imagecreatetruecolor($size, $size);
         $color = self::COLORS[crc32((string) $board->name) % count(self::COLORS)];
         [$r, $g, $b] = sscanf($color, '#%02x%02x%02x');
-        imagefill($img, 0, 0, imagecolorallocate($img, $r, $g, $b));
+        $bg = imagecolorallocate($img, $r, $g, $b);
+        imagefill($img, 0, 0, $bg);
 
         $text = $board->prefix
             ? mb_substr($board->prefix, 0, 2)
@@ -117,12 +118,47 @@ class BoardIcon
         // maskable: буквы меньше — в «безопасной зоне» круга обрезки
         $fontSize = (int) round($size * ($maskable ? 0.34 : 0.44));
         $box = imagettfbbox($fontSize, 0, $font, $text);
-        $x = (int) round(($size - ($box[2] - $box[0])) / 2 - $box[0]);
-        $y = (int) round(($size - ($box[7] - $box[1])) / 2 - $box[7]);
+        // Грубое центрирование по метрикам: box[0]/box[2] — лево/право
+        // от точки пера, box[7]/box[1] — верх/низ от базовой линии.
+        $x = (int) round($size / 2 - ($box[0] + $box[2]) / 2);
+        $y = (int) round($size / 2 - ($box[7] + $box[1]) / 2);
         $white = imagecolorallocate($img, 255, 255, 255);
         imagettftext($img, $fontSize, 0, $x, $y, $white, $font, $text);
 
+        // Метрики шрифта шире реального ink-бокса (несимметричные
+        // боковые bearings) — измеряем пиксели и докручиваем сдвигом.
+        [$dx, $dy] = $this->inkShift($img, $bg, $size);
+        if ($dx !== 0 || $dy !== 0) {
+            imagefill($img, 0, 0, $bg);
+            imagettftext($img, $fontSize, 0, $x + $dx, $y + $dy, $white, $font, $text);
+        }
+
         return $this->png($img);
+    }
+
+    /** Сдвиг, центрирующий реальный ink-бокс (замер по пикселям, шаг 2). */
+    private function inkShift(\GdImage $img, int $bg, int $size): array
+    {
+        $minX = $minY = $size;
+        $maxX = $maxY = -1;
+        for ($yy = 0; $yy < $size; $yy += 2) {
+            for ($xx = 0; $xx < $size; $xx += 2) {
+                if (imagecolorat($img, $xx, $yy) !== $bg) {
+                    $minX = min($minX, $xx);
+                    $maxX = max($maxX, $xx);
+                    $minY = min($minY, $yy);
+                    $maxY = max($maxY, $yy);
+                }
+            }
+        }
+        if ($maxX < 0) {
+            return [0, 0];
+        }
+
+        return [
+            (int) round($size / 2 - ($minX + $maxX) / 2),
+            (int) round($size / 2 - ($minY + $maxY) / 2),
+        ];
     }
 
     private function png(\GdImage $img): string
