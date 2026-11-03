@@ -54,9 +54,20 @@ const theme = createTheme({
     MuiTableCell: {
       styleOverrides: { root: { padding: '6px 12px' } },
     },
+    MuiDialogTitle: {
+      styleOverrides: {
+        // На мобильной — паддинги вдвое меньше: контент ближе к краям
+        root: ({ theme }) => ({
+          [theme.breakpoints.down('sm')]: { padding: '8px 12px' },
+        }),
+      },
+    },
     MuiDialogContent: {
       styleOverrides: {
-        root: { '.MuiDialogTitle-root + &': { paddingTop: 6 } },
+        root: ({ theme }) => ({
+          '.MuiDialogTitle-root + &': { paddingTop: 6 },
+          [theme.breakpoints.down('sm')]: { padding: '10px 12px' },
+        }),
       },
     },
     MuiTextField: {
