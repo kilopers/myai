@@ -59,7 +59,8 @@ class PublicBoardController extends Controller
         return response()->json([
             'board' => array_merge($board->only('id', 'name', 'prefix'), [
                 // Иконка и манифест по share_token — публичные PWA-роуты
-                'icon_url' => "/api/board-apps/{$board->share_token}/icons/icon-192.png",
+                // (?v= — cache-busting от устаревших кэшей браузера/PWA)
+                'icon_url' => "/api/board-apps/{$board->share_token}/icons/icon-192.png?v={$board->updated_at?->timestamp}",
                 'manifest_url' => "/api/board-apps/{$board->share_token}/manifest",
                 'guest_permissions' => [
                     'columns' => $board->guestCan('columns'),

@@ -26,10 +26,12 @@ class Board extends Model
         return ['guest_permissions' => 'array'];
     }
 
-    /** Иконка доски для списков/PWA (по manifest_token — публичный роут). */
+    /** Иконка доски для списков/PWA (по manifest_token — публичный роут).
+     *  ?v= — cache-busting: URL меняется при обновлении доски, иначе
+     *  браузер/PWA-установка держит устаревшую иконку. */
     protected function iconUrl(): Attribute
     {
-        return Attribute::get(fn () => "/api/board-apps/{$this->manifest_token}/icons/icon-192.png");
+        return Attribute::get(fn () => "/api/board-apps/{$this->manifest_token}/icons/icon-192.png?v={$this->updated_at?->timestamp}");
     }
 
     /** Возможности гостя по share-ссылке; пустое значение — всё разрешено. */

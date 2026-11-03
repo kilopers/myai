@@ -39,9 +39,10 @@ class BoardPwaController extends Controller
         $guest = $this->isGuest($board, $token);
         $startUrl = $guest ? "/b/{$token}" : "/boards/{$board->id}";
         $icons = [];
+        $v = $board->updated_at?->timestamp;
         foreach (BoardIcon::FILES as $file => $cfg) {
             $icons[] = [
-                'src' => "/api/board-apps/{$token}/icons/{$file}",
+                'src' => "/api/board-apps/{$token}/icons/{$file}?v={$v}",
                 'sizes' => "{$cfg['size']}x{$cfg['size']}",
                 'type' => 'image/png',
                 'purpose' => $cfg['maskable'] ? 'maskable' : 'any',
@@ -77,7 +78,9 @@ class BoardPwaController extends Controller
 
         return Storage::disk('public')->response($path, $file, [
             'Content-Type' => 'image/png',
-            'Cache-Control' => 'public, max-age=3600',
+            // Короткий кэш: URL содержит ?v=updated_at, новые правки
+            // иконки быстро доезжают до клиентов и установленных PWA.
+            'Cache-Control' => 'public, max-age=300',
         ], 'inline');
     }
 }
