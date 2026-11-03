@@ -451,7 +451,7 @@ export default function PasswordsPage() {
         </Card>
       ) : (
       <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <Card sx={{ width: 260, flexShrink: 0 }}>
+        <Card sx={{ width: 260, flexShrink: 0, display: { xs: 'none', sm: 'block' } }}>
           <CardContent>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
               <Typography variant="subtitle1">Папки</Typography>
@@ -515,7 +515,7 @@ export default function PasswordsPage() {
           </CardContent>
         </Card>
 
-        <Card sx={{ flex: 1, minWidth: 420 }}>
+        <Card sx={{ flex: 1, minWidth: { xs: 0, sm: 420 } }}>
           <CardContent>
             <Reference
               meta={{

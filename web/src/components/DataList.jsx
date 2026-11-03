@@ -43,7 +43,7 @@ export default function DataList({ columns, rows, actions, empty = 'Нет за�
             }}
           >
             <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-              <Typography sx={{ fontWeight: 600, mb: 0.5 }}>
+              <Typography noWrap sx={{ fontWeight: 600, mb: 0.5 }}>
                 {cell(columns[0], row)}
               </Typography>
               <Box component="dl" sx={{ m: 0, fontSize: '0.85rem' }}>
@@ -52,7 +52,10 @@ export default function DataList({ columns, rows, actions, empty = 'Нет за�
                     <Box component="dt" sx={{ width: '38%', flexShrink: 0, color: 'text.secondary' }}>
                       {c.label}
                     </Box>
-                    <Box component="dd" sx={{ m: 0, minWidth: 0, wordBreak: 'break-word' }}>
+                    <Box
+                      component="dd"
+                      sx={{ m: 0, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    >
                       {cell(c, row)}
                     </Box>
                   </Box>

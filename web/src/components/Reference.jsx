@@ -126,7 +126,7 @@ export default function Reference({
               label={f.label}
               value={filters[f.name] ?? ''}
               onChange={(e) => applyFilter(f.name, e.target.value, true)}
-              sx={{ minWidth: 180 }}
+              sx={{ minWidth: 180, width: { xs: '100%', sm: 'auto' } }}
             >
               <MenuItem value="">{`${f.label}: все`}</MenuItem>
               {(f.options ?? []).map((o) => (
@@ -140,7 +140,7 @@ export default function Reference({
               placeholder={`${f.label}…`}
               value={filters[f.name] ?? ''}
               onChange={(e) => applyFilter(f.name, e.target.value)}
-              sx={{ width: 260 }}
+              sx={{ width: { xs: '100%', sm: 260 } }}
               slotProps={{
                 input: {
                   startAdornment: (
