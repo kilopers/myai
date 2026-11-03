@@ -18,6 +18,7 @@ import {
 import CheckIcon from '@mui/icons-material/Check';
 import EditIcon from '@mui/icons-material/Edit';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import { useSearchParams } from 'react-router-dom';
 import client from '../../api/client';
 import AppDialog from '../AppDialog';
 import RichTextEditor from '../RichTextEditor';
@@ -55,6 +56,9 @@ export default function BoardCanvas({
   const [query, setQuery] = useState('');
   const [notice, setNotice] = useState('');
   const taskEditorRef = useRef(null);
+  // Прямая ссылка на задачу: ?task=PREFIX-N — шарится и у владельца, и у гостя.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const taskParam = searchParams.get('task');
 
   const api = useCallback((path) => `${apiBase}${path}`, [apiBase]);
 
@@ -132,7 +136,7 @@ export default function BoardCanvas({
         }
         (taskDlg.pending ?? []).forEach((p) => URL.revokeObjectURL(p.preview));
       }
-      setTaskDlg(null);
+      closeTaskDlg();
       load();
     } catch {
       setNotice('Не удалось сохранить задачу');
@@ -174,7 +178,7 @@ export default function BoardCanvas({
   const removeTask = async () => {
     try {
       await client.delete(api(`/board-tasks/${taskDlg.task.id}`));
-      setTaskDlg(null);
+      closeTaskDlg();
       load();
     } catch {
       setNotice('Не удалось удалить задачу');
@@ -221,7 +225,7 @@ export default function BoardCanvas({
     if (!task || columnId === task.board_column_id) return;
     try {
       await client.put(api(`/board-tasks/${task.id}`), { board_column_id: columnId });
-      setTaskDlg(null);
+      closeTaskDlg();
       load();
     } catch {
       setNotice('Не удалось перенести задачу');
@@ -250,13 +254,39 @@ export default function BoardCanvas({
     }),
   }));
 
+  // Ключ задачи в адресной строке: PREFIX-N (без префикса — просто N).
+  const taskKey = (t) => (board?.prefix && t.number != null
+    ? `${board.prefix}-${t.number}` : `${t.number}`);
+
   const openTaskCreate = (column) => setTaskDlg({
     mode: 'create', column, form: { ...emptyTask }, pending: [], tab: 0,
   });
-  const openTaskEdit = (task) => setTaskDlg({
-    mode: 'edit', task, pending: [], tab: 0,
-    form: { title: task.title, text: task.text ?? '' },
-  });
+  const openTaskEdit = (task) => {
+    const p = new URLSearchParams(searchParams);
+    p.set('task', taskKey(task));
+    setSearchParams(p, { replace: true });
+    setTaskDlg({
+      mode: 'edit', task, pending: [], tab: 0,
+      form: { title: task.title, text: task.text ?? '' },
+    });
+  };
+  const closeTaskDlg = () => {
+    setTaskDlg(null);
+    const p = new URLSearchParams(searchParams);
+    p.delete('task');
+    setSearchParams(p, { replace: true });
+  };
+
+  // Открыли по ссылке ?task=PREFIX-N — сразу показываем диалог задачи.
+  useEffect(() => {
+    if (!taskParam || !columns || !board || taskDlg) return;
+    const want = taskParam.toLowerCase();
+    const task = columns.flatMap((c) => c.tasks ?? []).find((t) => (
+      taskKey(t).toLowerCase() === want || String(t.number) === want
+    ));
+    if (task) openTaskEdit(task);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskParam, columns, board, taskDlg]);
 
   return (
     <Box sx={{
@@ -372,7 +402,7 @@ export default function BoardCanvas({
 
       <AppDialog
         open={!!taskDlg}
-        onClose={() => setTaskDlg(null)}
+        onClose={closeTaskDlg}
         maxWidth="xl"
         fullWidth
         slotProps={{ paper: { sx: { height: { md: '85vh' } } } }}
@@ -627,7 +657,7 @@ export default function BoardCanvas({
                 </Menu>
               </>
             )}
-            <Button onClick={() => setTaskDlg(null)}>
+            <Button onClick={closeTaskDlg}>
               {taskDlg?.mode === 'edit' ? 'Закрыть' : 'Отмена'}
             </Button>
             {taskDlg?.mode !== 'edit' && (
