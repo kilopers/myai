@@ -62,7 +62,7 @@ export default function BoardColumn({
       >
         <Typography
           sx={{
-            fontSize: '1rem',
+            fontSize: '0.82rem',
             fontWeight: 600,
             flexGrow: 1,
             overflow: 'hidden',
@@ -72,7 +72,7 @@ export default function BoardColumn({
         >
           {column.name}
         </Typography>
-        <Typography sx={{ fontSize: '0.82rem', opacity: 0.85 }}>
+        <Typography sx={{ fontSize: '0.72rem', opacity: 0.85 }}>
           {column.tasks?.length ?? 0}
         </Typography>
         {onAddTask && (
@@ -81,7 +81,7 @@ export default function BoardColumn({
             onClick={() => onAddTask(column)}
             sx={{ color: '#fff', p: 0.25 }}
           >
-            <AddIcon sx={{ fontSize: 19 }} />
+            <AddIcon sx={{ fontSize: 14 }} />
           </IconButton>
         )}
         <IconButton
@@ -89,7 +89,7 @@ export default function BoardColumn({
           onClick={onEditColumn ? () => onEditColumn(column) : undefined}
           sx={{ color: '#fff', p: 0.25 }}
         >
-          {onEditColumn && <EditIcon sx={{ fontSize: 18 }} />}
+          {onEditColumn && <EditIcon sx={{ fontSize: 14 }} />}
         </IconButton>
       </Box>
       <Box

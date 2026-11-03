@@ -22,7 +22,7 @@ const counter = (icon, count, tip) => (
     }}
     >
       {icon}
-      <Typography component="span" sx={{ fontSize: '0.78rem' }}>{count}</Typography>
+      <Typography component="span" sx={{ fontSize: '0.7rem' }}>{count}</Typography>
     </Box>
   </Tooltip>
 );
@@ -70,7 +70,7 @@ export default function BoardTask({ task, onClick, onDragStart, prefix }) {
             borderRadius: 1,
             bgcolor: 'transparent',
             color: 'primary.main',
-            fontSize: '0.7rem',
+            fontSize: '0.62rem',
             fontWeight: 600,
             lineHeight: 1.4,
             letterSpacing: 0.4,
@@ -82,7 +82,7 @@ export default function BoardTask({ task, onClick, onDragStart, prefix }) {
       )}
       <Typography
         sx={{
-          fontSize: '0.92rem',
+          fontSize: '0.82rem',
           fontWeight: 600,
           lineHeight: 1.3,
           display: '-webkit-box',
@@ -98,8 +98,8 @@ export default function BoardTask({ task, onClick, onDragStart, prefix }) {
         <Typography
           color="text.secondary"
           sx={{
-            fontSize: '0.84rem',
-            lineHeight: 1.35,
+            fontSize: '0.75rem',
+            lineHeight: 1.3,
             mt: 0.75,
             display: '-webkit-box',
             WebkitLineClamp: 3,
@@ -113,15 +113,15 @@ export default function BoardTask({ task, onClick, onDragStart, prefix }) {
       ) : null}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.75 }}>
         {attCount > 0 && counter(
-          <AttachFileIcon sx={{ fontSize: 15 }} />, attCount,
+          <AttachFileIcon sx={{ fontSize: 13 }} />, attCount,
           `Прикреплённые файлы: ${attCount}`,
         )}
         {commentsCount > 0 && counter(
-          <ChatBubbleOutlineOutlinedIcon sx={{ fontSize: 15 }} />, commentsCount,
+          <ChatBubbleOutlineOutlinedIcon sx={{ fontSize: 13 }} />, commentsCount,
           `Сообщений в обсуждении: ${commentsCount}`,
         )}
         <Box sx={{ flex: 1 }} />
-        <Typography sx={{ fontSize: '0.75rem', color: 'text.disabled' }}>
+        <Typography sx={{ fontSize: '0.68rem', color: 'text.disabled' }}>
           {fmtCreated(task.created_at)}
         </Typography>
       </Box>
