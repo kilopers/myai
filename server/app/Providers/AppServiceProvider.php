@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Minishlink\WebPush\WebPush;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -24,6 +25,17 @@ class AppServiceProvider extends ServiceProvider
         // Движок торрент-загрузок — в тестах подменяется фейком через
         // app->instance(TorrentEngine::class, ...).
         $this->app->bind(TorrentEngine::class, Aria2Engine::class);
+
+        // Web Push: VAPID-аутентификация из конфига; в тестах
+        // подменяется фейком через app->instance(WebPush::class, ...).
+        $this->app->bind(WebPush::class, function () {
+            $vapid = config('services.webpush.vapid');
+
+            return new WebPush(
+                ($vapid['publicKey'] ?? null) ? ['VAPID' => $vapid] : [],
+                ['TTL' => 60 * 60 * 24],
+            );
+        });
     }
 
     /**

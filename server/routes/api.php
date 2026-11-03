@@ -6,6 +6,7 @@ use App\Http\Controllers\ApiTokenController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BoardColumnController;
 use App\Http\Controllers\BoardController;
+use App\Http\Controllers\BoardPwaController;
 use App\Http\Controllers\BoardTaskAttachmentController;
 use App\Http\Controllers\BoardTaskCommentController;
 use App\Http\Controllers\BoardTaskController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\PasswordGeneratorController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicBoardController;
 use App\Http\Controllers\PublicShareController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ScreenshotController;
 use App\Http\Controllers\ShareLinkController;
 use App\Http\Controllers\StorageController;
@@ -38,6 +40,17 @@ Route::get('/ws-config', function () {
         'host' => parse_url(config('app.url'), PHP_URL_HOST) ?: 'localhost',
     ]);
 });
+
+// PWA per-board: публичный VAPID-ключ, манифест и иконки по токену
+// (share_token — приложение гостя /b/*, manifest_token — владельца
+// /boards/*). Bearer при загрузке манифеста браузер не шлёт, защита —
+// неугадываемый токен.
+Route::get('/push/vapid-key', fn () => response()->json([
+    'key' => config('services.webpush.vapid.publicKey'),
+]))->middleware('throttle:60,1');
+Route::get('/board-apps/{token}/manifest', [BoardPwaController::class, 'manifest']);
+Route::get('/board-apps/{token}/icons/{file}', [BoardPwaController::class, 'icon'])
+    ->where('file', '(icon|maskable)-(192|512)\.png');
 
 // Публичный просмотр расшаренных ссылок для SPA-страниц /share/*
 // (без авторизации — токен ссылки сам по себе ключ доступа).
@@ -67,6 +80,9 @@ Route::middleware('throttle:120,1')->group(function () {
     Route::get('/public/boards/{token}/board-task-comments', [PublicBoardController::class, 'comments']);
     Route::post('/public/boards/{token}/board-task-comments', [PublicBoardController::class, 'storeComment']);
     Route::post('/public/boards/{token}/board-task-comments/{comment}/delete', [PublicBoardController::class, 'destroyComment']);
+    // Push-подписка гостя гостевой страницы доски
+    Route::post('/public/boards/{token}/push-subscription', [PublicBoardController::class, 'subscribePush']);
+    Route::delete('/public/boards/{token}/push-subscription', [PublicBoardController::class, 'unsubscribePush']);
 });
 Route::post('/share/{token}/upload', [PublicShareController::class, 'upload'])
     ->middleware('throttle:30,1');
@@ -101,6 +117,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('boards', BoardController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::post('boards/{board}/share-link', [BoardController::class, 'shareLink']);
     Route::delete('boards/{board}/share-link', [BoardController::class, 'revokeShareLink']);
+    // Иконка доски (PWA) и push-подписка владельца
+    Route::post('boards/{board}/icon', [BoardController::class, 'storeIcon']);
+    Route::delete('boards/{board}/icon', [BoardController::class, 'destroyIcon']);
+    Route::post('boards/{board}/push-subscription', [PushSubscriptionController::class, 'store']);
+    Route::delete('boards/{board}/push-subscription', [PushSubscriptionController::class, 'destroy']);
     Route::put('board-columns/{board_column}/reorder-tasks', [BoardColumnController::class, 'reorderTasks']);
     Route::apiResource('board-columns', BoardColumnController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('board-tasks', BoardTaskController::class)->only(['store', 'update', 'destroy']);

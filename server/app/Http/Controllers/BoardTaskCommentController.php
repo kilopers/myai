@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendBoardPush;
 use App\Models\BoardTask;
 use App\Models\BoardTaskAttachment;
 use App\Models\BoardTaskComment;
@@ -34,6 +35,7 @@ class BoardTaskCommentController extends Controller
             'text' => ['nullable', 'string', 'max:2000'],
             'files' => ['nullable', 'array', 'max:10'],
             'files.*' => ['file', 'max:102400'],
+            'exclude_endpoint' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $task = BoardTask::findOrFail($data['board_task_id']);
@@ -54,6 +56,8 @@ class BoardTaskCommentController extends Controller
             $attachment->board_task_comment_id = $comment->id;
             $attachment->save();
         }
+
+        SendBoardPush::dispatch('comment', $comment->id, $data['exclude_endpoint'] ?? null);
 
         return response()->json($comment->load(['user:id,name', 'attachments']), 201);
     }

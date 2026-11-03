@@ -35,6 +35,10 @@ x-app-env: &app-env
   TORRENT_RPC_URL: ${TORRENT_RPC_URL:-http://aria2:6800/jsonrpc}
   TORRENT_RPC_SECRET: ${TORRENT_RPC_SECRET:-myai-torrent}
   TORRENT_DOWNLOAD_DIR: /downloads
+  # Web Push досок-PWA (VAPID); пусто — пуши выключены
+  VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+  VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+  VAPID_SUBJECT: ${VAPID_SUBJECT:-}
 
 x-app-volumes: &app-volumes
   - ./data/screenshots:/var/www/html/storage/app/public

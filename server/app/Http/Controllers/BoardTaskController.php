@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendBoardPush;
 use App\Models\BoardColumn;
 use App\Models\BoardTask;
 use Illuminate\Http\Request;
@@ -14,6 +15,7 @@ class BoardTaskController extends Controller
             'board_column_id' => ['required', 'integer'],
             'title' => ['required', 'string', 'max:200'],
             'text' => ['nullable', 'string'],
+            'exclude_endpoint' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $column = BoardColumn::findOrFail($data['board_column_id']);
@@ -32,6 +34,8 @@ class BoardTaskController extends Controller
             'position' => 0,
             'number' => $number,
         ]);
+
+        SendBoardPush::dispatch('task', $task->id, $data['exclude_endpoint'] ?? null);
 
         return response()->json($task, 201);
     }

@@ -20,6 +20,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import client from '../../api/client';
+import { pushEndpoint } from '../../pwa';
 import AppDialog from '../AppDialog';
 import RichTextEditor from '../RichTextEditor';
 import BoardColumn from './BoardColumn';
@@ -134,6 +135,8 @@ export default function BoardCanvas({
       } else {
         const { data: task } = await client.post(api('/board-tasks'), {
           board_column_id: taskDlg.column.id, ...form,
+          // своя подписка не должна ловить пуш о собственном действии
+          exclude_endpoint: pushEndpoint() ?? undefined,
         });
         // Отложенные вложения новой задачи — догружаем после создания
         for (const { file } of taskDlg.pending ?? []) {

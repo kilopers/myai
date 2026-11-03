@@ -1,10 +1,11 @@
 import { useCallback } from 'react';
-import { Fab, InputAdornment, Link, TextField, Tooltip } from '@mui/material';
+import { Avatar, Box, Fab, InputAdornment, Link, TextField, Tooltip } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import client from '../api/client';
 import BoardCanvas from '../components/board/BoardCanvas';
+import BoardPwaControls from '../components/BoardPwaControls';
 import PageHeader from '../components/PageHeader';
 
 /**
@@ -38,9 +39,22 @@ export default function BoardPage() {
               Доски
             </Link>
           )}
-          title={board?.name ?? '…'}
+          title={(
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+              {board?.icon_url && (
+                <Avatar variant="rounded" src={board.icon_url} sx={{ width: 28, height: 28 }} />
+              )}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{board?.name ?? '…'}</span>
+            </Box>
+          )}
           actions={(
             <>
+              <BoardPwaControls
+                manifestHref={board?.manifest_token ? `/api/board-apps/${board.manifest_token}/manifest` : null}
+                subscribeUrl={`/api/boards/${boardId}/push-subscription`}
+                boardKey={`board-${boardId}`}
+                pageUrl={`/boards/${boardId}`}
+              />
               <TextField
                 size="small"
                 placeholder="Поиск по доске…"

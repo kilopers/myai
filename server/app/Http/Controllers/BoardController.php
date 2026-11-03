@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Board;
+use App\Services\BoardIcon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -70,17 +71,44 @@ class BoardController extends Controller
         abort_unless($board->user_id === $request->user()->id, 403);
 
         $board->update(['share_token' => null]);
+        // Подписки гостей этой ссылки больше не актуальны
+        $board->pushSubscriptions()->whereNull('user_id')->delete();
 
         return response()->noContent();
     }
 
-    public function destroy(Request $request, Board $board)
+    /** Иконка доски (PWA): своя картинка → PNG 192/512 + maskable. */
+    public function storeIcon(Request $request, Board $board, BoardIcon $icons)
+    {
+        abort_unless($board->user_id === $request->user()->id, 403);
+
+        $request->validate([
+            'icon' => ['required', 'file', 'mimes:png,jpg,jpeg,webp,gif', 'max:5120'],
+        ]);
+
+        $icons->storeUpload($board, $request->file('icon'));
+
+        return response()->json(['icon_url' => $board->fresh()->icon_url], 201);
+    }
+
+    /** Сброс иконки на автогенерацию из prefix/названия. */
+    public function destroyIcon(Request $request, Board $board, BoardIcon $icons)
+    {
+        abort_unless($board->user_id === $request->user()->id, 403);
+
+        $icons->reset($board);
+
+        return response()->json(['icon_url' => $board->fresh()->icon_url]);
+    }
+
+    public function destroy(Request $request, Board $board, BoardIcon $icons)
     {
         abort_unless($board->user_id === $request->user()->id, 403);
         $board->load('columns.tasks.attachments');
         $board->columns->each(
             fn ($column) => $column->tasks->each(fn ($task) => $task->attachments->each->deleteFile())
         );
+        $icons->deleteFiles($board);
         $board->delete();
 
         return response()->noContent();

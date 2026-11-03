@@ -40,6 +40,17 @@ return [
         'token' => env('RELEASE_SYNC_TOKEN'),
     ],
 
+    // Web Push (уведомления досок-PWA): VAPID-ключи.
+    // Сгенерировать пару: php artisan tinker --execute \
+    //   'print_r(Minishlink\WebPush\VAPID::createVapidKeys());'
+    'webpush' => [
+        'vapid' => [
+            'subject' => env('VAPID_SUBJECT') ?: env('APP_URL'),
+            'publicKey' => env('VAPID_PUBLIC_KEY'),
+            'privateKey' => env('VAPID_PRIVATE_KEY'),
+        ],
+    ],
+
     // Встроенный торрент-клиент: aria2-демон с JSON-RPC (сервис aria2
     // в docker-compose). download_dir — каталог загрузки в координатах
     // движка; у app/queue ему соответствует диск «torrents»

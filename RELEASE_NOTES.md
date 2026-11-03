@@ -6,6 +6,37 @@
 Актуальная версия — в файле `VERSION`.
 
 
+## 1.9.0
+
+- Каждая доска — отдельное устанавливаемое PWA-приложение со своими
+  push-уведомлениями (как в «тех контроле»/«моём гараже»).
+- Иконка доски: загрузка своей картинки в диалоге доски
+  (POST/DELETE /api/boards/{id}/icon — PNG 192/512 + maskable) или
+  автогенерация буквенной иконки из prefix/названия (GD +
+  DejaVuSans-Bold); показывается в списке досок и в шапках страниц.
+- Манифест per-board: публичный GET /api/board-apps/{token}/manifest —
+  у владельца токен boards.manifest_token (start_url /boards/{id}),
+  у гостя — share_token (start_url /b/{token}); иконки отдаёт
+  /api/board-apps/{token}/icons/*. Страницы доски подменяют
+  <link rel="manifest"> на свой.
+- Web Push (minishlink/web-push, VAPID из env VAPID_PUBLIC_KEY/
+  VAPID_PRIVATE_KEY/VAPID_SUBJECT): таблица push_subscriptions
+  (board_id, user_id nullable — гость по share_token, endpoint_hash
+  уникален, url страницы доски). Подписки: POST/DELETE
+  /api/boards/{id}/push-subscription (владелец) и
+  /api/public/boards/{token}/push-subscription (гость);
+  GET /api/push/vapid-key — публичный ключ.
+- Пуши per-board: новая задача и новый комментарий шлют уведомления
+  только подписчикам этой доски (Job SendBoardPush →
+  BoardPushService); поле exclude_endpoint исключает устройство
+  автора действия; тап по пушу открывает доску на задаче
+  (?task=PREFIX-N), протухшие подписки (404/410) удаляются;
+  отзыв гостевой ссылки удаляет подписки гостей.
+- sw.js: обработчики push (showNotification с иконкой доски) и
+  notificationclick (фокус открытой страницы доски или новое окно).
+- В шапках страниц доски — кнопки «Установить приложение»
+  (beforeinstallprompt) и «Уведомления» (компонент BoardPwaControls).
+
 ## 1.8.21
 
 - Галочка «Видна гостям» в диалоге колонки теперь только у

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendBoardPush;
 use App\Models\Board;
 use App\Models\BoardColumn;
 use App\Models\BoardTask;
@@ -57,6 +58,9 @@ class PublicBoardController extends Controller
 
         return response()->json([
             'board' => array_merge($board->only('id', 'name', 'prefix'), [
+                // Иконка и манифест по share_token — публичные PWA-роуты
+                'icon_url' => "/api/board-apps/{$board->share_token}/icons/icon-192.png",
+                'manifest_url' => "/api/board-apps/{$board->share_token}/manifest",
                 'guest_permissions' => [
                     'columns' => $board->guestCan('columns'),
                     'tasks' => $board->guestCan('tasks'),
@@ -148,6 +152,7 @@ class PublicBoardController extends Controller
             'board_column_id' => ['required', 'integer'],
             'title' => ['required', 'string', 'max:200'],
             'text' => ['nullable', 'string'],
+            'exclude_endpoint' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $column = $this->column($token, (int) $data['board_column_id']);
@@ -161,6 +166,8 @@ class PublicBoardController extends Controller
             'number' => $board->next_task_number,
         ]);
         $board->increment('next_task_number');
+
+        SendBoardPush::dispatch('task', $task->id, $data['exclude_endpoint'] ?? null);
 
         return response()->json($task, 201);
     }
@@ -259,6 +266,7 @@ class PublicBoardController extends Controller
             'text' => ['nullable', 'string', 'max:2000'],
             'files' => ['nullable', 'array', 'max:10'],
             'files.*' => ['file', 'max:102400'],
+            'exclude_endpoint' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $task = $this->task($token, (int) $data['board_task_id']);
@@ -280,7 +288,35 @@ class PublicBoardController extends Controller
             $attachment->save();
         }
 
+        SendBoardPush::dispatch('comment', $comment->id, $data['exclude_endpoint'] ?? null);
+
         return response()->json($comment->load(['user:id,name', 'attachments']), 201);
+    }
+
+    /** Push-подписка гостя: endpoint+keys, привязка к доске токена. */
+    public function subscribePush(Request $request, string $token): JsonResponse
+    {
+        $board = $this->board($token);
+
+        $sub = $board->pushSubscriptions()->updateOrCreate(
+            ['endpoint_hash' => hash('sha256', $request->string('endpoint'))],
+            PushSubscriptionController::validateSub($request) + ['user_id' => null],
+        );
+
+        return response()->json($sub->only('id', 'endpoint', 'url'), 201);
+    }
+
+    public function unsubscribePush(Request $request, string $token): Response
+    {
+        $board = $this->board($token);
+
+        $data = $request->validate(['endpoint' => ['required', 'string', 'max:2000']]);
+
+        $board->pushSubscriptions()
+            ->where('endpoint_hash', hash('sha256', $data['endpoint']))
+            ->delete();
+
+        return response()->noContent();
     }
 
     /** Гость удаляет только свой комментарий — сверяем имя. */

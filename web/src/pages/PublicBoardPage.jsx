@@ -18,6 +18,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import { useParams } from 'react-router-dom';
 import client from '../api/client';
 import AppDialog from '../components/AppDialog';
+import BoardPwaControls from '../components/BoardPwaControls';
 import ShareShell from '../components/ShareShell';
 import BoardCanvas from '../components/board/BoardCanvas';
 import { useAuth } from '../context/AuthContext';
@@ -106,9 +107,18 @@ export default function PublicBoardPage() {
           height="calc(100dvh - 56px)"
           header={({ board, openColumnCreate, query, setQuery }) => (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+              {board?.icon_url && (
+                <Avatar variant="rounded" src={board.icon_url} sx={{ width: 28, height: 28 }} />
+              )}
               <Typography variant="h6" noWrap sx={{ flexGrow: 1, fontWeight: 600 }}>
                 {board?.name ?? <CircularProgress size={16} />}
               </Typography>
+              <BoardPwaControls
+                manifestHref={`/api/board-apps/${token}/manifest`}
+                subscribeUrl={`/api/public/boards/${token}/push-subscription`}
+                boardKey={`b-${token}`}
+                pageUrl={`/b/${token}`}
+              />
               <TextField
                 size="small"
                 placeholder="Поиск по доске…"

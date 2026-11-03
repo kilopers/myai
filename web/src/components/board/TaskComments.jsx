@@ -16,6 +16,7 @@ import SendIcon from '@mui/icons-material/Send';
 import { ChatDateDivider, ChatMessage, ChatMessageGroup } from '@mui/x-chat';
 import { ChatRoot } from '@mui/x-chat-headless';
 import client from '../../api/client';
+import { pushEndpoint } from '../../pwa';
 import CameraCapture from '../CameraCapture';
 import PhotoGallery from '../PhotoGallery';
 
@@ -128,6 +129,8 @@ export default function TaskComments({ taskId, onCount, onError, apiBase = '/api
       fd.append('board_task_id', taskId);
       if (guestName) fd.append('guest_name', guestName);
       if (body) fd.append('text', body);
+      // своя подписка не должна ловить пуш о собственном действии
+      if (pushEndpoint()) fd.append('exclude_endpoint', pushEndpoint());
       pending.forEach((p) => fd.append('files[]', p.file));
       await client.post(`${apiBase}/board-task-comments`, fd);
       pending.forEach((p) => URL.revokeObjectURL(p.preview));

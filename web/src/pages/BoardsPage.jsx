@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import {
+  Avatar,
   Box,
   Button,
   Card,
@@ -47,10 +48,20 @@ export default function BoardsPage() {
     if (!name) return;
     const payload = { name, prefix: nameDlg.prefix?.trim() || null, guest_permissions: nameDlg.caps ?? undefined };
     try {
+      let boardId = nameDlg.board?.id;
       if (nameDlg.mode === 'edit') {
-        await client.put(`/api/boards/${nameDlg.board.id}`, payload);
+        await client.put(`/api/boards/${boardId}`, payload);
       } else {
-        await client.post('/api/boards', payload);
+        const { data } = await client.post('/api/boards', payload);
+        boardId = data.id;
+      }
+      // Иконка: сброс на автогенерацию или загрузка своей картинки
+      if (nameDlg.iconReset) {
+        await client.delete(`/api/boards/${boardId}/icon`);
+      } else if (nameDlg.iconFile) {
+        const fd = new FormData();
+        fd.append('icon', nameDlg.iconFile);
+        await client.post(`/api/boards/${boardId}/icon`, fd);
       }
       setNameDlg(null);
       notifyBoardsChanged();
@@ -85,7 +96,9 @@ export default function BoardsPage() {
                 label: 'Название',
                 render: (b) => (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <ViewKanbanIcon fontSize="small" color="action" />
+                    {b.icon_url
+                      ? <Avatar variant="rounded" src={b.icon_url} sx={{ width: 24, height: 24 }} />
+                      : <ViewKanbanIcon fontSize="small" color="action" />}
                     {b.name}
                   </Box>
                 ),
@@ -175,6 +188,41 @@ export default function BoardsPage() {
               if (e.key === 'Enter') saveName();
             }}
           />
+          {/* Иконка доски — показывается в списке, в приложении PWA
+              и на домашнем экране; без файла генерится из prefix/имени */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 2 }}>
+            <Avatar
+              variant="rounded"
+              src={nameDlg?.iconPreview ?? (nameDlg?.iconReset ? undefined : nameDlg?.board?.icon_url)}
+              sx={{ width: 40, height: 40 }}
+            />
+            <Button component="label" size="small" variant="outlined">
+              Выбрать иконку
+              <input
+                hidden
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (nameDlg?.iconPreview) URL.revokeObjectURL(nameDlg.iconPreview);
+                  setNameDlg((d) => ({
+                    ...d, iconFile: file, iconPreview: URL.createObjectURL(file), iconReset: false,
+                  }));
+                }}
+              />
+            </Button>
+            {(nameDlg?.iconFile || nameDlg?.board?.icon) && !nameDlg?.iconReset && (
+              <Button
+                size="small"
+                onClick={() => setNameDlg((d) => ({
+                  ...d, iconFile: null, iconPreview: null, iconReset: true,
+                }))}
+              >
+                Сбросить
+              </Button>
+            )}
+          </Box>
           <Box
             component="fieldset"
             sx={{ mt: 2, border: 1, borderColor: 'divider', borderRadius: 1, px: 1.5, pb: 0.5, m: 0, ml: 0, mr: 0 }}
