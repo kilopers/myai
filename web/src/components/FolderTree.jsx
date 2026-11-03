@@ -5,25 +5,19 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Tooltip,
 } from '@mui/material';
 import FolderIcon from '@mui/icons-material/Folder';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import LinkIcon from '@mui/icons-material/Link';
-import ScheduleIcon from '@mui/icons-material/Schedule';
-import BlockIcon from '@mui/icons-material/Block';
 import HomeIcon from '@mui/icons-material/Home';
-import TouchAppIcon from '@mui/icons-material/TouchApp';
-import CloudOffIcon from '@mui/icons-material/CloudOff';
 import client from '../api/client';
 
 export const notifyFoldersChanged = () => window.dispatchEvent(new Event('folders-changed'));
 
 /**
  * Дерево папок для сайдбара: произвольная вложенность, раскрытие
- * шевроном, индикаторы состояния. Настройки папки — иконками в
- * шапке открытой папки (компонент FolderSettings).
+ * шевроном. Настройки папки — иконками в шапке открытой папки
+ * (компонент FolderSettings).
  */
 export default function FolderTree({ folders, currentFolderId, onNodeClick, onAction }) {
   const [expanded, setExpanded] = useState(() => new Set());
@@ -162,32 +156,6 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
               fontWeight: selected ? 600 : 400,
             }}
           />
-          {/* Индикаторы папки: TTL / активная ссылка / конвертация выкл. */}
-          {folder.default_ttl_days && (
-            <Tooltip title={`Срок хранения файлов: ${folder.default_ttl_days} дн.`}>
-              <ScheduleIcon sx={{ fontSize: 13, color: '#8a8a96', mr: 0.3 }} />
-            </Tooltip>
-          )}
-          {folder.active_links > 0 && (
-            <Tooltip title="Есть активная ссылка на папку">
-              <LinkIcon sx={{ fontSize: 14, color: 'rgb(82, 109, 227)', mr: 0.3 }} />
-            </Tooltip>
-          )}
-          {folder.conversion_enabled === false && (
-            <Tooltip title="Конвертация файлов в папке выключена">
-              <BlockIcon sx={{ fontSize: 13, color: '#8a8a96', mr: 0.3 }} />
-            </Tooltip>
-          )}
-          {folder.torrent_mode === 'manual' && (
-            <Tooltip title="Торренты запускаются вручную">
-              <TouchAppIcon sx={{ fontSize: 13, color: '#8a8a96', mr: 0.3 }} />
-            </Tooltip>
-          )}
-          {folder.sync_excluded && (
-            <Tooltip title="Не синхронизируется с компьютером">
-              <CloudOffIcon sx={{ fontSize: 13, color: '#8a8a96', mr: 0.3 }} />
-            </Tooltip>
-          )}
         </ListItemButton>
         {isOpen && children.map((c) => renderNode(c, depth + 1))}
       </Box>

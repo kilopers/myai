@@ -635,7 +635,12 @@ export default function FilesPage() {
           </Box>
         )}
         actions={(
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          // На мобильной действия уходят на новую строку под заголовком, вправо
+          <Box sx={{
+            display: 'flex', alignItems: 'center', gap: 0.5,
+            width: { xs: '100%', sm: 'auto' }, justifyContent: 'flex-end',
+          }}
+          >
             {folder && <FolderSettings folder={folder} onAction={setMessage} />}
             <Button
               variant="outlined"

@@ -158,7 +158,6 @@ export default function Layout() {
             : location.pathname.startsWith(item.to);
           const btn = (
             <Box key={item.to}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <ListItemButton
                 component={RouterLink}
                 to={item.to}
@@ -212,19 +211,23 @@ export default function Layout() {
                     primaryTypographyProps={{ fontSize: '14px', fontWeight: selected ? 600 : 400 }}
                   />
                 )}
+                {/* Стрелка сворачивания — внутри пункта, под общим ховером */}
+                {item.section && (open || isMobile) && (
+                  <Box
+                    component="span"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggleSection(item.section);
+                    }}
+                    sx={{ display: 'flex', alignItems: 'center', color: 'rgb(113, 116, 132)', mr: -0.5 }}
+                  >
+                    {menuState[item.section]
+                      ? <ExpandMoreIcon sx={{ fontSize: 16 }} />
+                      : <ChevronRightIcon sx={{ fontSize: 16 }} />}
+                  </Box>
+                )}
               </ListItemButton>
-              {item.section && (open || isMobile) && (
-                <IconButton
-                  size="small"
-                  onClick={() => toggleSection(item.section)}
-                  sx={{ color: 'rgb(113, 116, 132)', mr: 0.5, p: 0.25 }}
-                >
-                  {menuState[item.section]
-                    ? <ExpandMoreIcon sx={{ fontSize: 16 }} />
-                    : <ChevronRightIcon sx={{ fontSize: 16 }} />}
-                </IconButton>
-              )}
-              </Box>
               {item.to === '/passwords' && (open || isMobile) && menuState.passwords && pwFolders.length > 0 && (
                 <Box>
                   {pwFolders.map((f) => (
