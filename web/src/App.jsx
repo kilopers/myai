@@ -19,6 +19,7 @@ import ShareFilePage from './pages/ShareFilePage';
 import ShareFolderPage from './pages/ShareFolderPage';
 import ShareShotPage from './pages/ShareShotPage';
 import PublicBoardPage from './pages/PublicBoardPage';
+import PublicPasswordPage from './pages/PublicPasswordPage';
 
 function Protected({ children, adminOnly = false, allowPasswordChange = false }) {
   const { user, loading } = useAuth();
@@ -67,6 +68,8 @@ export default function App() {
       <Route path="/share/i/:uuid" element={<ShareShotPage />} />
       {/* Гостевой просмотр доски по уникальной ссылке — без меню */}
       <Route path="/b/:token" element={<PublicBoardPage />} />
+      {/* Гостевая карточка записи пароля по временной ссылке */}
+      <Route path="/p/:token" element={<PublicPasswordPage />} />
       <Route
         path="/change-password"
         element={

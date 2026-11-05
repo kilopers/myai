@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\FileDerivative;
 use App\Models\Folder;
+use App\Models\PasswordEntry;
 use App\Models\Screenshot;
 use App\Models\ShareLink;
 use App\Models\StoredFile;
@@ -70,6 +71,26 @@ class PublicShareController extends Controller
     public function fileInfo(string $token, string $uuid): JsonResponse
     {
         return response()->json(['file' => $this->fileData($this->resolveFile($token, $uuid))]);
+    }
+
+    /**
+     * Карточка записи пароля по временной гостевой ссылке
+     * (/p/{token}): read-only просмотр полей, пароль расшифрован
+     * для copy-to-clipboard. Ссылка всегда с ограниченным сроком.
+     */
+    public function password(string $token): JsonResponse
+    {
+        $entry = PasswordEntry::where('share_token', $token)->firstOrFail();
+        abort_if($entry->share_expires_at === null || $entry->share_expires_at->isPast(), 410);
+
+        return response()->json([
+            'name' => $entry->name,
+            'login' => $entry->login,
+            'password' => $entry->password,
+            'url' => $entry->url,
+            'note' => $entry->note,
+            'expires_at' => $entry->share_expires_at->toIso8601String(),
+        ]);
     }
 
     /** Оригинал файла инлайн (превью в просмотрщике). */

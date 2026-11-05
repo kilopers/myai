@@ -39,6 +39,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import FolderIcon from '@mui/icons-material/Folder';
 import KeyIcon from '@mui/icons-material/Key';
+import LaunchIcon from '@mui/icons-material/Launch';
+import LinkIcon from '@mui/icons-material/Link';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
@@ -54,7 +56,7 @@ import { useSearchParams } from 'react-router-dom';
 
 dayjs.locale('ru');
 
-const emptyForm = { name: '', login: '', password: '', note: '', expires_at: '', password_folder_id: null };
+const emptyForm = { name: '', login: '', password: '', url: '', note: '', expires_at: '', password_folder_id: null };
 const emptyGen = {
   name: '', min_length: 12, max_length: 20,
   use_lower: true, use_upper: true, use_digits: true, use_symbols: false,
@@ -68,6 +70,28 @@ const describeGen = (g) => [
   g.use_digits && '0–9',
   g.use_symbols && (g.symbols ? `«${g.symbols}»` : 'спец'),
 ].filter(Boolean).join(' + ');
+
+/** Сроки жизни гостевой ссылки (минуты). «Бесконечной» не бывает. */
+const shareTtls = [
+  { minutes: 60, label: '1 час' },
+  { minutes: 360, label: '6 часов' },
+  { minutes: 720, label: '12 часов' },
+  { minutes: 1440, label: '1 день' },
+  { minutes: 4320, label: '3 дня' },
+  { minutes: 10080, label: '1 неделя' },
+  { minutes: 20160, label: '2 недели' },
+  { minutes: 43200, label: '1 месяц' },
+];
+
+/** Временная ссылка записи жива: токен есть и срок не вышел. */
+const shareActive = (e) =>
+  !!e.share_token && !!e.share_expires_at && new Date(e.share_expires_at) > new Date();
+
+/** Открывает ссылку записи в новой вкладке; без схемы дописывает https://. */
+const openEntryUrl = (u) => {
+  const href = /^[a-z][a-z0-9+.-]*:\/\//i.test(u) ? u : `https://${u}`;
+  window.open(href, '_blank', 'noopener');
+};
 
 export default function PasswordsPage() {
   const [folders, setFolders] = useState(null);
@@ -99,6 +123,10 @@ export default function PasswordsPage() {
   // Вкладка «Случайные пароли»: {genId: [пароли]} — грузится одним запросом.
   const [genBatch, setGenBatch] = useState(null);
   const [genBatchLoading, setGenBatchLoading] = useState(false);
+  // Диалог временной ссылки записи: {entry, recreate} — recreate
+  // показывает выбор срока и кнопку создания нового токена.
+  const [shareDlg, setShareDlg] = useState(null);
+  const [shareTtl, setShareTtl] = useState(1440);
 
   const loadFolders = useCallback(async () => {
     try {
@@ -199,6 +227,7 @@ export default function PasswordsPage() {
       name: entry.name,
       login: entry.login ?? '',
       password: entry.password ?? '',
+      url: entry.url ?? '',
       note: entry.note ?? '',
       expires_at: entry.expires_at ? entry.expires_at.slice(0, 10) : '',
       password_folder_id: entry.password_folder_id,
@@ -220,6 +249,7 @@ export default function PasswordsPage() {
         name: form.name.trim(),
         login: form.login.trim() || null,
         password: form.password,
+        url: form.url.trim() || null,
         note: form.note.trim() || null,
         expires_at: form.expires_at || null,
       };
@@ -244,6 +274,52 @@ export default function PasswordsPage() {
       await Promise.all([reloadCurrent(), loadFolders()]);
     } catch {
       setMessage('Не удалось удалить запись');
+    }
+  };
+
+  const shareEntry = shareDlg?.entry ?? null;
+  const shareLinkUrl = shareEntry?.share_token
+    ? `${window.location.origin}/p/${shareEntry.share_token}`
+    : null;
+
+  /** Создать/пересоздать временную ссылку и положить её в буфер. */
+  const createShareLink = async () => {
+    setSaving(true);
+    try {
+      const { data } = await client.post(
+        `/api/password-entries/${shareEntry.id}/share-link`,
+        { ttl_minutes: shareTtl },
+      );
+      const url = `${window.location.origin}${data.url}`;
+      try { await navigator.clipboard.writeText(url); } catch { /* буфер может быть недоступен */ }
+      setShareDlg({
+        entry: {
+          ...shareEntry,
+          share_token: data.url.split('/').pop(),
+          share_expires_at: data.expires_at,
+        },
+        recreate: false,
+      });
+      setMessage('Ссылка создана и скопирована в буфер обмена');
+      reloadCurrent();
+    } catch {
+      setMessage('Не удалось создать ссылку');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const revokeShareLink = async () => {
+    setSaving(true);
+    try {
+      await client.delete(`/api/password-entries/${shareEntry.id}/share-link`);
+      setShareDlg(null);
+      setMessage('Ссылка удалена');
+      reloadCurrent();
+    } catch {
+      setMessage('Не удалось удалить ссылку');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -522,7 +598,38 @@ export default function PasswordsPage() {
                 label: title,
                 addLabel: 'Создать',
                 columns: [
-                  { key: 'name', label: 'Название', render: (e) => <Box component="span" sx={{ fontWeight: 500 }}>{e.name}</Box> },
+                  { key: 'name', label: 'Название', render: (e) => (
+                      <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                        <Box component="span" sx={{ fontWeight: 500 }}>{e.name}</Box>
+                        {e.url && (
+                          <Tooltip title={`Перейти: ${e.url}`}>
+                            <IconButton
+                              size="small"
+                              sx={{ p: 0.25, ml: 0.25 }}
+                              onClick={(ev) => { ev.stopPropagation(); openEntryUrl(e.url); }}
+                            >
+                              <LaunchIcon sx={{ fontSize: 14 }} color="primary" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        <Tooltip title={shareActive(e)
+                          ? 'Временная ссылка активна — клик: показать'
+                          : (e.share_token ? 'Временная ссылка истекла' : 'Создать временную ссылку')}
+                        >
+                          <IconButton
+                            size="small"
+                            sx={{ p: 0.25 }}
+                            onClick={(ev) => {
+                              ev.stopPropagation();
+                              setShareTtl(1440);
+                              setShareDlg({ entry: e, recreate: !e.share_token });
+                            }}
+                          >
+                            <LinkIcon sx={{ fontSize: 15 }} color={shareActive(e) ? 'primary' : 'disabled'} />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    ) },
                   { key: 'login', label: 'Логин', render: (e) => e.login ? (
                       <Tooltip title="Клик — скопировать логин">
                         <Box component="span" sx={copyCellSx} onClick={() => copy(e.login, 'Логин')}>
@@ -665,6 +772,13 @@ export default function PasswordsPage() {
               </MenuItem>
             ))}
           </Menu>
+          <TextField
+            label="Ссылка"
+            autoComplete="off"
+            placeholder="https://…"
+            value={form.url}
+            onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
+          />
           <DatePicker
             label="Срок действия (пусто — навсегда)"
             value={form.expires_at ? dayjs(form.expires_at) : null}
@@ -761,6 +875,86 @@ export default function PasswordsPage() {
           >
             Сохранить
           </Button>
+        </DialogActions>
+      </AppDialog>
+
+      {/* Диалог временной гостевой ссылки записи */}
+      <AppDialog open={!!shareDlg} onClose={() => setShareDlg(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Временная ссылка</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
+          <Typography variant="body2" color="text.secondary">
+            Гость увидит карточку записи «{shareEntry?.name}»: название, логин, пароль,
+            ссылку и заметку. Только просмотр и копирование.
+          </Typography>
+          {shareEntry?.share_token && !shareDlg.recreate ? (
+            shareActive(shareEntry) ? (
+              <>
+                <TextField
+                  label="Ссылка"
+                  size="small"
+                  value={shareLinkUrl}
+                  onFocus={(e) => e.target.select()}
+                  slotProps={{ input: { readOnly: true } }}
+                />
+                <Typography variant="caption" color="text.secondary">
+                  Действует до {dayjs(shareEntry.share_expires_at).format('DD.MM.YYYY HH:mm')}
+                </Typography>
+              </>
+            ) : (
+              <Typography variant="body2" color="warning.main">
+                Ссылка истекла{shareEntry.share_expires_at
+                  ? ` ${dayjs(shareEntry.share_expires_at).format('DD.MM.YYYY HH:mm')}`
+                  : ''} — пересоздайте или удалите её.
+              </Typography>
+            )
+          ) : (
+            <FormControl size="small" fullWidth>
+              <InputLabel>Срок жизни ссылки</InputLabel>
+              <Select
+                label="Срок жизни ссылки"
+                value={shareTtl}
+                onChange={(e) => setShareTtl(e.target.value)}
+              >
+                {shareTtls.map((t) => (
+                  <MenuItem key={t.minutes} value={t.minutes}>{t.label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+        </DialogContent>
+        <DialogActions>
+          {shareEntry?.share_token && !shareDlg.recreate ? (
+            <>
+              <Button color="error" onClick={revokeShareLink} disabled={saving} sx={{ mr: 'auto' }}>
+                Удалить
+              </Button>
+              <Button
+                onClick={() => setShareDlg((d) => ({ ...d, recreate: true }))}
+                disabled={saving}
+              >
+                Пересоздать
+              </Button>
+              {shareActive(shareEntry) && (
+                <Button variant="contained" onClick={() => copy(shareLinkUrl, 'Ссылка')}>
+                  Копировать
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              <Button
+                onClick={() => (shareEntry?.share_token
+                  ? setShareDlg((d) => ({ ...d, recreate: false }))
+                  : setShareDlg(null))}
+                disabled={saving}
+              >
+                {shareEntry?.share_token ? 'Назад' : 'Отмена'}
+              </Button>
+              <Button variant="contained" onClick={createShareLink} disabled={saving}>
+                {shareEntry?.share_token ? 'Пересоздать' : 'Создать'}
+              </Button>
+            </>
+          )}
         </DialogActions>
       </AppDialog>
 

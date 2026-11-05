@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['user_id', 'password_folder_id', 'name', 'login', 'password', 'note', 'expires_at'])]
+#[Fillable(['user_id', 'password_folder_id', 'name', 'login', 'password', 'url', 'note', 'expires_at', 'share_token', 'share_expires_at'])]
 class PasswordEntry extends Model
 {
     protected function casts(): array
@@ -15,7 +15,16 @@ class PasswordEntry extends Model
             // Пароль лежит в БД зашифрованным ключом приложения.
             'password' => 'encrypted',
             'expires_at' => 'datetime',
+            'share_expires_at' => 'datetime',
         ];
+    }
+
+    /** Активная (не истекшая) гостевая ссылка на карточку записи. */
+    public function shareLinkActive(): bool
+    {
+        return $this->share_token !== null
+            && $this->share_expires_at !== null
+            && $this->share_expires_at->isFuture();
     }
 
     /** @return BelongsTo<User, $this> */

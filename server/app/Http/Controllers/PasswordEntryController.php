@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class PasswordEntryController extends Controller
@@ -52,6 +53,7 @@ class PasswordEntryController extends Controller
             'name' => ['required', 'string', 'max:200'],
             'login' => ['nullable', 'string', 'max:300'],
             'password' => ['required', 'string', 'max:2000'],
+            'url' => ['nullable', 'string', 'max:2048'],
             'note' => ['nullable', 'string', 'max:5000'],
             'expires_at' => ['nullable', 'date'],
         ]);
@@ -74,6 +76,7 @@ class PasswordEntryController extends Controller
             'name' => ['sometimes', 'string', 'max:200'],
             'login' => ['nullable', 'string', 'max:300'],
             'password' => ['sometimes', 'string', 'max:2000'],
+            'url' => ['nullable', 'string', 'max:2048'],
             'note' => ['nullable', 'string', 'max:5000'],
             'expires_at' => ['nullable', 'date'],
         ]);
@@ -90,5 +93,40 @@ class PasswordEntryController extends Controller
         $passwordEntry->delete();
 
         return response()->json(['message' => 'Deleted.']);
+    }
+
+    /**
+     * Создать/пересоздать временную гостевую ссылку на карточку записи.
+     * Срок жизни обязателен (минуты, максимум 30 дней): «бесконечной»
+     * ссылки на пароль не бывает. Повторный вызов генерирует новый токен —
+     * старый URL сразу перестаёт работать.
+     */
+    public function shareLink(Request $request, PasswordEntry $passwordEntry): JsonResponse
+    {
+        abort_unless($passwordEntry->user_id === $request->user()->id, 403);
+
+        $validated = $request->validate([
+            'ttl_minutes' => ['required', 'integer', 'min:1', 'max:43200'],
+        ]);
+
+        $passwordEntry->update([
+            'share_token' => Str::random(48),
+            'share_expires_at' => now()->addMinutes((int) $validated['ttl_minutes']),
+        ]);
+
+        return response()->json([
+            'url' => "/p/{$passwordEntry->share_token}",
+            'expires_at' => $passwordEntry->share_expires_at->toIso8601String(),
+        ], 201);
+    }
+
+    /** Отзыв гостевой ссылки — публичный URL перестаёт работать. */
+    public function revokeShareLink(Request $request, PasswordEntry $passwordEntry): JsonResponse
+    {
+        abort_unless($passwordEntry->user_id === $request->user()->id, 403);
+
+        $passwordEntry->update(['share_token' => null, 'share_expires_at' => null]);
+
+        return response()->json(['message' => 'Revoked.']);
     }
 }

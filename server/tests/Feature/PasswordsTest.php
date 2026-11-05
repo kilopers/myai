@@ -287,4 +287,102 @@ class PasswordsTest extends TestCase
         $this->assertDatabaseHas('password_entries', ['id' => $fresh->id]);
         $this->assertDatabaseHas('password_entries', ['id' => $forever->id]);
     }
+
+    public function test_entry_url_is_stored_and_returned(): void
+    {
+        $user = User::factory()->create();
+        $folder = $user->passwordFolders()->create(['name' => 'Работа']);
+
+        $entry = $this->actingAs($user)->postJson('/api/password-entries', [
+            'password_folder_id' => $folder->id,
+            'name' => 'GitLab',
+            'password' => 'p',
+            'url' => 'https://git.corp.example',
+        ])->assertCreated()->json('data');
+        $this->assertSame('https://git.corp.example', $entry['url']);
+
+        $this->actingAs($user)->putJson("/api/password-entries/{$entry['id']}", ['url' => null])
+            ->assertOk()->assertJsonPath('data.url', null);
+    }
+
+    public function test_temporary_share_link_lifecycle(): void
+    {
+        $user = User::factory()->create();
+        $folder = $user->passwordFolders()->create(['name' => 'Личное']);
+        $entry = $user->passwordEntries()->create([
+            'password_folder_id' => $folder->id,
+            'name' => 'Netflix',
+            'login' => 'me@mail',
+            'password' => 'netflix-pass',
+            'url' => 'https://netflix.com',
+            'note' => 'семейный аккаунт',
+        ]);
+
+        // Срок жизни обязателен: без ttl_minutes и с нулём — 422.
+        $this->actingAs($user)->postJson("/api/password-entries/{$entry->id}/share-link", [])
+            ->assertUnprocessable();
+        $this->actingAs($user)->postJson("/api/password-entries/{$entry->id}/share-link", ['ttl_minutes' => 0])
+            ->assertUnprocessable();
+
+        $link = $this->actingAs($user)
+            ->postJson("/api/password-entries/{$entry->id}/share-link", ['ttl_minutes' => 1440])
+            ->assertCreated()->json();
+        $this->assertMatchesRegularExpression('#^/p/.{48}$#', $link['url']);
+
+        // Гость без авторизации видит карточку с расшифрованным паролем.
+        $card = $this->getJson("/api/public/passwords/{$entry->fresh()->share_token}")
+            ->assertOk()->json();
+        $this->assertSame('Netflix', $card['name']);
+        $this->assertSame('netflix-pass', $card['password']);
+        $this->assertSame('https://netflix.com', $card['url']);
+        $this->assertSame('семейный аккаунт', $card['note']);
+
+        // Пересоздание: новый токен, старый перестаёт работать.
+        $oldToken = $entry->share_token;
+        $this->actingAs($user)
+            ->postJson("/api/password-entries/{$entry->id}/share-link", ['ttl_minutes' => 60])
+            ->assertCreated();
+        $this->assertNotSame($oldToken, $entry->fresh()->share_token);
+        $this->getJson("/api/public/passwords/{$oldToken}")->assertNotFound();
+
+        // Отзыв ссылки: публичный URL отвечает 404.
+        $this->actingAs($user)->deleteJson("/api/password-entries/{$entry->id}/share-link")
+            ->assertOk();
+        $this->getJson("/api/public/passwords/{$entry->fresh()->share_token}")->assertNotFound();
+    }
+
+    public function test_expired_share_link_returns_410(): void
+    {
+        $user = User::factory()->create();
+        $folder = $user->passwordFolders()->create(['name' => 'Личное']);
+        $entry = $user->passwordEntries()->create([
+            'password_folder_id' => $folder->id,
+            'name' => 'Old',
+            'password' => 'x',
+            'share_token' => 'a'.str_repeat('b', 47),
+            'share_expires_at' => now()->subMinute(),
+        ]);
+
+        $this->getJson("/api/public/passwords/{$entry->share_token}")->assertGone();
+    }
+
+    public function test_share_link_endpoints_require_owner(): void
+    {
+        $owner = User::factory()->create();
+        $other = User::factory()->create();
+        $folder = $owner->passwordFolders()->create(['name' => 'Личное']);
+        $entry = $owner->passwordEntries()->create([
+            'password_folder_id' => $folder->id,
+            'name' => 'Bank', 'password' => 'x',
+        ]);
+
+        $this->actingAs($other)
+            ->postJson("/api/password-entries/{$entry->id}/share-link", ['ttl_minutes' => 60])
+            ->assertForbidden();
+        $this->actingAs($other)
+            ->deleteJson("/api/password-entries/{$entry->id}/share-link")
+            ->assertForbidden();
+        $this->postJson("/api/password-entries/{$entry->id}/share-link", ['ttl_minutes' => 60])
+            ->assertForbidden();
+    }
 }

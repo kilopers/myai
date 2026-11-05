@@ -64,6 +64,8 @@ Route::middleware('throttle:120,1')->group(function () {
     Route::get('/share/{token}/file/{uuid}/pages/{page}', [PublicShareController::class, 'page']);
     Route::get('/share/{token}/file/{uuid}/converted', [PublicShareController::class, 'converted']);
     Route::get('/share-shot/{uuid}', [PublicShareController::class, 'screenshot']);
+    // Гостевая карточка записи пароля по временной ссылке (SPA /p/:token).
+    Route::get('/public/passwords/{token}', [PublicShareController::class, 'password']);
     // Гостевая доска по share_token (SPA-страница /b/:token):
     // просмотр + полное редактирование — токен ссылки и есть доступ.
     Route::get('/public/boards/{token}', [PublicBoardController::class, 'show']);
@@ -111,6 +113,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('folders', FolderController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('password-folders', PasswordFolderController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('password-entries', PasswordEntryController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::post('password-entries/{passwordEntry}/share-link', [PasswordEntryController::class, 'shareLink']);
+    Route::delete('password-entries/{passwordEntry}/share-link', [PasswordEntryController::class, 'revokeShareLink']);
     Route::apiResource('password-generators', PasswordGeneratorController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::post('/password-generators/generate-batch', [PasswordGeneratorController::class, 'generateBatch']);
     Route::post('/password-generators/{passwordGenerator}/generate', [PasswordGeneratorController::class, 'generate']);
