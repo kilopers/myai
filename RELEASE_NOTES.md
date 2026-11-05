@@ -6,6 +6,14 @@
 Актуальная версия — в файле `VERSION`.
 
 
+## 1.9.7
+
+- Обновлены symfony/http-foundation, symfony/http-kernel,
+  symfony/routing и symfony/yaml до 8.1.11+ — закрыты 7
+  свежих security-адвизорий (CI composer audit).
+
+
+
 ## 1.9.6
 
 - Пароли: у записи появилось поле «Ссылка» — URL сервиса; при
