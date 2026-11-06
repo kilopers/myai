@@ -267,7 +267,7 @@ fn launch_installer(path: &std::path::Path) -> std::io::Result<()> {
 }
 
 /// Открыть URL в браузере системной командой (opener-плагина нет).
-fn open_url(url: &str) {
+pub(crate) fn open_url(url: &str) {
     #[cfg(target_os = "windows")]
     let _ = std::process::Command::new("rundll32")
         .args(["url.dll,FileProtocolHandler", url])

@@ -355,8 +355,10 @@ pub fn hotkey_toggle(app: &AppHandle, shortcut_id: u32) {
     }
 }
 
-/// Перерегистрация всех глобальных хоткеев: захват + приложения.
-/// Вызывается при старте, смене хоткея захвата и сохранении приложений.
+/// Перерегистрация всех глобальных хоткеев: захват + «в браузер» +
+/// приложения. Вызывается при старте, смене хоткеев и сохранении
+/// приложений. В состояние пишется реально зарегистрированная
+/// комбинация — занятый хоткей откатывается к дефолту.
 pub fn refresh_hotkeys(app: &AppHandle) {
     let gs = app.global_shortcut();
     let _ = gs.unregister_all();
@@ -365,8 +367,32 @@ pub fn refresh_hotkeys(app: &AppHandle) {
         .try_state::<crate::CurrentHotkey>()
         .and_then(|h| h.0.lock().ok().map(|s| s.clone()))
         .unwrap_or_else(|| crate::DEFAULT_HOTKEY.to_string());
-    if gs.register(cap.as_str()).is_err() {
+    let cap = if gs.register(cap.as_str()).is_ok() {
+        cap
+    } else {
         let _ = gs.register(crate::DEFAULT_HOTKEY);
+        crate::DEFAULT_HOTKEY.to_string()
+    };
+    if let Some(h) = app.try_state::<crate::CurrentHotkey>() {
+        if let Ok(mut cur) = h.0.lock() {
+            *cur = cap;
+        }
+    }
+
+    let br = app
+        .try_state::<crate::BrowserHotkey>()
+        .and_then(|h| h.0.lock().ok().map(|s| s.clone()))
+        .unwrap_or_else(|| crate::DEFAULT_BROWSER_HOTKEY.to_string());
+    let br = if gs.register(br.as_str()).is_ok() {
+        br
+    } else {
+        let _ = gs.register(crate::DEFAULT_BROWSER_HOTKEY);
+        crate::DEFAULT_BROWSER_HOTKEY.to_string()
+    };
+    if let Some(h) = app.try_state::<crate::BrowserHotkey>() {
+        if let Ok(mut cur) = h.0.lock() {
+            *cur = br;
+        }
     }
 
     let Some(st) = app.try_state::<AppsState>() else {

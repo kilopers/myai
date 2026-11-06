@@ -38,6 +38,12 @@ pub(crate) const DEFAULT_HOTKEY: &str = "ctrl+shift+x";
 /// Текущий зарегистрированный глобальный хоткей захвата.
 pub(crate) struct CurrentHotkey(pub Mutex<String>);
 
+/// Глобальный хоткей «открыть веб-приложение в браузере».
+pub(crate) const DEFAULT_BROWSER_HOTKEY: &str = "ctrl+shift+o";
+
+/// Текущий зарегистрированный хоткей открытия в браузере.
+pub(crate) struct BrowserHotkey(pub Mutex<String>);
+
 #[derive(serde::Serialize)]
 struct CapturePayload {
     png_base64: String,
@@ -648,6 +654,76 @@ fn set_hotkey(app: AppHandle, accel: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Текущий хоткей «открыть в браузере» — для показа в настройках.
+#[tauri::command]
+fn get_browser_hotkey(app: AppHandle) -> String {
+    app.state::<BrowserHotkey>()
+        .0
+        .lock()
+        .map(|s| s.clone())
+        .unwrap_or_else(|_| DEFAULT_BROWSER_HOTKEY.to_string())
+}
+
+/// Смена глобального хоткея «открыть в браузере» из окна настроек.
+#[tauri::command]
+fn set_browser_hotkey(app: AppHandle, accel: String) -> Result<(), String> {
+    let accel = accel.trim().to_string();
+    if accel.is_empty() {
+        return Err("пустая комбинация".into());
+    }
+    // Валидация до снятия старого хоткея.
+    accel
+        .parse::<Shortcut>()
+        .map_err(|_| "некорректная комбинация клавиш".to_string())?;
+    let prev = app
+        .state::<BrowserHotkey>()
+        .0
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone();
+    if prev == accel {
+        return Ok(());
+    }
+    if let Ok(mut cur) = app.state::<BrowserHotkey>().0.lock() {
+        *cur = accel.clone();
+    }
+    // refresh пишет в состояние реально зарегистрированную
+    // комбинацию — расхождение с accel значит, что хоткей занят.
+    apps::refresh_hotkeys(&app);
+    let now = get_browser_hotkey(app.clone());
+    if now != accel {
+        if let Ok(mut cur) = app.state::<BrowserHotkey>().0.lock() {
+            *cur = prev.clone();
+        }
+        apps::refresh_hotkeys(&app);
+        return Err("не удалось зарегистрировать комбинацию".to_string());
+    }
+    Ok(())
+}
+
+/// Открыть веб-приложение (адрес сервера) в браузере по умолчанию —
+/// новая вкладка. Без настроенного адреса открывает окно настроек.
+fn open_in_browser(app: &AppHandle) {
+    let base = app
+        .store("settings.json")
+        .ok()
+        .and_then(|s| s.get("server_url"))
+        .and_then(|v| v.as_str().map(str::to_owned))
+        .map(|u| u.trim_end_matches('/').to_string())
+        .unwrap_or_default();
+    if base.is_empty() {
+        let _ = open_settings_window(app);
+        return;
+    }
+    // Без схемы браузер трактует адрес как путь — дописываем https.
+    let url = if base.contains("://") {
+        base
+    } else {
+        format!("https://{base}")
+    };
+    update::open_url(&url);
+}
+
 /// Окно «О программе» — версия приложения.
 fn open_about_window(app: &AppHandle) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("about") {
@@ -681,7 +757,7 @@ fn open_settings_window(app: &AppHandle) -> Result<(), String> {
         WebviewUrl::App("index.html#settings".into()),
     )
     .title("Мой AI ассистент — настройки")
-    .inner_size(520.0, 900.0)
+    .inner_size(520.0, 970.0)
     .resizable(true)
     .build()
     .map_err(|e| e.to_string())?;
@@ -759,6 +835,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let apps_menu = Submenu::with_items(app, "Мои приложения", true, &app_refs)?;
 
     let capture_item = MenuItem::with_id(app, "capture", "Сделать скриншот", true, None::<&str>)?;
+    let web_item = MenuItem::with_id(app, "open_web", "Открыть в браузере", true, None::<&str>)?;
     let sync_item = MenuItem::with_id(app, "sync", "Синхронизировать", true, None::<&str>)?;
     let settings_item = MenuItem::with_id(app, "settings", "Настройки", true, None::<&str>)?;
     let about_item = MenuItem::with_id(app, "about", "О программе", true, None::<&str>)?;
@@ -769,6 +846,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
 
     let items: Vec<MenuItemKind<Wry>> = vec![
         MenuItemKind::MenuItem(capture_item),
+        MenuItemKind::MenuItem(web_item),
         MenuItemKind::Predefined(sep1),
         MenuItemKind::Submenu(awake_menu),
         MenuItemKind::MenuItem(sync_item),
@@ -824,13 +902,22 @@ pub fn run() {
                         return;
                     }
                     // Хоткей захвата — по id шортката из CurrentHotkey,
-                    // иначе ищем приложение «Мои приложения» с таким же id.
+                    // «в браузер» — из BrowserHotkey, иначе ищем
+                    // приложение «Мои приложения» с таким же id.
                     let cap_id = app
                         .try_state::<CurrentHotkey>()
                         .and_then(|h| h.0.lock().ok().and_then(|s| s.parse::<Shortcut>().ok()))
                         .map(|s| s.id());
                     if Some(shortcut.id()) == cap_id {
                         trigger_capture(app);
+                        return;
+                    }
+                    let br_id = app
+                        .try_state::<BrowserHotkey>()
+                        .and_then(|h| h.0.lock().ok().and_then(|s| s.parse::<Shortcut>().ok()))
+                        .map(|s| s.id());
+                    if Some(shortcut.id()) == br_id {
+                        open_in_browser(app);
                         return;
                     }
                     apps::hotkey_toggle(app, shortcut.id());
@@ -869,6 +956,7 @@ pub fn run() {
         .manage(apps::AppsState::default())
         .manage(apps::TermState::default())
         .manage(CurrentHotkey(Mutex::new(String::new())))
+        .manage(BrowserHotkey(Mutex::new(String::new())))
         .invoke_handler(tauri::generate_handler![
             take_capture,
             take_edit,
@@ -888,6 +976,8 @@ pub fn run() {
             sync::open_privacy_settings,
             get_hotkey,
             set_hotkey,
+            get_browser_hotkey,
+            set_browser_hotkey,
             apps::apps_list,
             apps::apps_save,
             apps::apps_delete,
@@ -920,6 +1010,17 @@ pub fn run() {
             };
             *app.state::<CurrentHotkey>().0.lock().unwrap() = registered.clone();
 
+            // Хоткей «открыть в браузере» — из настроек, дефолт
+            // ctrl+shift+o. Регистрация — в refresh_hotkeys ниже.
+            let browser_hotkey = app
+                .store("settings.json")
+                .ok()
+                .and_then(|s| s.get("browser_hotkey"))
+                .and_then(|v| v.as_str().map(str::to_owned))
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or_else(|| DEFAULT_BROWSER_HOTKEY.to_string());
+            *app.state::<BrowserHotkey>().0.lock().unwrap() = browser_hotkey;
+
             // «Мои приложения» — список из settings.json и регистрация
             // всех хоткеев (перерегистрирует и захват).
             *app.state::<apps::AppsState>().list.lock().unwrap() = apps::load(app.handle());
@@ -935,6 +1036,7 @@ pub fn run() {
                 .tooltip(format!("Мой AI ассистент — {registered}"))
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "capture" => trigger_capture(app),
+                    "open_web" => open_in_browser(app),
                     "sync" => {
                         sync::spawn_sync(app, None);
                     }

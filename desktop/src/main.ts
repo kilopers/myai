@@ -221,6 +221,28 @@ async function initSettings() {
     hotkeyInput.value = parts.join('+');
   });
 
+  // --- горячая клавиша «открыть в браузере»: тот же ввод комбинации ---
+  const browserHotkeyInput = document.getElementById('browser-hotkey') as HTMLInputElement;
+  let savedBrowserHotkey = (await store.get<string>('browser_hotkey')) ?? 'ctrl+shift+o';
+  try {
+    savedBrowserHotkey = await invoke<string>('get_browser_hotkey');
+  } catch { /* команда недоступна — остаётся стор */ }
+  browserHotkeyInput.value = savedBrowserHotkey;
+  browserHotkeyInput.addEventListener('keydown', (e) => {
+    e.preventDefault();
+    if (MODIFIERS.has(e.key)) return;
+    const key = codeToAccel(e.code);
+    if (!key) return;
+    const parts: string[] = [];
+    if (e.ctrlKey) parts.push('ctrl');
+    if (e.shiftKey) parts.push('shift');
+    if (e.altKey) parts.push('alt');
+    if (e.metaKey) parts.push('cmd');
+    if (parts.length === 0) return;
+    parts.push(key);
+    browserHotkeyInput.value = parts.join('+');
+  });
+
   // --- папка синхронизации ---
   const folderInput = document.getElementById('sync-folder') as HTMLInputElement;
   folderInput.value = (await invoke<string | null>('get_sync_folder')) ?? '';
@@ -305,6 +327,21 @@ async function initSettings() {
       } catch (e) {
         setStatus(`Хоткей не применён: ${e}`, '#e5534b');
         hotkeyInput.value = savedHotkey;
+        setTimeout(() => setStatus(''), 6000);
+        return;
+      }
+    }
+    // Хоткей «открыть в браузере» — тоже через Rust.
+    const newBrowserHotkey = browserHotkeyInput.value.trim();
+    if (newBrowserHotkey !== savedBrowserHotkey) {
+      try {
+        await invoke('set_browser_hotkey', { accel: newBrowserHotkey });
+        await store.set('browser_hotkey', newBrowserHotkey);
+        await store.save();
+        savedBrowserHotkey = newBrowserHotkey;
+      } catch (e) {
+        setStatus(`Хоткей не применён: ${e}`, '#e5534b');
+        browserHotkeyInput.value = savedBrowserHotkey;
         setTimeout(() => setStatus(''), 6000);
         return;
       }
