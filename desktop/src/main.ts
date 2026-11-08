@@ -285,9 +285,16 @@ async function initSettings() {
   } catch { /* dev-режим */ }
 
   // --- живой журнал синхронизации (ring buffer в памяти Rust) ---
+  // Пока окно открыто, textarea подсасывает каждую строку события —
+  // без обрезки журнал рос бы бесконечно; держим хвост как в Rust.
+  const LOG_VIEW_CAP = 500;
   const logEl = document.getElementById('sync-log') as HTMLTextAreaElement;
   const appendLog = (line: string) => {
     logEl.value += (logEl.value ? '\n' : '') + line;
+    const lines = logEl.value.split('\n');
+    if (lines.length > LOG_VIEW_CAP) {
+      logEl.value = lines.slice(-LOG_VIEW_CAP).join('\n');
+    }
     logEl.scrollTop = logEl.scrollHeight;
   };
   for (const line of await invoke<string[]>('sync_log_tail')) appendLog(line);
