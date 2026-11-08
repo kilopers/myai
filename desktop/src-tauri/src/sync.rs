@@ -782,6 +782,69 @@ async fn run_sync(app: &AppHandle, only_folder_id: Option<i64>) {
         }
     }
 
+    // Хэши разошлись, а действий ноль — частая ловушка: что-то молча
+    // участвует в хэше одной из сторон (системная папка на сервере,
+    // разный тип по пути, «призрак» в метаданных). Пишем конкретные
+    // расходящиеся пути — без этого по журналу причину не найти.
+    if plan.is_empty() && tree.root_hash != local_root_hash {
+        let mut diff: Vec<String> = Vec::new();
+        for (rel, node) in &local {
+            if is_excluded(rel, &excluded) {
+                continue;
+            }
+            if node.is_dir {
+                if remote_files.contains_key(rel) {
+                    diff.push(format!("{rel}: локально папка, на сервере файл"));
+                } else if let Some(rf) = remote_dirs.get(rel) {
+                    if rf.dir_hash != node.dir_hash {
+                        diff.push(format!(
+                            "{rel}: содержимое папки разное (лок {} / серв {})",
+                            &node.dir_hash[..12.min(node.dir_hash.len())],
+                            &rf.dir_hash[..12.min(rf.dir_hash.len())],
+                        ));
+                    }
+                } else {
+                    diff.push(format!("{rel}: папка только локально"));
+                }
+            } else if let Some(e) = remote_files.get(rel) {
+                if e.entry_hash != node.entry_hash {
+                    diff.push(format!(
+                        "{rel}: файл отличается (size {}/{}, mtime {}/{})",
+                        node.size, e.size, node.mtime, e.mtime,
+                    ));
+                }
+            } else if remote_dirs.contains_key(rel) {
+                diff.push(format!("{rel}: локально файл, на сервере папка"));
+            } else {
+                diff.push(format!("{rel}: только локально"));
+            }
+        }
+        for (rel, f) in &remote_dirs {
+            if !local.contains_key(rel) {
+                diff.push(format!(
+                    "{rel}: папка только на сервере{}",
+                    if f.is_system { " (системная)" } else { "" },
+                ));
+            }
+        }
+        for rel in remote_files.keys() {
+            if !local.contains_key(rel) {
+                diff.push(format!("{rel}: только на сервере"));
+            }
+        }
+        if diff.is_empty() {
+            log(app, "расхождение: отличающихся путей не нашлось — хэши считаются по разным наборам");
+        } else {
+            let shown = diff.len().min(15);
+            for line in diff.iter().take(shown) {
+                log(app, format!("расхождение: {line}"));
+            }
+            if diff.len() > shown {
+                log(app, format!("расхождение: …и ещё {} отличий", diff.len() - shown));
+            }
+        }
+    }
+
     // Итоговое состояние для snapshot'а entries
     let mut final_state: BTreeMap<String, (bool, String, String, u64, u64, String, String)> = BTreeMap::new();
     for (rel, f) in &remote_dirs {
