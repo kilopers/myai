@@ -897,6 +897,7 @@ export default function FilesPage() {
             label="Имя папки"
             value={newFolderName}
             onChange={(e) => setNewFolderName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && createFolder()}
             fullWidth
             sx={{ mt: 1 }}
           />
