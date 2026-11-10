@@ -161,13 +161,12 @@ export default function Layout() {
   ];
 
   const expanded = open || isMobile;
-  const visible = items;
   const subWrap = { ml: 2.25, pl: 1, borderLeft: `1px solid ${C.line}`, mb: 0.5 };
 
   const nav = (
     <Box sx={{ overflowY: 'auto', flexGrow: 1 }}>
       <List sx={{ px: 0.75, pt: 0.5 }}>
-        {visible.map((item, idx) => {
+        {items.map((item, idx) => {
           const selected = item.to === '/'
             ? location.pathname === '/'
             : location.pathname.startsWith(item.to);
