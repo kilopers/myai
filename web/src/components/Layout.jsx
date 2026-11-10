@@ -5,6 +5,9 @@ import {
   CircularProgress,
   Drawer,
   IconButton,
+  InputAdornment,
+  InputBase,
+  ListSubheader,
   List,
   ListItemButton,
   ListItemIcon,
@@ -16,16 +19,17 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
-import ImageIcon from '@mui/icons-material/Image';
-import FolderIcon from '@mui/icons-material/Folder';
-import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
-import SettingsIcon from '@mui/icons-material/Settings';
+import ImageIcon from '@mui/icons-material/ImageOutlined';
+import FolderIcon from '@mui/icons-material/FolderOutlined';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
+import SettingsIcon from '@mui/icons-material/SettingsOutlined';
 import LogoutIcon from '@mui/icons-material/Logout';
-import DeleteIcon from '@mui/icons-material/Delete';
-import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
-import StorageIcon from '@mui/icons-material/Storage';
-import KeyIcon from '@mui/icons-material/Key';
-import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
+import DeleteIcon from '@mui/icons-material/DeleteOutlined';
+import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAltOutlined';
+import StorageIcon from '@mui/icons-material/StorageOutlined';
+import KeyIcon from '@mui/icons-material/KeyOutlined';
+import ViewKanbanIcon from '@mui/icons-material/ViewKanbanOutlined';
+import SearchIcon from '@mui/icons-material/Search';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { Outlet, Link as RouterLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
@@ -37,6 +41,16 @@ import FolderTree from './FolderTree';
 const DRAWER_WIDTH = 300;
 const COLLAPSED_WIDTH = 56;
 const OPEN_KEY = 'drawer_open';
+
+// Палитра меню по прототипу: нейтральные серые тона.
+const C = { text: '#3f3f46', muted: '#71717a', hover: '#f0f0f1', sel: '#e9e9eb', line: '#e4e4e7', bg: '#fafafa' };
+const itemSx = {
+  borderRadius: 1.5,
+  color: C.text,
+  '&:hover': { bgcolor: C.hover },
+  '&.Mui-selected, &.Mui-selected:hover': { bgcolor: C.sel, color: '#18181b' },
+};
+const subSx = { ...itemSx, py: 0.375, pl: 1.25, mb: 0.125 };
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -61,6 +75,7 @@ export default function Layout() {
     });
   };
   const [notice, setNotice] = useState('');
+  const [query, setQuery] = useState('');
   const [wsState, setWsState] = useState('disconnected');
 
   useEffect(() => onWsStatus(setWsState), []);
@@ -136,11 +151,11 @@ export default function Layout() {
   };
 
   const items = [
-    { to: '/', label: 'Скриншоты', icon: <ImageIcon /> },
+    { to: '/', label: 'Скриншоты', icon: <ImageIcon />, group: 'Рабочее' },
     { to: '/files', label: 'Файлы', icon: <FolderIcon />, section: 'files' },
     { to: '/passwords', label: 'Пароли', icon: <KeyIcon />, section: 'passwords' },
     { to: '/boards', label: 'Доски', icon: <ViewKanbanIcon />, section: 'boards' },
-    { to: '/trash', label: 'Корзина', icon: <DeleteIcon /> },
+    { to: '/trash', label: 'Корзина', icon: <DeleteIcon />, group: 'Система' },
     { to: '/releases', label: 'Релизы', icon: <SystemUpdateAltIcon /> },
     { to: '/storage', label: 'Хранилище', icon: <StorageIcon /> },
     ...(user?.is_admin
@@ -149,15 +164,38 @@ export default function Layout() {
     { to: '/settings', label: 'Настройки', icon: <SettingsIcon /> },
   ];
 
+  const expanded = open || isMobile;
+  const q = query.trim().toLowerCase();
+  const visible = q ? items.filter((i) => i.label.toLowerCase().includes(q)) : items;
+  const subWrap = { ml: 2.25, pl: 1, borderLeft: `1px solid ${C.line}`, mb: 0.5 };
+
   const nav = (
     <Box sx={{ overflowY: 'auto', flexGrow: 1 }}>
-      <List sx={{ px: 0.5, pt: 0.5 }}>
-        {items.map((item) => {
+      {expanded && (
+        <Box sx={{ px: 1, pt: 1 }}>
+          <InputBase
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Поиск по меню…"
+            fullWidth
+            startAdornment={<InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: C.muted }} /></InputAdornment>}
+            sx={{ px: 1, py: 0.25, fontSize: 14, border: `1px solid ${C.line}`, borderRadius: 1.5, bgcolor: '#fff' }}
+          />
+        </Box>
+      )}
+      <List sx={{ px: 0.75, pt: 0.5 }}>
+        {visible.map((item, idx) => {
           const selected = item.to === '/'
             ? location.pathname === '/'
             : location.pathname.startsWith(item.to);
+          const groupHead = expanded && !q && item.group && (
+            <ListSubheader disableSticky sx={{ bgcolor: 'transparent', color: C.muted, fontSize: 12, lineHeight: '28px', px: 0.75, mt: idx ? 1.5 : 0.5 }}>
+              {item.group}
+            </ListSubheader>
+          );
           const btn = (
             <Box key={item.to}>
+              {groupHead}
               <ListItemButton
                 component={RouterLink}
                 to={item.to}
@@ -181,34 +219,25 @@ export default function Layout() {
                   },
                 } : {})}
                 sx={{
-                  borderRadius: 1.5,
+                  ...itemSx,
                   mb: 0.125,
                   // В свёрнутой колонке (56px) больше вертикальных паддингов —
                   // иконка с ховером становится квадратной, а не прямоугольной.
-                  py: open || isMobile ? 0.375 : 1.75,
-                  px: open || isMobile ? 0.75 : 0.5,
-                  color: 'rgb(148, 133, 113)',
-                  justifyContent: open || isMobile ? 'initial' : 'center',
-                  '& .MuiListItemIcon-root': { color: 'rgb(148, 133, 113)', minWidth: open || isMobile ? 38 : 0 },
+                  py: expanded ? 0.5 : 1.75,
+                  px: expanded ? 0.75 : 0.5,
+                  justifyContent: expanded ? 'initial' : 'center',
+                  '& .MuiListItemIcon-root': { color: C.muted, minWidth: expanded ? 32 : 0 },
                   '& .MuiListItemIcon-root svg': { fontSize: 18 },
-                  '&:hover': { bgcolor: 'rgb(243, 231, 211)' },
-                  '&.Mui-selected': {
-                    bgcolor: 'rgb(243, 231, 211)',
-                    color: 'rgb(176, 95, 56)',
-                    fontWeight: 600,
-                    '&:hover': { bgcolor: 'rgb(243, 231, 211)' },
-                    '& .MuiListItemIcon-root': { color: 'rgb(176, 95, 56)' },
-                    '& .MuiListItemText-primary': { fontWeight: 600 },
-                  },
+                  '&.Mui-selected .MuiListItemIcon-root': { color: '#18181b' },
                 }}
               >
-                <ListItemIcon sx={{ minWidth: open || isMobile ? 38 : 0, justifyContent: 'center' }}>
+                <ListItemIcon sx={{ minWidth: expanded ? 32 : 0, justifyContent: 'center' }}>
                   {item.icon}
                 </ListItemIcon>
                 {(open || isMobile) && (
                   <ListItemText
                     primary={item.label}
-                    primaryTypographyProps={{ fontSize: '14px', fontWeight: selected ? 600 : 400 }}
+                    primaryTypographyProps={{ fontSize: '14px', fontWeight: selected ? 500 : 400 }}
                   />
                 )}
                 {/* Стрелка сворачивания — внутри пункта, под общим ховером */}
@@ -220,7 +249,7 @@ export default function Layout() {
                       e.stopPropagation();
                       toggleSection(item.section);
                     }}
-                    sx={{ display: 'flex', alignItems: 'center', color: 'rgb(148, 133, 113)', mr: -0.5 }}
+                    sx={{ display: 'flex', alignItems: 'center', color: C.muted, mr: -0.5 }}
                   >
                     {menuState[item.section]
                       ? <ExpandMoreIcon sx={{ fontSize: 16 }} />
@@ -229,7 +258,7 @@ export default function Layout() {
                 )}
               </ListItemButton>
               {item.to === '/passwords' && (open || isMobile) && menuState.passwords && pwFolders.length > 0 && (
-                <Box>
+                <Box sx={subWrap}>
                   {pwFolders.map((f) => (
                     <ListItemButton
                       key={f.id}
@@ -238,18 +267,7 @@ export default function Layout() {
                         navigate(`/passwords?folder=${f.id}`);
                         if (isMobile) toggle();
                       }}
-                      sx={{
-                        borderRadius: 1.5,
-                        pl: 4.5,
-                        py: 0.25,
-                        color: 'rgb(148, 133, 113)',
-                        '&:hover': { bgcolor: 'rgb(243, 231, 211)' },
-                        '&.Mui-selected': {
-                          bgcolor: 'rgb(243, 231, 211)',
-                          color: 'rgb(176, 95, 56)',
-                          '& .MuiListItemText-primary': { fontWeight: 600 },
-                        },
-                      }}
+                      sx={subSx}
                     >
                       <ListItemText
                         primary={f.name}
@@ -260,7 +278,7 @@ export default function Layout() {
                 </Box>
               )}
               {item.to === '/boards' && (open || isMobile) && menuState.boards && boards.length > 0 && (
-                <Box>
+                <Box sx={subWrap}>
                   {boards.map((b) => (
                     <ListItemButton
                       key={b.id}
@@ -269,18 +287,7 @@ export default function Layout() {
                         navigate(`/boards/${b.id}`);
                         if (isMobile) toggle();
                       }}
-                      sx={{
-                        borderRadius: 1.5,
-                        pl: 4.5,
-                        py: 0.25,
-                        color: 'rgb(148, 133, 113)',
-                        '&:hover': { bgcolor: 'rgb(243, 231, 211)' },
-                        '&.Mui-selected': {
-                          bgcolor: 'rgb(243, 231, 211)',
-                          color: 'rgb(176, 95, 56)',
-                          '& .MuiListItemText-primary': { fontWeight: 600 },
-                        },
-                      }}
+                      sx={subSx}
                     >
                       <ListItemText
                         primary={b.name}
@@ -291,6 +298,7 @@ export default function Layout() {
                 </Box>
               )}
               {item.to === '/files' && (open || isMobile) && menuState.files && (
+                <Box sx={subWrap}>
                 <FolderTree
                   folders={folders}
                   currentFolderId={currentFolderId}
@@ -300,6 +308,7 @@ export default function Layout() {
                   }}
                   onAction={setNotice}
                 />
+                </Box>
               )}
             </Box>
           );
@@ -375,8 +384,8 @@ export default function Layout() {
             boxSizing: 'border-box',
             transition: (theme) => theme.transitions.create('width'),
             overflowX: 'hidden',
-            bgcolor: 'rgb(250, 245, 235)',
-            borderRight: '1px solid rgb(243, 231, 211)',
+            bgcolor: C.bg,
+            borderRight: `1px solid ${C.line}`,
             display: 'flex',
             flexDirection: 'column',
           },
@@ -388,7 +397,7 @@ export default function Layout() {
           variant="caption"
           sx={{
             textAlign: 'center',
-            color: 'rgb(148, 133, 113)',
+            color: C.muted,
             pb: 1,
             fontSize: '0.7rem',
             userSelect: 'none',
