@@ -112,17 +112,17 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
             pl: `${8 + depth * 14}px`,
             pr: 0.5,
             mb: 0.125,
-            color: 'rgb(113, 116, 132)',
-            '&:hover': { bgcolor: 'rgb(229, 233, 251)' },
+            color: 'rgb(148, 133, 113)',
+            '&:hover': { bgcolor: 'rgb(243, 231, 211)' },
             '&.Mui-selected': {
-              bgcolor: 'rgb(229, 233, 251)',
-              color: 'rgb(82, 109, 227)',
-              '&:hover': { bgcolor: 'rgb(229, 233, 251)' },
-              '& .MuiListItemIcon-root': { color: 'rgb(82, 109, 227)' },
+              bgcolor: 'rgb(243, 231, 211)',
+              color: 'rgb(176, 95, 56)',
+              '&:hover': { bgcolor: 'rgb(243, 231, 211)' },
+              '& .MuiListItemIcon-root': { color: 'rgb(176, 95, 56)' },
             },
             ...(dropTarget === folder.id && {
-              outline: '2px dashed rgb(82, 109, 227)',
-              bgcolor: 'rgb(229, 233, 251)',
+              outline: '2px dashed rgb(176, 95, 56)',
+              bgcolor: 'rgb(243, 231, 211)',
             }),
           }}
         >
@@ -145,7 +145,7 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
           >
             {isOpen ? <ExpandMoreIcon /> : <ChevronRightIcon />}
           </IconButton>
-          <ListItemIcon sx={{ minWidth: 26, color: 'rgb(113, 116, 132)', '& svg': { fontSize: 18 } }}>
+          <ListItemIcon sx={{ minWidth: 26, color: 'rgb(148, 133, 113)', '& svg': { fontSize: 18 } }}>
             <FolderIcon />
           </ListItemIcon>
           <ListItemText
@@ -173,12 +173,12 @@ export default function FolderTree({ folders, currentFolderId, onNodeClick, onAc
               py: 0.3,
               pl: '8px',
               mb: 0.125,
-              color: 'rgb(113, 116, 132)',
-              border: '1px dashed #b8b8c4',
-              ...(dropTarget === 'root' && { borderColor: 'rgb(82, 109, 227)', bgcolor: 'rgb(229, 233, 251)' }),
+              color: 'rgb(148, 133, 113)',
+              border: '1px dashed #cfc2a9',
+              ...(dropTarget === 'root' && { borderColor: 'rgb(176, 95, 56)', bgcolor: 'rgb(243, 231, 211)' }),
             }}
           >
-            <ListItemIcon sx={{ minWidth: 26, color: 'rgb(113, 116, 132)', '& svg': { fontSize: 18 } }}>
+            <ListItemIcon sx={{ minWidth: 26, color: 'rgb(148, 133, 113)', '& svg': { fontSize: 18 } }}>
               <HomeIcon />
             </ListItemIcon>
             <ListItemText

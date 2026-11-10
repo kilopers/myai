@@ -18,7 +18,7 @@ export default function ShareShell({ title, actions, children, fill = false }) {
             sx={{ width: 26, height: 26, borderRadius: 1, mr: 1.25 }}
           />
           <Typography variant="h6" noWrap>Мой AI ассистент</Typography>
-          <Divider orientation="vertical" flexItem sx={{ mx: 2, borderColor: 'rgba(255,255,255,.18)' }} />
+          <Divider orientation="vertical" flexItem sx={{ mx: 2, borderColor: 'rgba(74,63,49,.2)' }} />
           <Typography variant="body1" noWrap sx={{ flexGrow: 1, minWidth: 0 }} title={title}>
             {title}
           </Typography>

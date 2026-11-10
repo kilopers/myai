@@ -113,7 +113,7 @@ export default function TrashPage() {
   };
 
   return (
-    <Box sx={{ maxWidth: 900, mx: 'auto' }}>
+    <Box sx={{ width: '100%' }}>
       <Card>
         <CardContent>
           <Typography variant="h6" gutterBottom>

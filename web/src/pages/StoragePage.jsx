@@ -33,9 +33,9 @@ function Donut({ used, total }) {
   return (
     <Box sx={{ position: 'relative', width: 200, height: 200, mx: 'auto' }}>
       <svg width="200" height="200" viewBox="0 0 200 200">
-        <circle cx="100" cy="100" r={R} fill="none" stroke="#e0e0e0" strokeWidth="24" />
+        <circle cx="100" cy="100" r={R} fill="none" stroke="#e7dcc8" strokeWidth="24" />
         <circle
-          cx="100" cy="100" r={R} fill="none" stroke="#1976d2" strokeWidth="24"
+          cx="100" cy="100" r={R} fill="none" stroke="#b05f38" strokeWidth="24"
           strokeDasharray={`${(pct / 100) * C} ${C}`}
           strokeLinecap="round" transform="rotate(-90 100 100)"
         />

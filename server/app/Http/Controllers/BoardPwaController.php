@@ -56,8 +56,8 @@ class BoardPwaController extends Controller
             'scope' => $startUrl,
             'display' => 'standalone',
             'orientation' => 'portrait',
-            'theme_color' => '#171321',
-            'background_color' => '#fbfafd',
+            'theme_color' => '#efe5d2',
+            'background_color' => '#f6f1e8',
             'icons' => $icons,
         ], 200, ['Content-Type' => 'application/manifest+json']);
     }

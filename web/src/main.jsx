@@ -6,20 +6,21 @@ import '@fontsource-variable/inter';
 import { AuthProvider } from './context/AuthContext';
 import App from './App';
 
-// Палитра актуального GitLab: синий primary, оранжевый — только акцент бренда,
-// тёмная шапка, нейтральные серые фоны. Компактная плотность.
+// «Тёплый минимализм»: кремово-песочные фоны вместо стерильного
+// белого, терракотовый акцент, тёплые шоколадные тона текста,
+// мягкие закругления. Компактная плотность сохранена.
 const theme = createTheme({
   palette: {
     mode: 'light',
-    primary: { main: '#1068bf', contrastText: '#fff' },
-    secondary: { main: '#fc6d26' },
-    background: { default: '#fbfafd', paper: '#ffffff' },
-    text: { primary: '#303030', secondary: '#626168' },
-    divider: '#dcdcde',
-    success: { main: '#217645' },
-    error: { main: '#dd2b0e' },
+    primary: { main: '#b05f38', contrastText: '#fff' },
+    secondary: { main: '#8f9779' },
+    background: { default: '#f6f1e8', paper: '#fffcf5' },
+    text: { primary: '#3e342a', secondary: '#8a7d6b' },
+    divider: '#e7dcc8',
+    success: { main: '#5d8047' },
+    error: { main: '#c24e32' },
   },
-  shape: { borderRadius: 4 },
+  shape: { borderRadius: 8 },
   typography: {
     // Self-hosted переменный Inter (один woff2 на все веса), дальше системные фолбэки.
     fontFamily: '"Inter Variable", Inter, "Inter Fallback", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif',
@@ -30,13 +31,18 @@ const theme = createTheme({
   components: {
     MuiAppBar: {
       styleOverrides: {
-        root: { backgroundColor: '#171321', color: '#fff' },
+        root: {
+          backgroundColor: '#efe5d2',
+          color: '#4a3f31',
+          boxShadow: 'none',
+          borderBottom: '1px solid #e2d5bd',
+        },
       },
     },
     MuiCard: {
       defaultProps: { elevation: 0 },
       styleOverrides: {
-        root: { border: '1px solid #dcdcde' },
+        root: { border: '1px solid #e7dcc8' },
       },
     },
     MuiCardContent: {

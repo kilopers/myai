@@ -187,17 +187,17 @@ export default function Layout() {
                   // иконка с ховером становится квадратной, а не прямоугольной.
                   py: open || isMobile ? 0.375 : 1.75,
                   px: open || isMobile ? 0.75 : 0.5,
-                  color: 'rgb(113, 116, 132)',
+                  color: 'rgb(148, 133, 113)',
                   justifyContent: open || isMobile ? 'initial' : 'center',
-                  '& .MuiListItemIcon-root': { color: 'rgb(113, 116, 132)', minWidth: open || isMobile ? 38 : 0 },
+                  '& .MuiListItemIcon-root': { color: 'rgb(148, 133, 113)', minWidth: open || isMobile ? 38 : 0 },
                   '& .MuiListItemIcon-root svg': { fontSize: 18 },
-                  '&:hover': { bgcolor: 'rgb(229, 233, 251)' },
+                  '&:hover': { bgcolor: 'rgb(243, 231, 211)' },
                   '&.Mui-selected': {
-                    bgcolor: 'rgb(229, 233, 251)',
-                    color: 'rgb(82, 109, 227)',
+                    bgcolor: 'rgb(243, 231, 211)',
+                    color: 'rgb(176, 95, 56)',
                     fontWeight: 600,
-                    '&:hover': { bgcolor: 'rgb(229, 233, 251)' },
-                    '& .MuiListItemIcon-root': { color: 'rgb(82, 109, 227)' },
+                    '&:hover': { bgcolor: 'rgb(243, 231, 211)' },
+                    '& .MuiListItemIcon-root': { color: 'rgb(176, 95, 56)' },
                     '& .MuiListItemText-primary': { fontWeight: 600 },
                   },
                 }}
@@ -220,7 +220,7 @@ export default function Layout() {
                       e.stopPropagation();
                       toggleSection(item.section);
                     }}
-                    sx={{ display: 'flex', alignItems: 'center', color: 'rgb(113, 116, 132)', mr: -0.5 }}
+                    sx={{ display: 'flex', alignItems: 'center', color: 'rgb(148, 133, 113)', mr: -0.5 }}
                   >
                     {menuState[item.section]
                       ? <ExpandMoreIcon sx={{ fontSize: 16 }} />
@@ -242,11 +242,11 @@ export default function Layout() {
                         borderRadius: 1.5,
                         pl: 4.5,
                         py: 0.25,
-                        color: 'rgb(113, 116, 132)',
-                        '&:hover': { bgcolor: 'rgb(229, 233, 251)' },
+                        color: 'rgb(148, 133, 113)',
+                        '&:hover': { bgcolor: 'rgb(243, 231, 211)' },
                         '&.Mui-selected': {
-                          bgcolor: 'rgb(229, 233, 251)',
-                          color: 'rgb(82, 109, 227)',
+                          bgcolor: 'rgb(243, 231, 211)',
+                          color: 'rgb(176, 95, 56)',
                           '& .MuiListItemText-primary': { fontWeight: 600 },
                         },
                       }}
@@ -273,11 +273,11 @@ export default function Layout() {
                         borderRadius: 1.5,
                         pl: 4.5,
                         py: 0.25,
-                        color: 'rgb(113, 116, 132)',
-                        '&:hover': { bgcolor: 'rgb(229, 233, 251)' },
+                        color: 'rgb(148, 133, 113)',
+                        '&:hover': { bgcolor: 'rgb(243, 231, 211)' },
                         '&.Mui-selected': {
-                          bgcolor: 'rgb(229, 233, 251)',
-                          color: 'rgb(82, 109, 227)',
+                          bgcolor: 'rgb(243, 231, 211)',
+                          color: 'rgb(176, 95, 56)',
                           '& .MuiListItemText-primary': { fontWeight: 600 },
                         },
                       }}
@@ -375,8 +375,8 @@ export default function Layout() {
             boxSizing: 'border-box',
             transition: (theme) => theme.transitions.create('width'),
             overflowX: 'hidden',
-            bgcolor: 'rgb(246, 248, 254)',
-            borderRight: '1px solid rgb(229, 233, 251)',
+            bgcolor: 'rgb(250, 245, 235)',
+            borderRight: '1px solid rgb(243, 231, 211)',
             display: 'flex',
             flexDirection: 'column',
           },
@@ -388,7 +388,7 @@ export default function Layout() {
           variant="caption"
           sx={{
             textAlign: 'center',
-            color: 'rgb(113, 116, 132)',
+            color: 'rgb(148, 133, 113)',
             pb: 1,
             fontSize: '0.7rem',
             userSelect: 'none',
