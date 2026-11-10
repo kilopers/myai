@@ -838,8 +838,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let capture_item = MenuItem::with_id(app, "capture", "Сделать скриншот", true, None::<&str>)?;
     let web_item = MenuItem::with_id(app, "open_web", "Открыть в браузере", true, None::<&str>)?;
     let sync_item = MenuItem::with_id(app, "sync", "Синхронизировать", true, None::<&str>)?;
-    let folder_item =
-        MenuItem::with_id(app, "open_folder", "Открыть папку", true, None::<&str>)?;
+    let folder_item = MenuItem::with_id(app, "open_folder", "Открыть папку", true, None::<&str>)?;
     let settings_item = MenuItem::with_id(app, "settings", "Настройки", true, None::<&str>)?;
     let about_item = MenuItem::with_id(app, "about", "О программе", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;

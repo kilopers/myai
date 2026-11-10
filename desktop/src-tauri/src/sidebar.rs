@@ -79,9 +79,7 @@ mod win {
     }
 
     fn namespace_path() -> String {
-        format!(
-            r"Software\Microsoft\Windows\CurrentVersion\Explorer\Desktop\NameSpace\{NAV_CLSID}"
-        )
+        format!(r"Software\Microsoft\Windows\CurrentVersion\Explorer\Desktop\NameSpace\{NAV_CLSID}")
     }
 
     fn check(what: &str, e: WIN32_ERROR) -> Result<(), String> {
@@ -361,8 +359,7 @@ pub fn sidebar_set_pinned(app: AppHandle, pin: bool) -> Result<(), String> {
 /// Открыть sync-папку в файловом менеджере ОС.
 #[tauri::command]
 pub fn sidebar_open_folder(app: AppHandle) -> Result<(), String> {
-    let root =
-        sync::sync_root(&app).ok_or_else(|| "Папка синхронизации не выбрана".to_string())?;
+    let root = sync::sync_root(&app).ok_or_else(|| "Папка синхронизации не выбрана".to_string())?;
     open_folder(&root);
     Ok(())
 }
