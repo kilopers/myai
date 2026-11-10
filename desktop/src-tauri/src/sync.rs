@@ -1675,9 +1675,15 @@ pub fn set_sync_folder(app: AppHandle, path: String) -> Result<(), String> {
         .map_err(|e| format!("Нет права записи в папку (проверьте доступ на macOS): {e}"))?;
     let _ = std::fs::remove_file(&probe);
 
+    let old_root = sync_root(&app);
     let store = app.store("settings.json").map_err(|e| e.to_string())?;
     store.set("sync_root", serde_json::Value::String(path.clone()));
     store.save().map_err(|e| e.to_string())?;
+    // Если папка закреплена в панели Проводника/Finder — перепривязать
+    // пункт к новому пути, иначе он останется мёртвой ссылкой.
+    if let Err(e) = crate::sidebar::re_pin(&app, old_root.as_deref(), &path) {
+        log(&app, format!("не смог перепривязать пункт панели: {e}"));
+    }
     log(&app, format!("папка синхронизации: {path}"));
     Ok(())
 }

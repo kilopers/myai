@@ -300,6 +300,35 @@ async function initSettings() {
   for (const line of await invoke<string[]>('sync_log_tail')) appendLog(line);
   await listen<string>('sync-log', (e) => appendLog(e.payload));
 
+  // --- пин sync-папки в панели Проводника/Finder (win/mac) ---
+  try {
+    const os = await invoke<string>('os_name');
+    if (os === 'windows' || os === 'macos') {
+      const pinBlock = document.getElementById('sidebar-pin')!;
+      const pinCheck = document.getElementById('sidebar-pin-check') as HTMLInputElement;
+      const pinLabel = document.getElementById('sidebar-pin-label')!;
+      const pinHint = document.getElementById('sidebar-pin-hint')!;
+      pinBlock.style.display = 'block';
+      pinLabel.textContent = os === 'windows'
+        ? 'Папка в левой панели Проводника'
+        : 'Папка в боковой панели Finder (Избранное)';
+      pinHint.textContent = os === 'windows'
+        ? 'Пункт «Мой AI ассистент» появится в новых окнах Проводника.'
+        : 'Папка появится в «Избранном» сразу или после перезапуска Finder.';
+      pinCheck.checked = await invoke<boolean>('sidebar_pin_state');
+      pinCheck.addEventListener('change', async () => {
+        try {
+          await invoke('sidebar_set_pinned', { pin: pinCheck.checked });
+          setStatus(pinCheck.checked ? 'Папка закреплена в панели' : 'Папка откреплена', '#7bd88a');
+        } catch (e) {
+          pinCheck.checked = !pinCheck.checked;
+          setStatus(`Не вышло: ${e}`, '#e5534b');
+        }
+        setTimeout(() => setStatus(''), 5000);
+      });
+    }
+  } catch { /* команды недоступны */ }
+
   // --- macOS: подсказка про разрешения ---
   try {
     if ((await invoke<string>('os_name')) === 'macos') {

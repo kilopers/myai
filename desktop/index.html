@@ -165,6 +165,13 @@
       <div class="row" style="margin-top:8px">
         <button id="sync-now" class="secondary" type="button">Синхронизировать сейчас</button>
       </div>
+      <div id="sidebar-pin" style="display:none">
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer">
+          <input type="checkbox" id="sidebar-pin-check" style="width:auto" />
+          <span id="sidebar-pin-label">Папка в боковой панели</span>
+        </label>
+        <div class="hint" id="sidebar-pin-hint" style="margin-top:4px"></div>
+      </div>
       <div class="hint" id="macos-perms" style="display:none">
         macOS: для захвата экрана и доступа к папке нужны разрешения —
         <a href="#" id="open-privacy">открыть «Конфиденциальность и безопасность»</a>

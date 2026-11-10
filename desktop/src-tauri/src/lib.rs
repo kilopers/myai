@@ -2,6 +2,7 @@ mod apps;
 #[cfg(target_os = "macos")]
 mod capture_macos;
 mod keepawake;
+mod sidebar;
 mod sync;
 mod update;
 
@@ -757,7 +758,7 @@ fn open_settings_window(app: &AppHandle) -> Result<(), String> {
         WebviewUrl::App("index.html#settings".into()),
     )
     .title("Мой AI ассистент — настройки")
-    .inner_size(520.0, 970.0)
+    .inner_size(520.0, 1000.0)
     .resizable(true)
     .build()
     .map_err(|e| e.to_string())?;
@@ -837,6 +838,8 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let capture_item = MenuItem::with_id(app, "capture", "Сделать скриншот", true, None::<&str>)?;
     let web_item = MenuItem::with_id(app, "open_web", "Открыть в браузере", true, None::<&str>)?;
     let sync_item = MenuItem::with_id(app, "sync", "Синхронизировать", true, None::<&str>)?;
+    let folder_item =
+        MenuItem::with_id(app, "open_folder", "Открыть папку", true, None::<&str>)?;
     let settings_item = MenuItem::with_id(app, "settings", "Настройки", true, None::<&str>)?;
     let about_item = MenuItem::with_id(app, "about", "О программе", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
@@ -850,6 +853,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         MenuItemKind::Predefined(sep1),
         MenuItemKind::Submenu(awake_menu),
         MenuItemKind::MenuItem(sync_item),
+        MenuItemKind::MenuItem(folder_item),
         MenuItemKind::Predefined(sep2),
         MenuItemKind::Submenu(apps_menu),
         MenuItemKind::MenuItem(settings_item),
@@ -986,7 +990,10 @@ pub fn run() {
             apps::app_divider_done,
             apps::app_term_run,
             apps::app_term_write,
-            apps::app_term_resize
+            apps::app_term_resize,
+            sidebar::sidebar_pin_state,
+            sidebar::sidebar_set_pinned,
+            sidebar::sidebar_open_folder
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -1026,6 +1033,15 @@ pub fn run() {
             *app.state::<apps::AppsState>().list.lock().unwrap() = apps::load(app.handle());
             apps::refresh_hotkeys(app.handle());
 
+            // Самолечение пина в панели Проводника/Finder: если
+            // включён и папка выбрана — повторяем нативную операцию
+            // (восстановление после ручного снятия/переустановки ОС).
+            if sidebar::pin_enabled(app.handle()) {
+                if let Some(root) = sync::sync_root(app.handle()) {
+                    let _ = sidebar::re_pin(app.handle(), None, &root);
+                }
+            }
+
             // Трей-меню со статическими пунктами, разделителями и
             // подменю «Мои приложения» из текущего списка.
             let menu = build_menu(app.handle())?;
@@ -1039,6 +1055,9 @@ pub fn run() {
                     "open_web" => open_in_browser(app),
                     "sync" => {
                         sync::spawn_sync(app, None);
+                    }
+                    "open_folder" => {
+                        let _ = sidebar::sidebar_open_folder(app.clone());
                     }
                     "settings" => {
                         if let Err(e) = open_settings_window(app) {
