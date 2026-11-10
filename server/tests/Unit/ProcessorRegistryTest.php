@@ -34,6 +34,13 @@ class ProcessorRegistryTest extends TestCase
         $this->assertInstanceOf(OfficeProcessor::class, $registry->for(
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         ));
+        $this->assertInstanceOf(OfficeProcessor::class, $registry->for('application/vnd.ms-excel'));
+        $this->assertInstanceOf(OfficeProcessor::class, $registry->for(
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        ));
+        $this->assertInstanceOf(OfficeProcessor::class, $registry->for(
+            'application/vnd.oasis.opendocument.spreadsheet'
+        ));
     }
 
     public function test_returns_null_for_unsupported_types(): void

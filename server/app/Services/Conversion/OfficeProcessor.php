@@ -7,14 +7,19 @@ use App\Models\StoredFile;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * Word (doc/docx) → PDF через LibreOffice headless, затем растрирование
- * страниц движком PdfProcessor — тот же просмотрщик, что и у PDF.
+ * Офисные документы (Word doc/docx, Excel xls/xlsx/xlsm, ODS) → PDF
+ * через LibreOffice headless, затем растрирование страниц движком
+ * PdfProcessor — тот же просмотрщик, что и у PDF.
  */
 class OfficeProcessor extends FileProcessor
 {
     private const MIMES = [
         'application/msword',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.oasis.opendocument.spreadsheet',
+        'application/vnd.ms-excel.sheet.macroEnabled.12',
     ];
 
     public function __construct(

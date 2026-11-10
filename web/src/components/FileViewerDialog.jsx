@@ -18,7 +18,11 @@ import AppDialog from './AppDialog';
 
 export const isOfficeMime = (mime) =>
   mime === 'application/msword' ||
-  mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+  mime === 'application/vnd.ms-excel' ||
+  mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+  mime === 'application/vnd.oasis.opendocument.spreadsheet' ||
+  mime === 'application/vnd.ms-excel.sheet.macroEnabled.12';
 
 /**
  * Режим встроенного просмотрщика по типу файла:

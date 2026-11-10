@@ -37,6 +37,7 @@ import ImageIcon from '@mui/icons-material/Image';
 import AudioFileIcon from '@mui/icons-material/AudioFile';
 import VideoFileIcon from '@mui/icons-material/VideoFile';
 import ArchiveIcon from '@mui/icons-material/Archive';
+import TableChartIcon from '@mui/icons-material/TableChart';
 import LinkIcon from '@mui/icons-material/Link';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -73,6 +74,7 @@ function fileIcon(mime) {
   if (mime.startsWith('audio/')) return <AudioFileIcon color="secondary" />;
   if (mime.startsWith('video/')) return <VideoFileIcon color="secondary" />;
   if (/zip|tar|gzip|x-7z|rar/.test(mime)) return <ArchiveIcon />;
+  if (/ms-excel|spreadsheet/.test(mime)) return <TableChartIcon color="success" />;
   return <InsertDriveFileIcon />;
 }
 
