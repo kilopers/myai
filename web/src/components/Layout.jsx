@@ -5,8 +5,6 @@ import {
   CircularProgress,
   Drawer,
   IconButton,
-  InputAdornment,
-  InputBase,
   ListSubheader,
   List,
   ListItemButton,
@@ -29,7 +27,6 @@ import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAltOutlined';
 import StorageIcon from '@mui/icons-material/StorageOutlined';
 import KeyIcon from '@mui/icons-material/KeyOutlined';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanbanOutlined';
-import SearchIcon from '@mui/icons-material/Search';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { Outlet, Link as RouterLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
@@ -75,7 +72,6 @@ export default function Layout() {
     });
   };
   const [notice, setNotice] = useState('');
-  const [query, setQuery] = useState('');
   const [wsState, setWsState] = useState('disconnected');
 
   useEffect(() => onWsStatus(setWsState), []);
@@ -165,30 +161,17 @@ export default function Layout() {
   ];
 
   const expanded = open || isMobile;
-  const q = query.trim().toLowerCase();
-  const visible = q ? items.filter((i) => i.label.toLowerCase().includes(q)) : items;
+  const visible = items;
   const subWrap = { ml: 2.25, pl: 1, borderLeft: `1px solid ${C.line}`, mb: 0.5 };
 
   const nav = (
     <Box sx={{ overflowY: 'auto', flexGrow: 1 }}>
-      {expanded && (
-        <Box sx={{ px: 1, pt: 1 }}>
-          <InputBase
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Поиск по меню…"
-            fullWidth
-            startAdornment={<InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: C.muted }} /></InputAdornment>}
-            sx={{ px: 1, py: 0.25, fontSize: 14, border: `1px solid ${C.line}`, borderRadius: 1.5, bgcolor: '#fff' }}
-          />
-        </Box>
-      )}
       <List sx={{ px: 0.75, pt: 0.5 }}>
         {visible.map((item, idx) => {
           const selected = item.to === '/'
             ? location.pathname === '/'
             : location.pathname.startsWith(item.to);
-          const groupHead = expanded && !q && item.group && (
+          const groupHead = expanded && item.group && (
             <ListSubheader disableSticky sx={{ bgcolor: 'transparent', color: C.muted, fontSize: 12, lineHeight: '28px', px: 0.75, mt: idx ? 1.5 : 0.5 }}>
               {item.group}
             </ListSubheader>
