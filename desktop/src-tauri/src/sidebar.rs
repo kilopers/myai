@@ -69,13 +69,23 @@ mod win {
 
     use super::{NAV_CLSID, WIN_NAME};
 
-    /// CLSID делегата «ярлык на папку» из shell32.
-    const DELEGATE_CLSID: &str = "{0AFACED1-E828-11D1-9187-B532F1E9575D}";
+    /// CLSID делегата «ярлык на папку» из shell32 (официальный рецепт
+    /// Microsoft dn889934 — как у OneDrive/Nextcloud; читает
+    /// InitPropertyBag\TargetFolderPath). Старый делегат
+    /// {0AFACED1-E828-11D1-9187-B532F1E9575D} читает «Target» и с
+    /// TargetFolderPath давал пункт, который не открывается по клику.
+    const DELEGATE_CLSID: &str = "{0E5AAE11-A475-4c5b-AB00-C66DE400274E}";
     const HIDE_ICONS: &str =
         r"Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel";
 
     fn clsid_path() -> String {
         format!(r"Software\Classes\CLSID\{NAV_CLSID}")
+    }
+
+    /// 32-битный вид того же CLSID — чтобы пункт работал и в диалогах
+    /// «Открыть/Сохранить» 32-битных приложений (рецепт Nextcloud).
+    fn clsid_path_wow64() -> String {
+        format!(r"Software\Classes\Wow6432Node\CLSID\{NAV_CLSID}")
     }
 
     fn namespace_path() -> String {
@@ -165,43 +175,55 @@ mod win {
         }
     }
 
+    /// Полный набор значений CLSID-пункта: имя, положение в панели,
+    /// иконка, делегат shell32 и целевая папка. Пишется в оба вида
+    /// реестра (64- и 32-битный).
+    unsafe fn write_clsid(root: &str, folder: &str, icon: &str) -> Result<(), String> {
+        // CLSID\{GUID}: имя пункта и положение в панели.
+        let h = create_key(root)?;
+        set_default(h, WIN_NAME, false)?;
+        set_dword(h, "System.IsPinnedToNameSpaceTree", 1)?;
+        set_dword(h, "SortOrderIndex", 0x42)?;
+        let _ = RegCloseKey(h);
+
+        // Иконка — ресурс 0 нашего exe.
+        let h = create_key(&format!(r"{root}\DefaultIcon"))?;
+        set_default(h, icon, false)?;
+        let _ = RegCloseKey(h);
+
+        // InProcServer32 → делегат shell32 (COM-сервер не нужен).
+        let h = create_key(&format!(r"{root}\InProcServer32"))?;
+        set_default(h, r"%SystemRoot%\system32\shell32.dll", true)?;
+        set_str(h, "ThreadingModel", "Apartment", false)?;
+        let _ = RegCloseKey(h);
+
+        // Instance → делегат + InitPropertyBag с целевой папкой.
+        let h = create_key(&format!(r"{root}\Instance"))?;
+        set_str(h, "CLSID", DELEGATE_CLSID, false)?;
+        let _ = RegCloseKey(h);
+        let h = create_key(&format!(r"{root}\Instance\InitPropertyBag"))?;
+        set_dword(h, "Attributes", 0x11)?;
+        set_str(h, "TargetFolderPath", folder, false)?;
+        // «Target» — имя свойства у старых folder-shortcut объектов;
+        // пишем тоже, чтобы пункт открывался на любых ревизиях shell.
+        set_str(h, "Target", folder, false)?;
+        let _ = RegCloseKey(h);
+
+        // ShellFolder — атрибуты папки оболочки.
+        let h = create_key(&format!(r"{root}\ShellFolder"))?;
+        set_dword(h, "Attributes", 0xF080_004D)?;
+        set_dword(h, "FolderValueFlags", 0x28)?;
+        let _ = RegCloseKey(h);
+        Ok(())
+    }
+
     pub fn pin(folder: &str) -> Result<(), String> {
         unsafe {
-            // CLSID\{GUID}: имя пункта и положение в панели.
-            let h = create_key(&clsid_path())?;
-            set_default(h, WIN_NAME, false)?;
-            set_dword(h, "System.IsPinnedToNameSpaceTree", 1)?;
-            set_dword(h, "SortOrderIndex", 0x42)?;
-            let _ = RegCloseKey(h);
-
-            // Иконка — ресурс 0 нашего exe.
-            let h = create_key(&format!(r"{}\DefaultIcon", clsid_path()))?;
             let icon = std::env::current_exe()
                 .map(|p| format!("{},0", p.display()))
                 .unwrap_or_else(|_| "explorer.exe,0".into());
-            set_default(h, &icon, false)?;
-            let _ = RegCloseKey(h);
-
-            // InProcServer32 → делегат shell32 (COM-сервер не нужен).
-            let h = create_key(&format!(r"{}\InProcServer32", clsid_path()))?;
-            set_default(h, r"%SystemRoot%\system32\shell32.dll", true)?;
-            set_str(h, "ThreadingModel", "Apartment", false)?;
-            let _ = RegCloseKey(h);
-
-            // Instance + InitPropertyBag\TargetFolderPath → папка.
-            let h = create_key(&format!(r"{}\Instance", clsid_path()))?;
-            set_str(h, "CLSID", DELEGATE_CLSID, false)?;
-            let _ = RegCloseKey(h);
-            let h = create_key(&format!(r"{}\Instance\InitPropertyBag", clsid_path()))?;
-            set_dword(h, "Attributes", 0x11)?;
-            set_str(h, "TargetFolderPath", folder, false)?;
-            let _ = RegCloseKey(h);
-
-            // ShellFolder — атрибуты папки оболочки.
-            let h = create_key(&format!(r"{}\ShellFolder", clsid_path()))?;
-            set_dword(h, "Attributes", 0xF080_004D)?;
-            set_dword(h, "FolderValueFlags", 0)?;
-            let _ = RegCloseKey(h);
+            write_clsid(&clsid_path(), folder, &icon)?;
+            write_clsid(&clsid_path_wow64(), folder, &icon)?;
 
             // Регистрация в навигационной панели рабочего стола.
             let h = create_key(&namespace_path())?;
@@ -223,6 +245,7 @@ mod win {
             // Ошибки удаления игнорируем — ключа может не быть
             // (повторный unpin / пункта не было) — операция идемпотентна.
             let _ = RegDeleteTreeW(HKEY_CURRENT_USER, &HSTRING::from(clsid_path()));
+            let _ = RegDeleteTreeW(HKEY_CURRENT_USER, &HSTRING::from(clsid_path_wow64()));
             let _ = RegDeleteTreeW(HKEY_CURRENT_USER, &HSTRING::from(namespace_path()));
             let mut h = HKEY::default();
             if RegOpenKeyExW(
@@ -278,34 +301,205 @@ fn is_pinned_native() -> bool {
     win::is_pinned()
 }
 
+/// macOS: «Избранное» Finder живёт в sharedfilelist. `sfltool
+/// add-item` Apple убрала ещё в macOS 10.13 (команда молча ничего не
+/// делает), поэтому работаем через LSSharedFileList API — оно помечено
+/// deprecated, но функционирует и это единственный системный способ.
 #[cfg(target_os = "macos")]
-fn sfl(args: &[&str]) -> Result<(), String> {
-    let out = std::process::Command::new("/usr/bin/sfltool")
-        .args(args)
-        .output()
-        .map_err(|e| format!("sfltool: {e}"))?;
-    if out.status.success() {
+mod mac {
+    use std::ffi::{c_char, c_void, CStr, CString};
+
+    use super::MAC_LIST;
+
+    type CFRef = *const c_void;
+
+    const ENCODING_UTF8: u32 = 0x0800_0100; // kCFStringEncodingUTF8
+    const POSIX_STYLE: isize = 0; // kCFURLPOSIXPathStyle
+
+    #[link(name = "CoreFoundation", kind = "framework")]
+    extern "C" {
+        fn CFStringCreateWithCString(alloc: CFRef, s: *const c_char, enc: u32) -> CFRef;
+        fn CFStringGetCString(s: CFRef, buf: *mut c_char, size: isize, enc: u32) -> bool;
+        fn CFURLCreateWithFileSystemPath(
+            alloc: CFRef,
+            path: CFRef,
+            style: isize,
+            dir: bool,
+        ) -> CFRef;
+        fn CFURLCopyFileSystemPath(url: CFRef, style: isize) -> CFRef;
+        fn CFArrayGetCount(arr: CFRef) -> isize;
+        fn CFArrayGetValueAtIndex(arr: CFRef, idx: isize) -> CFRef;
+        fn CFRelease(obj: CFRef);
+    }
+
+    #[link(name = "CoreServices", kind = "framework")]
+    extern "C" {
+        static kLSSharedFileListFavoriteItems: CFRef;
+        static kLSSharedFileListItemLast: CFRef;
+        fn LSSharedFileListCreate(alloc: CFRef, list_type: CFRef, options: CFRef) -> CFRef;
+        fn LSSharedFileListCopySnapshot(list: CFRef, seed: *mut u32) -> CFRef;
+        #[allow(clippy::too_many_arguments)]
+        fn LSSharedFileListInsertItemURL(
+            list: CFRef,
+            before: CFRef,
+            name: CFRef,
+            icon: CFRef,
+            url: CFRef,
+            set: CFRef,
+            clear: CFRef,
+        ) -> CFRef;
+        fn LSSharedFileListItemRemove(list: CFRef, item: CFRef) -> i32;
+        fn LSSharedFileListItemResolve(
+            item: CFRef,
+            flags: u32,
+            url: *mut CFRef,
+            fsref: *mut c_void,
+        ) -> i32;
+    }
+
+    unsafe fn cf_str(s: &str) -> CFRef {
+        let c = CString::new(s).unwrap_or_default();
+        CFStringCreateWithCString(std::ptr::null(), c.as_ptr(), ENCODING_UTF8)
+    }
+
+    unsafe fn cf_to_string(s: CFRef) -> Option<String> {
+        if s.is_null() {
+            return None;
+        }
+        let mut buf = [0 as c_char; 8192];
+        CFStringGetCString(s, buf.as_mut_ptr(), buf.len() as isize, ENCODING_UTF8)
+            .then(|| CStr::from_ptr(buf.as_ptr()).to_string_lossy().into_owned())
+    }
+
+    unsafe fn favorites() -> CFRef {
+        LSSharedFileListCreate(
+            std::ptr::null(),
+            kLSSharedFileListFavoriteItems,
+            std::ptr::null(),
+        )
+    }
+
+    /// Путь, на который указывает элемент списка (без завершающего /).
+    unsafe fn item_target(item: CFRef) -> Option<String> {
+        let mut url: CFRef = std::ptr::null();
+        if LSSharedFileListItemResolve(item, 0, &mut url, std::ptr::null_mut()) != 0
+            || url.is_null()
+        {
+            return None;
+        }
+        let cf_path = CFURLCopyFileSystemPath(url, POSIX_STYLE);
+        CFRelease(url);
+        let path = cf_to_string(cf_path);
+        if !cf_path.is_null() {
+            CFRelease(cf_path);
+        }
+        path.map(|p| p.trim_end_matches('/').to_string())
+    }
+
+    /// Элементы «Избранного», ссылающиеся на folder (анти-дубли/снятие).
+    unsafe fn matching_items(list: CFRef, folder: &str) -> Vec<CFRef> {
+        let mut out = Vec::new();
+        let want = folder.trim_end_matches('/');
+        let mut seed = 0u32;
+        let snap = LSSharedFileListCopySnapshot(list, &mut seed);
+        if !snap.is_null() {
+            for i in 0..CFArrayGetCount(snap) {
+                let item = CFArrayGetValueAtIndex(snap, i);
+                if item_target(item).as_deref() == Some(want) {
+                    out.push(item);
+                }
+            }
+            CFRelease(snap);
+        }
+        out
+    }
+
+    /// Фолбэк на древние macOS (<10.13), где sfltool ещё умел add-item.
+    fn sfl(args: &[&str]) -> Result<(), String> {
+        let out = std::process::Command::new("/usr/bin/sfltool")
+            .args(args)
+            .output()
+            .map_err(|e| format!("sfltool: {e}"))?;
+        if out.status.success() {
+            Ok(())
+        } else {
+            Err(format!(
+                "sfltool {}: {}",
+                args.join(" "),
+                String::from_utf8_lossy(&out.stderr).trim()
+            ))
+        }
+    }
+
+    pub fn pin(folder: &str) -> Result<(), String> {
+        unsafe {
+            let list = favorites();
+            if list.is_null() {
+                // API недоступно — пробуем sfltool (file:// URL, не путь).
+                return sfl(&["add-item", MAC_LIST, &format!("file://{folder}")]);
+            }
+            for item in matching_items(list, folder) {
+                let _ = LSSharedFileListItemRemove(list, item);
+            }
+            let cf_path = cf_str(folder);
+            let url = CFURLCreateWithFileSystemPath(std::ptr::null(), cf_path, POSIX_STYLE, true);
+            let item = LSSharedFileListInsertItemURL(
+                list,
+                kLSSharedFileListItemLast,
+                std::ptr::null(),
+                std::ptr::null(),
+                url,
+                std::ptr::null(),
+                std::ptr::null(),
+            );
+            for obj in [item, url, cf_path, list] {
+                if !obj.is_null() {
+                    CFRelease(obj);
+                }
+            }
+            if item.is_null() {
+                return Err("LSSharedFileListInsertItemURL вернул NULL".into());
+            }
+        }
         Ok(())
-    } else {
-        Err(format!(
-            "sfltool {}: {}",
-            args.join(" "),
-            String::from_utf8_lossy(&out.stderr).trim()
-        ))
+    }
+
+    pub fn unpin(folder: &str) -> Result<(), String> {
+        unsafe {
+            let list = favorites();
+            if list.is_null() {
+                return sfl(&["remove-item", MAC_LIST, &format!("file://{folder}")]);
+            }
+            for item in matching_items(list, folder) {
+                let _ = LSSharedFileListItemRemove(list, item);
+            }
+            CFRelease(list);
+        }
+        Ok(())
+    }
+
+    pub fn is_pinned(folder: &str) -> bool {
+        unsafe {
+            let list = favorites();
+            if list.is_null() {
+                return false;
+            }
+            let found = !matching_items(list, folder).is_empty();
+            CFRelease(list);
+            found
+        }
     }
 }
 
 #[cfg(target_os = "macos")]
 fn pin_native(_app: &AppHandle, folder: &str) -> Result<(), String> {
-    // Анти-дубль: remove-item игнорируем, add-item — строго.
-    let _ = sfl(&["remove-item", MAC_LIST, folder]);
-    sfl(&["add-item", MAC_LIST, folder])
+    mac::pin(folder)
 }
 
 #[cfg(target_os = "macos")]
 fn unpin_native(_app: &AppHandle, folder: Option<&str>) -> Result<(), String> {
     match folder {
-        Some(f) => sfl(&["remove-item", MAC_LIST, f]),
+        Some(f) => mac::unpin(f),
         // Пути не знаем — снимать нечего (флаг сбросит вызывающий).
         None => Ok(()),
     }
@@ -331,6 +525,17 @@ pub fn sidebar_pin_state(app: AppHandle) -> bool {
     {
         let flag = pin_enabled(&app);
         let real = is_pinned_native();
+        if flag != real {
+            let _ = set_flag(&app, real);
+            return real;
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let flag = pin_enabled(&app);
+        let real = sync::sync_root(&app)
+            .map(|p| mac::is_pinned(&p))
+            .unwrap_or(false);
         if flag != real {
             let _ = set_flag(&app, real);
             return real;
