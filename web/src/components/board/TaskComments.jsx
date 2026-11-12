@@ -389,19 +389,30 @@ export default function TaskComments({ taskId, onCount, onError, apiBase = '/api
               color: 'rgba(0,0,0,0.55)',
             },
             // Кнопки действий комментария (правка/удаление) — только по
-            // ховеру на сообщении, в верхнем правом углу пузыря.
+            // ховеру на сообщении, бейджем в верхнем правом углу пузыря.
+            // Селектор — по реальному классу корня (MuiChatMessage-root):
+            // голого класса MuiChatMessage в DOM нет. Невидимым кнопкам
+            // гасим pointer-events, иначе они съедают клики по углу пузыря.
             '& .MuiChatMessage-bubble': { position: 'relative' },
             '& .comment-actions': {
               opacity: 0,
+              pointerEvents: 'none',
               transition: 'opacity .15s ease',
               position: 'absolute',
               top: -8,
-              right: -8,
+              right: 4,
               zIndex: 1,
               display: 'flex',
               gap: 0.25,
             },
-            '& .MuiChatMessage:hover .comment-actions': { opacity: 1 },
+            '& .MuiChatMessage-root:hover .comment-actions': {
+              opacity: 1,
+              pointerEvents: 'auto',
+            },
+            // На тач-устройствах ховера нет — кнопки видны всегда
+            '@media (hover: none)': {
+              '& .comment-actions': { opacity: 1, pointerEvents: 'auto' },
+            },
           }}
           >
             <ChatRoot
