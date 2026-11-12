@@ -62,6 +62,29 @@ class BoardTaskCommentController extends Controller
         return response()->json($comment->load(['user:id,name', 'attachments']), 201);
     }
 
+    /**
+     * Правка текста своего комментария — проставляет edited_at.
+     * Очистить текст можно, только если у комментария есть вложения.
+     */
+    public function update(Request $request, BoardTaskComment $boardTaskComment): JsonResponse
+    {
+        abort_unless($boardTaskComment->user_id === $request->user()->id, 403);
+
+        $data = $request->validate([
+            'text' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $text = trim((string) ($data['text'] ?? ''));
+        abort_if($text === '' && $boardTaskComment->attachments()->doesntExist(), 422, 'Пустой комментарий');
+
+        $boardTaskComment->update([
+            'text' => $text === '' ? null : $text,
+            'edited_at' => now(),
+        ]);
+
+        return response()->json($boardTaskComment->load(['user:id,name', 'attachments']));
+    }
+
     public function destroy(Request $request, BoardTaskComment $boardTaskComment)
     {
         abort_unless($boardTaskComment->user_id === $request->user()->id, 403);

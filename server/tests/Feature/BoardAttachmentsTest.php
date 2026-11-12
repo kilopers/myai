@@ -125,6 +125,48 @@ class BoardAttachmentsTest extends TestCase
         Storage::disk('public')->assertMissing($path);
     }
 
+    public function test_task_comment_edit(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        [, $task] = $this->boardWithTask($user);
+
+        $comment = $this->actingAs($user)->postJson('/api/board-task-comments', [
+            'board_task_id' => $task['id'], 'text' => 'первый',
+        ])->assertCreated()->json();
+
+        $list = $this->actingAs($user)
+            ->getJson('/api/board-task-comments?board_task_id='.$task['id'])->assertOk()->json();
+        $this->assertNull($list[0]['edited_at']);
+
+        // Чужой комментарий не править
+        $other = User::factory()->create();
+        $this->actingAs($other)->putJson('/api/board-task-comments/'.$comment['id'], ['text' => 'x'])
+            ->assertForbidden();
+
+        // Свой — правится, edited_at выставляется
+        $upd = $this->actingAs($user)->putJson('/api/board-task-comments/'.$comment['id'], [
+            'text' => 'исправлено',
+        ])->assertOk()->json();
+        $this->assertSame('исправлено', $upd['text']);
+        $this->assertNotNull($upd['edited_at']);
+
+        // Пустой текст без вложений — 422
+        $this->actingAs($user)->putJson('/api/board-task-comments/'.$comment['id'], ['text' => ''])
+            ->assertUnprocessable();
+
+        // Комментарий с вложением: текст можно очистить
+        $withFile = $this->actingAs($user)->postJson('/api/board-task-comments', [
+            'board_task_id' => $task['id'],
+            'text' => 'с файлом',
+            'files' => [UploadedFile::fake()->create('b.txt', 1, 'text/plain')],
+        ])->assertCreated()->json();
+        $upd = $this->actingAs($user)->putJson('/api/board-task-comments/'.$withFile['id'], ['text' => ''])
+            ->assertOk()->json();
+        $this->assertNull($upd['text']);
+        $this->assertCount(1, $upd['attachments']);
+    }
+
     public function test_task_delete_purges_attachment_files(): void
     {
         Storage::fake('public');

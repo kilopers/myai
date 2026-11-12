@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
 import TextField from '@mui/material/TextField';
@@ -11,6 +12,7 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DownloadIcon from '@mui/icons-material/Download';
+import EditIcon from '@mui/icons-material/Edit';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import SendIcon from '@mui/icons-material/Send';
 import { ChatDateDivider, ChatMessage, ChatMessageGroup } from '@mui/x-chat';
@@ -63,6 +65,8 @@ export default function TaskComments({ taskId, onCount, onError, apiBase = '/api
   const [thumbs, setThumbs] = useState({}); // attId -> objectURL
   const [gallery, setGallery] = useState(null);
   const [sending, setSending] = useState(false);
+  const [editing, setEditing] = useState(null); // {commentId, text}
+  const [savingEdit, setSavingEdit] = useState(false);
   const [me, setMe] = useState(null);
   const fileInputRef = useRef(null);
   const bottomRef = useRef(null);
@@ -159,6 +163,29 @@ export default function TaskComments({ taskId, onCount, onError, apiBase = '/api
     }
   };
 
+  // Инлайн-правка своего сообщения: Enter — сохранить, Esc — отмена.
+  const saveEdit = async (comment) => {
+    const body = (editing?.text ?? '').trim();
+    if ((!body && !(comment.attachments?.length)) || savingEdit) return;
+    setSavingEdit(true);
+    try {
+      if (guestName) {
+        await client.post(`${apiBase}/board-task-comments/${comment.id}/update`, {
+          guest_name: guestName,
+          text: body,
+        });
+      } else {
+        await client.put(`${apiBase}/board-task-comments/${comment.id}`, { text: body });
+      }
+      setEditing(null);
+      load();
+    } catch {
+      onError?.('Не удалось сохранить комментарий');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const download = async (att) => {
     try {
       const { data } = await client.get(`${apiBase}/board-task-attachments/${att.id}`, { responseType: 'blob' });
@@ -178,27 +205,38 @@ export default function TaskComments({ taskId, onCount, onError, apiBase = '/api
     .filter((a) => a.kind === 'photo' && thumbs[a.id])
     .map((a) => ({ url: thumbs[a.id], name: a.name }));
 
+  const own = (c) => me && (c.user_id === me.id || (guestName && c.guest_name === me.name));
+
   // Комментарии → сообщения чата: текст + фото + файлы + маркер своего
   const chatMessages = useMemo(() => (comments ?? []).map((c) => ({
     id: String(c.id),
     createdAt: c.created_at,
     // role 'user' даёт класс MuiChatMessage-roleUser — по нему
     // смягчаем слишком насыщенный синий пузырь своих сообщений
-    role: me && (c.user_id === me.id || (guestName && c.guest_name === me.name)) ? 'user' : 'assistant',
+    role: own(c) ? 'user' : 'assistant',
     author: { id: String(c.user_id ?? ''), displayName: c.user?.name ?? c.guest_name ?? 'Пользователь' },
-    parts: [
-      ...(c.text ? [{ type: 'text', text: c.text }] : []),
-      ...(c.attachments ?? []).map((a) => a.kind === 'photo'
-        ? { type: 'data-photo', id: `photo-${a.id}`, data: a }
-        : { type: 'data-file', id: `file-${a.id}`, data: a }),
-      ...(me && (c.user_id === me.id || (guestName && c.guest_name === me.name))
-        ? [{ type: 'data-delete', id: `del-${c.id}`, data: c }] : []),
-    ],
-  })), [comments, me]); // eslint-disable-line react-hooks/exhaustive-deps
+    parts: editing?.commentId === c.id
+      // Режим правки заменяет весь пузырь на инлайн-редактор
+      ? [{ type: 'data-edit', id: `edit-${c.id}`, data: c }]
+      : [
+        ...(c.text ? [{ type: 'text', text: c.text, editedAt: c.edited_at }] : []),
+        ...(c.attachments ?? []).map((a) => a.kind === 'photo'
+          ? { type: 'data-photo', id: `photo-${a.id}`, data: a }
+          : { type: 'data-file', id: `file-${a.id}`, data: a }),
+        ...(own(c) ? [{ type: 'data-actions', id: `act-${c.id}`, data: c }] : []),
+      ],
+  })), [comments, me, editing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const partRenderers = useMemo(() => ({
     text: ({ part }) => (
-      <Box sx={{ whiteSpace: 'pre-wrap' }}>{part.text}</Box>
+      <Box sx={{ whiteSpace: 'pre-wrap' }}>
+        {part.text}
+        {part.editedAt && (
+          <Typography component="span" variant="caption" sx={{ opacity: 0.55, ml: 0.5 }}>
+            (изменено)
+          </Typography>
+        )}
+      </Box>
     ),
     'data-photo': ({ part, message }) => {
       const photos = message.parts
@@ -251,25 +289,78 @@ export default function TaskComments({ taskId, onCount, onError, apiBase = '/api
         <DownloadIcon fontSize="small" color="action" />
       </Box>
     ),
-    'data-delete': ({ part }) => (
-      <Tooltip title="Удалить комментарий" key={part.id}>
-        <IconButton
-          className="comment-delete-btn"
-          size="small"
-          onClick={() => removeComment(part.data)}
-          sx={{
-            p: 0.25,
-            color: 'error.main',
-            bgcolor: 'background.paper',
-            boxShadow: 1,
-            '&:hover': { bgcolor: 'background.paper' },
-          }}
-        >
-          <DeleteIcon sx={{ fontSize: 14 }} />
-        </IconButton>
-      </Tooltip>
+    'data-actions': ({ part }) => (
+      <Box className="comment-actions">
+        <Tooltip title="Изменить комментарий">
+          <IconButton
+            size="small"
+            onClick={() => setEditing({ commentId: part.data.id, text: part.data.text ?? '' })}
+            sx={{
+              p: 0.25,
+              color: 'text.secondary',
+              bgcolor: 'background.paper',
+              boxShadow: 1,
+              '&:hover': { bgcolor: 'background.paper' },
+            }}
+          >
+            <EditIcon sx={{ fontSize: 14 }} />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Удалить комментарий">
+          <IconButton
+            size="small"
+            onClick={() => removeComment(part.data)}
+            sx={{
+              p: 0.25,
+              color: 'error.main',
+              bgcolor: 'background.paper',
+              boxShadow: 1,
+              '&:hover': { bgcolor: 'background.paper' },
+            }}
+          >
+            <DeleteIcon sx={{ fontSize: 14 }} />
+          </IconButton>
+        </Tooltip>
+      </Box>
     ),
-  }), [thumbs, allPhotos]); // eslint-disable-line react-hooks/exhaustive-deps
+    'data-edit': ({ part }) => (
+      <Box sx={{ minWidth: 220 }}>
+        <TextField
+          fullWidth
+          multiline
+          minRows={1}
+          maxRows={4}
+          size="small"
+          autoFocus
+          value={editing?.text ?? ''}
+          onChange={(e) => setEditing((s) => (s ? { ...s, text: e.target.value } : s))}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              setEditing(null);
+            } else if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              saveEdit(part.data);
+            }
+          }}
+        />
+        <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, justifyContent: 'flex-end' }}>
+          <Button
+            size="small"
+            variant="contained"
+            disableElevation
+            disabled={savingEdit || (!(editing?.text ?? '').trim() && !(part.data.attachments?.length))}
+            onClick={() => saveEdit(part.data)}
+          >
+            Сохранить
+          </Button>
+          <Button size="small" onClick={() => setEditing(null)}>
+            Отмена
+          </Button>
+        </Box>
+      </Box>
+    ),
+  }), [thumbs, allPhotos, editing, savingEdit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pendingPhotos = pending.filter((p) => p.file.type.startsWith('image/'));
   const pendingFiles = pending.filter((p) => !p.file.type.startsWith('image/'));
@@ -297,18 +388,20 @@ export default function TaskComments({ taskId, onCount, onError, apiBase = '/api
             '& .MuiChatMessage-roleUser .MuiChatMessage-inlineMeta': {
               color: 'rgba(0,0,0,0.55)',
             },
-            // Кнопка удаления комментария — только по ховеру на
-            // сообщении, бейджем на верхнем правом углу пузыря.
+            // Кнопки действий комментария (правка/удаление) — только по
+            // ховеру на сообщении, в верхнем правом углу пузыря.
             '& .MuiChatMessage-bubble': { position: 'relative' },
-            '& .comment-delete-btn': {
+            '& .comment-actions': {
               opacity: 0,
               transition: 'opacity .15s ease',
               position: 'absolute',
               top: -8,
               right: -8,
               zIndex: 1,
+              display: 'flex',
+              gap: 0.25,
             },
-            '& .MuiChatMessage:hover .comment-delete-btn': { opacity: 1 },
+            '& .MuiChatMessage:hover .comment-actions': { opacity: 1 },
           }}
           >
             <ChatRoot

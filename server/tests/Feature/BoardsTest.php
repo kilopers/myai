@@ -206,6 +206,16 @@ class BoardsTest extends TestCase
         $this->assertSame(1, $this->getJson("/api/public/boards/{$token}/board-task-comments?board_task_id={$task->id}")
             ->assertOk()->json('*.guest_name') === ['Иван Петров'] ? 1 : 0);
 
+        // Гость правит свой комментарий — только под тем же именем
+        $this->postJson("/api/public/boards/{$token}/board-task-comments/{$c->json('id')}/update", [
+            'guest_name' => 'Чужой', 'text' => 'x',
+        ])->assertForbidden();
+        $upd = $this->postJson("/api/public/boards/{$token}/board-task-comments/{$c->json('id')}/update", [
+            'guest_name' => 'Иван Петров', 'text' => 'Исправлено',
+        ])->assertOk();
+        $this->assertSame('Исправлено', $upd->json('text'));
+        $this->assertNotNull($upd->json('edited_at'));
+
         // Гость удаляет свой комментарий — только под тем же именем
         $this->postJson("/api/public/boards/{$token}/board-task-comments/{$c->json('id')}/delete", [
             'guest_name' => 'Чужой',

@@ -81,6 +81,7 @@ Route::middleware('throttle:120,1')->group(function () {
     Route::delete('/public/boards/{token}/board-task-attachments/{attachment}', [PublicBoardController::class, 'destroyAttachment']);
     Route::get('/public/boards/{token}/board-task-comments', [PublicBoardController::class, 'comments']);
     Route::post('/public/boards/{token}/board-task-comments', [PublicBoardController::class, 'storeComment']);
+    Route::post('/public/boards/{token}/board-task-comments/{comment}/update', [PublicBoardController::class, 'updateComment']);
     Route::post('/public/boards/{token}/board-task-comments/{comment}/delete', [PublicBoardController::class, 'destroyComment']);
     // Push-подписка гостя гостевой страницы доски
     Route::post('/public/boards/{token}/push-subscription', [PublicBoardController::class, 'subscribePush']);
@@ -130,7 +131,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('board-columns', BoardColumnController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('board-tasks', BoardTaskController::class)->only(['store', 'update', 'destroy']);
     Route::apiResource('board-task-attachments', BoardTaskAttachmentController::class)->only(['store', 'show', 'destroy']);
-    Route::apiResource('board-task-comments', BoardTaskCommentController::class)->only(['index', 'store', 'destroy']);
+    Route::apiResource('board-task-comments', BoardTaskCommentController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('files', FileController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
     Route::get('/files/{file}/download', [FileController::class, 'download']);
     // Производные файла фоновой конвертации (v1.3.0)

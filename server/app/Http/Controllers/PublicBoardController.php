@@ -320,6 +320,32 @@ class PublicBoardController extends Controller
         return response()->noContent();
     }
 
+    /** Гость правит только свой комментарий — сверяем имя. */
+    public function updateComment(Request $request, string $token, int $commentId): JsonResponse
+    {
+        $comment = BoardTaskComment::findOrFail($commentId);
+        abort_unless($comment->task->column->board->share_token === $token, 404);
+        abort_unless(
+            $comment->guest_name !== null
+                && $comment->guest_name === trim((string) $request->input('guest_name', '')),
+            403,
+        );
+
+        $data = $request->validate([
+            'text' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $text = trim((string) ($data['text'] ?? ''));
+        abort_if($text === '' && $comment->attachments()->doesntExist(), 422, 'Пустой комментарий');
+
+        $comment->update([
+            'text' => $text === '' ? null : $text,
+            'edited_at' => now(),
+        ]);
+
+        return response()->json($comment->load(['user:id,name', 'attachments']));
+    }
+
     /** Гость удаляет только свой комментарий — сверяем имя. */
     public function destroyComment(Request $request, string $token, int $commentId): Response
     {

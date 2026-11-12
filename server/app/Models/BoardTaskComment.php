@@ -7,9 +7,17 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['board_task_id', 'user_id', 'guest_name', 'text'])]
+#[Fillable(['board_task_id', 'user_id', 'guest_name', 'text', 'edited_at'])]
 class BoardTaskComment extends Model
 {
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return ['edited_at' => 'datetime'];
+    }
+
     /**
      * @return BelongsTo<BoardTask, $this>
      */
