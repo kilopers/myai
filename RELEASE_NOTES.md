@@ -6,6 +6,15 @@
 Актуальная версия — в файле `VERSION`.
 
 
+## 1.9.22
+
+- Десктоп (macOS): исправлено падение приложения при запуске
+  («The last time you opened … it unexpectedly quit») — элементы
+  LSSharedFileListCopySnapshot жили внутри snapshot-массива, а
+  LSSharedFileListItemRemove вызывался уже после CFRelease массива
+  (use-after-free). Удаление совпадающих элементов теперь идёт
+  пока snapshot жив; затронуты пин/анпин/проверка «Избранного».
+
 ## 1.9.21
 
 - Доски: починены невидимые кнопки правки/удаления комментария —

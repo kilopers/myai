@@ -396,22 +396,33 @@ mod mac {
         path.map(|p| p.trim_end_matches('/').to_string())
     }
 
-    /// Элементы «Избранного», ссылающиеся на folder (анти-дубли/снятие).
-    unsafe fn matching_items(list: CFRef, folder: &str) -> Vec<CFRef> {
-        let mut out = Vec::new();
+    /// Прогон по элементам «Избранного», ссылающимся на folder.
+    /// ItemRef принадлежит snapshot-массиву (Get-правило): использовать
+    /// его можно только пока массив жив — после CFRelease это висячий
+    /// указатель и LSSharedFileListItemRemove по нему роняет приложение.
+    /// f возвращает true для ранней остановки.
+    unsafe fn for_each_matching(list: CFRef, folder: &str, mut f: impl FnMut(CFRef) -> bool) {
         let want = folder.trim_end_matches('/');
         let mut seed = 0u32;
         let snap = LSSharedFileListCopySnapshot(list, &mut seed);
-        if !snap.is_null() {
-            for i in 0..CFArrayGetCount(snap) {
-                let item = CFArrayGetValueAtIndex(snap, i);
-                if item_target(item).as_deref() == Some(want) {
-                    out.push(item);
-                }
-            }
-            CFRelease(snap);
+        if snap.is_null() {
+            return;
         }
-        out
+        for i in 0..CFArrayGetCount(snap) {
+            let item = CFArrayGetValueAtIndex(snap, i);
+            if item_target(item).as_deref() == Some(want) && f(item) {
+                break;
+            }
+        }
+        CFRelease(snap);
+    }
+
+    /// Удалить из списка элементы, ссылающиеся на folder (анти-дубли).
+    unsafe fn remove_matching(list: CFRef, folder: &str) {
+        for_each_matching(list, folder, |item| {
+            let _ = LSSharedFileListItemRemove(list, item);
+            false
+        });
     }
 
     /// Фолбэк на древние macOS (<10.13), где sfltool ещё умел add-item.
@@ -438,9 +449,7 @@ mod mac {
                 // API недоступно — пробуем sfltool (file:// URL, не путь).
                 return sfl(&["add-item", MAC_LIST, &format!("file://{folder}")]);
             }
-            for item in matching_items(list, folder) {
-                let _ = LSSharedFileListItemRemove(list, item);
-            }
+            remove_matching(list, folder);
             let cf_path = cf_str(folder);
             let url = CFURLCreateWithFileSystemPath(std::ptr::null(), cf_path, POSIX_STYLE, true);
             let item = LSSharedFileListInsertItemURL(
@@ -470,9 +479,7 @@ mod mac {
             if list.is_null() {
                 return sfl(&["remove-item", MAC_LIST, &format!("file://{folder}")]);
             }
-            for item in matching_items(list, folder) {
-                let _ = LSSharedFileListItemRemove(list, item);
-            }
+            remove_matching(list, folder);
             CFRelease(list);
         }
         Ok(())
@@ -484,7 +491,11 @@ mod mac {
             if list.is_null() {
                 return false;
             }
-            let found = !matching_items(list, folder).is_empty();
+            let mut found = false;
+            for_each_matching(list, folder, |_| {
+                found = true;
+                true
+            });
             CFRelease(list);
             found
         }
