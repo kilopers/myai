@@ -222,7 +222,8 @@ export default function Layout() {
                     primaryTypographyProps={{ fontSize: '14px', fontWeight: selected ? 500 : 400 }}
                   />
                 )}
-                {/* Стрелка сворачивания — внутри пункта, под общим ховером */}
+                {/* Стрелка сворачивания — кружок с ховером; mr −2px,
+                    чтобы справа оставалось 4px, как сверху и снизу */}
                 {item.section && (open || isMobile) && (
                   <Box
                     component="span"
@@ -231,7 +232,19 @@ export default function Layout() {
                       e.stopPropagation();
                       toggleSection(item.section);
                     }}
-                    sx={{ display: 'flex', alignItems: 'center', color: C.muted, mr: -0.5 }}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      width: 24,
+                      height: 24,
+                      borderRadius: '50%',
+                      color: C.muted,
+                      cursor: 'pointer',
+                      mr: -0.25,
+                      '&:hover': { bgcolor: C.line, color: C.text },
+                    }}
                   >
                     {menuState[item.section]
                       ? <ExpandMoreIcon sx={{ fontSize: 16 }} />
