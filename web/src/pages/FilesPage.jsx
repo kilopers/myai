@@ -50,6 +50,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import ChecklistIcon from '@mui/icons-material/Checklist';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
+import EditIcon from '@mui/icons-material/Edit';
 import client from '../api/client';
 import AppDialog from '../components/AppDialog';
 import { onWsEvent } from '../api/ws';
@@ -178,6 +179,8 @@ export default function FilesPage() {
   const [shareResult, setShareResult] = useState('');
   const [editFile, setEditFile] = useState(null);
   const [editFileTtl, setEditFileTtl] = useState('');
+  const [editFileName, setEditFileName] = useState('');
+  const [nameEdit, setNameEdit] = useState(false);
   const [viewerFile, setViewerFile] = useState(null);
   const [torrentDialog, setTorrentDialog] = useState(null); // {id, name, files, checked:Set}
   const [torrentLog, setTorrentLog] = useState(null); // {id, data} — модалка журнала загрузки
@@ -435,8 +438,11 @@ export default function FilesPage() {
   };
 
   const saveFile = async () => {
+    const name = editFileName.trim();
     await client.put(`/api/files/${editFile.id}`, {
       expires_at: editFileTtl === '' ? null : ttlToIso(Number(editFileTtl)),
+      // Переименование — только если имя реально поменялось и не пустое
+      ...(name && name !== editFile.name ? { name } : {}),
     });
     setEditFile(null);
     load();
@@ -867,7 +873,7 @@ export default function FilesPage() {
               <IconButton size="small" title="Скачать" onClick={() => downloadFile(f)}>
                 <DownloadIcon fontSize="small" />
               </IconButton>
-              <IconButton size="small" title="Срок хранения" onClick={() => { setEditFile(f); setEditFileTtl(''); }}>
+              <IconButton size="small" title="Срок хранения" onClick={() => { setEditFile(f); setEditFileTtl(''); setEditFileName(f.name); setNameEdit(false); }}>
                 <SettingsIcon fontSize="small" />
               </IconButton>
               <IconButton size="small" title="Удалить" onClick={() => removeFile(f.id)}>
@@ -941,9 +947,58 @@ export default function FilesPage() {
         </DialogActions>
       </AppDialog>
 
-      {/* Срок хранения файла */}
+      {/* Срок хранения файла + переименование */}
       <AppDialog open={!!editFile} onClose={() => setEditFile(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>{editFile?.name}</DialogTitle>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          {nameEdit ? (
+            <TextField
+              autoFocus
+              fullWidth
+              size="small"
+              label="Имя файла"
+              value={editFileName}
+              onChange={(e) => setEditFileName(e.target.value)}
+              onBlur={() => setNameEdit(false)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  setNameEdit(false);
+                }
+                if (e.key === 'Escape') {
+                  setEditFileName(editFile?.name ?? '');
+                  setNameEdit(false);
+                }
+              }}
+            />
+          ) : (
+            <>
+              {/* Длинное имя — срез с градиентным затуханием хвоста
+                  вместо жёсткого обрыва у края модалки */}
+              <Box
+                component="span"
+                title={editFile?.name}
+                sx={{
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  whiteSpace: 'nowrap',
+                  WebkitMaskImage: 'linear-gradient(90deg, #000 0%, #000 calc(100% - 40px), transparent 100%)',
+                  maskImage: 'linear-gradient(90deg, #000 0%, #000 calc(100% - 40px), transparent 100%)',
+                }}
+              >
+                {editFile?.name}
+              </Box>
+              <Tooltip title="Переименовать">
+                <IconButton
+                  size="small"
+                  onClick={() => { setEditFileName(editFile?.name ?? ''); setNameEdit(true); }}
+                  sx={{ flexShrink: 0 }}
+                >
+                  <EditIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Tooltip>
+            </>
+          )}
+        </DialogTitle>
         <DialogContent sx={{ pt: 4 }}>
           <FormControl size="small" fullWidth>
             <InputLabel>Срок хранения</InputLabel>
