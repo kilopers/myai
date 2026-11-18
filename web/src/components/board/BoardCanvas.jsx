@@ -115,6 +115,29 @@ export default function BoardCanvas({
     }
   };
 
+  // Файл, брошенный/выбранный в редакторе описания: существующая задача —
+  // грузим во вложения и возвращаем ссылку для вставки в текст;
+  // новая (id ещё нет) — в pending, ссылку вставить некуда.
+  const uploadEditorFile = async (file) => {
+    if (!taskDlg?.task?.id) {
+      setTaskDlg((d) => ({
+        ...d, pending: [...(d.pending ?? []), { file, preview: URL.createObjectURL(file) }],
+      }));
+      return null;
+    }
+    try {
+      const fd = new FormData();
+      fd.append('board_task_id', taskDlg.task.id);
+      fd.append('file', file);
+      const { data } = await client.post(api('/board-task-attachments'), fd);
+      load();
+      return { url: `/api/task-attachments/${data.uuid}`, name: data.name };
+    } catch {
+      setNotice('Не удалось загрузить вложение');
+      return null;
+    }
+  };
+
   const removeColumn = async () => {
     try {
       await client.delete(api(`/board-columns/${colDlg.column.id}`));
@@ -535,6 +558,7 @@ export default function BoardCanvas({
                       placeholder="Описание задачи"
                       minHeight={200}
                       editorRef={taskEditorRef}
+                      uploadFile={uploadEditorFile}
                     />
                   </Box>
                 ) : (
@@ -608,6 +632,7 @@ export default function BoardCanvas({
                   placeholder="Описание задачи"
                   minHeight={200}
                   editorRef={taskEditorRef}
+                  uploadFile={uploadEditorFile}
                 />
               </Box>
               <Box sx={{ mt: 1.5 }}>

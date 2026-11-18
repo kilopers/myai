@@ -52,6 +52,24 @@ class BoardTaskAttachmentController extends Controller
         );
     }
 
+    /**
+     * Публичная отдача вложения по uuid: ссылки на него вставляются
+     * в текст задачи и должны открываться без Bearer-токена —
+     * и владельцем, и гостем доски. uuid — неугадываемый идентификатор.
+     */
+    public function showByUuid(string $uuid): StreamedResponse
+    {
+        $attachment = BoardTaskAttachment::where('uuid', $uuid)->firstOrFail();
+        abort_unless(Storage::disk('public')->exists($attachment->path), 404);
+
+        return Storage::disk('public')->response(
+            $attachment->path,
+            $attachment->name,
+            ['Content-Type' => $attachment->mime_type ?? 'application/octet-stream'],
+            $attachment->isPhoto() ? 'inline' : 'attachment',
+        );
+    }
+
     public function destroy(Request $request, BoardTaskAttachment $boardTaskAttachment)
     {
         abort_unless($boardTaskAttachment->user_id === $request->user()->id, 403);

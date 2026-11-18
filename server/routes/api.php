@@ -83,6 +83,9 @@ Route::middleware('throttle:120,1')->group(function () {
     Route::post('/public/boards/{token}/board-task-comments', [PublicBoardController::class, 'storeComment']);
     Route::post('/public/boards/{token}/board-task-comments/{comment}/update', [PublicBoardController::class, 'updateComment']);
     Route::post('/public/boards/{token}/board-task-comments/{comment}/delete', [PublicBoardController::class, 'destroyComment']);
+    // Вложение задачи по uuid — ссылки внутри текста задачи
+    // (uuid неугадываем, доступ без токена как у share-ссылок)
+    Route::get('/task-attachments/{uuid}', [BoardTaskAttachmentController::class, 'showByUuid']);
     // Push-подписка гостя гостевой страницы доски
     Route::post('/public/boards/{token}/push-subscription', [PublicBoardController::class, 'subscribePush']);
     Route::delete('/public/boards/{token}/push-subscription', [PublicBoardController::class, 'unsubscribePush']);

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
@@ -15,6 +15,7 @@ import FormatQuoteIcon from '@mui/icons-material/FormatQuote';
 import TitleIcon from '@mui/icons-material/Title';
 import UndoIcon from '@mui/icons-material/Undo';
 import RedoIcon from '@mui/icons-material/Redo';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 
 /**
  * WYSIWYG-редактор на TipTap: хранит и отдаёт HTML через onChange(html).
@@ -52,9 +53,39 @@ const clipboardImageFiles = (clipboardData) => {
     .filter(Boolean);
 };
 
+// Не-картинки: любые файлы из буфера/дропа — грузятся во вложения,
+// в текст вставляется ссылка.
+const nonImageFiles = (files) =>
+  [...(files ?? [])].filter((f) => !f.type.startsWith('image/'));
+
 export default function RichTextEditor({
-  value, onChange, placeholder, minHeight = 96, editorRef,
+  value, onChange, placeholder, minHeight = 96, editorRef, uploadFile,
 }) {
+  const fileInputRef = useRef(null);
+
+  // Файл → uploadFile (вложение) → ссылка в тексте.
+  // null в ответе = файл ушёл в pending-вложения, в текст не вставляем.
+  const insertFile = async (file) => {
+    if (!uploadFile) return;
+    const res = await uploadFile(file);
+    if (res) {
+      editor?.chain().focus()
+        .insertContent({
+          type: 'text',
+          text: res.name,
+          marks: [{
+            type: 'link',
+            attrs: { href: res.url, target: '_blank', rel: 'noopener' },
+          }],
+        })
+        .run();
+    }
+  };
+
+  const insertFiles = (files) => {
+    [...(files ?? [])].forEach(insertFile);
+  };
+
   const editor = useEditor({
     // allowBase64: без него parseHTML режет img[data:] при загрузке
     // сохранённого описания — картинка «пропадала» после переоткрытия
@@ -62,14 +93,20 @@ export default function RichTextEditor({
     content: value || '',
     onUpdate: ({ editor: e }) => onChange(e.isEmpty ? '' : e.getHTML()),
     editorProps: {
-      handlePaste: (_view, event) =>
-        insertImages(editor, clipboardImageFiles(event.clipboardData)),
+      handlePaste: (_view, event) => {
+        const handled = insertImages(editor, clipboardImageFiles(event.clipboardData));
+        if (uploadFile) insertFiles(nonImageFiles(event.clipboardData?.files));
+        return handled;
+      },
       handleDrop: (_view, event) => {
+        if (uploadFile) insertFiles(nonImageFiles(event.dataTransfer?.files));
         if (insertImages(editor, event.dataTransfer?.files)) {
           event.preventDefault();
           return true;
         }
-        return false;
+        return uploadFile && nonImageFiles(event.dataTransfer?.files).length > 0
+          ? (event.preventDefault(), true)
+          : false;
       },
     },
   });
@@ -137,6 +174,22 @@ export default function RichTextEditor({
         {btn('Цитата', <FormatQuoteIcon sx={fs} />, editor?.isActive('blockquote'),
           () => editor?.chain().focus().toggleBlockquote().run())}
         <Box sx={{ flex: 1 }} />
+        {uploadFile && (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              hidden
+              onChange={(e) => {
+                insertFiles(e.target.files);
+                e.target.value = '';
+              }}
+            />
+            {btn('Прикрепить файл', <AttachFileIcon sx={fs} />, false,
+              () => fileInputRef.current?.click())}
+          </>
+        )}
         {btn('Отменить', <UndoIcon sx={fs} />, false,
           () => editor?.chain().focus().undo().run(), !editor?.can().undo())}
         {btn('Повторить', <RedoIcon sx={fs} />, false,

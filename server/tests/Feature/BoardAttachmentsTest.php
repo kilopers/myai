@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class BoardAttachmentsTest extends TestCase
@@ -165,6 +166,22 @@ class BoardAttachmentsTest extends TestCase
             ->assertOk()->json();
         $this->assertNull($upd['text']);
         $this->assertCount(1, $upd['attachments']);
+    }
+
+    public function test_attachment_served_by_uuid_link(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        [, $task] = $this->boardWithTask($user);
+
+        $att = $this->actingAs($user)->postJson('/api/board-task-attachments', [
+            'board_task_id' => $task['id'],
+            'file' => UploadedFile::fake()->create('note.txt', 1, 'text/plain'),
+        ])->assertCreated()->json();
+
+        // Без авторизации — uuid сам по себе ключ (ссылка в тексте задачи)
+        $this->get('/api/task-attachments/'.$att['uuid'])->assertOk();
+        $this->get('/api/task-attachments/'.Str::uuid())->assertNotFound();
     }
 
     public function test_task_delete_purges_attachment_files(): void
