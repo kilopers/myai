@@ -102,6 +102,9 @@ export default function BoardCanvas({
         });
       } else {
         await client.post(api('/board-columns'), {
+          // У владельца board_id обязателен; гостевой контроллер его
+          // игнорирует — доска там определяется по токену из apiBase.
+          board_id: board?.id,
           name, color: colDlg.color,
         });
       }
