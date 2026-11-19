@@ -132,8 +132,10 @@ export default function NotesPage() {
         text: '',
       });
       const note = data.data;
+      // Сначала обновляем список — иначе новой заметки нет в notes
+      // и режим редактирования ни к одной карточке не привяжется.
+      await Promise.all([loadNotes(), loadFolders()]);
       setEditing({ ...note });
-      loadFolders();
     } catch {
       setMessage('Не удалось создать заметку');
     }
