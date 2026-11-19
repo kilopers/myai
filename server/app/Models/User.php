@@ -84,6 +84,22 @@ class User extends Authenticatable
     }
 
     /**
+     * @return HasMany<NoteFolder, $this>
+     */
+    public function noteFolders(): HasMany
+    {
+        return $this->hasMany(NoteFolder::class);
+    }
+
+    /**
+     * @return HasMany<Note, $this>
+     */
+    public function notes(): HasMany
+    {
+        return $this->hasMany(Note::class);
+    }
+
+    /**
      * @return HasMany<Board, $this>
      */
     public function boards(): HasMany

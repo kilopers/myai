@@ -20,6 +20,7 @@ import ShareFolderPage from './pages/ShareFolderPage';
 import ShareShotPage from './pages/ShareShotPage';
 import PublicBoardPage from './pages/PublicBoardPage';
 import PublicPasswordPage from './pages/PublicPasswordPage';
+import NotesPage from './pages/NotesPage';
 
 function Protected({ children, adminOnly = false, allowPasswordChange = false }) {
   const { user, loading } = useAuth();
@@ -91,6 +92,7 @@ export default function App() {
         <Route path="/releases" element={<ReleasesPage />} />
         <Route path="/storage" element={<StoragePage />} />
         <Route path="/passwords" element={<PasswordsPage />} />
+        <Route path="/notes" element={<NotesPage />} />
         <Route path="/boards" element={<BoardsPage />} />
         <Route path="/boards/:id" element={<BoardPage />} />
         <Route path="/settings" element={<SettingsPage />} />

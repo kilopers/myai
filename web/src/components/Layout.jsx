@@ -27,6 +27,7 @@ import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAltOutlined';
 import StorageIcon from '@mui/icons-material/StorageOutlined';
 import KeyIcon from '@mui/icons-material/KeyOutlined';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanbanOutlined';
+import StickyNoteIcon from '@mui/icons-material/StickyNote2Outlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { Outlet, Link as RouterLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
@@ -59,8 +60,11 @@ export default function Layout() {
   const [folders, setFolders] = useState([]);
   const [boards, setBoards] = useState([]);
   // Свернутые/развёрнутые секции меню — хранится в БД (users.menu_state).
-  const [menuState, setMenuState] = useState({ files: true, boards: true, passwords: true });
+  const [menuState, setMenuState] = useState({
+    files: true, boards: true, passwords: true, notes: true,
+  });
   const [pwFolders, setPwFolders] = useState([]);
+  const [noteFolders, setNoteFolders] = useState([]);
   useEffect(() => {
     if (user?.menu_state) setMenuState((s) => ({ ...s, ...user.menu_state }));
   }, [user?.menu_state]);
@@ -139,6 +143,22 @@ export default function Layout() {
     return () => window.removeEventListener('password-folders-changed', onChanged);
   }, [loadPwFolders, location.pathname]);
 
+  const loadNoteFolders = useCallback(async () => {
+    try {
+      const { data } = await client.get('/api/note-folders');
+      setNoteFolders(data.data ?? data);
+    } catch {
+      /* список папок не критичен */
+    }
+  }, []);
+
+  useEffect(() => {
+    loadNoteFolders();
+    const onChanged = () => loadNoteFolders();
+    window.addEventListener('note-folders-changed', onChanged);
+    return () => window.removeEventListener('note-folders-changed', onChanged);
+  }, [loadNoteFolders, location.pathname]);
+
   const toggle = () => {
     setOpen((v) => {
       localStorage.setItem(OPEN_KEY, v ? '0' : '1');
@@ -150,6 +170,7 @@ export default function Layout() {
     { to: '/', label: 'Скриншоты', icon: <ImageIcon />, group: 'Рабочее' },
     { to: '/files', label: 'Файлы', icon: <FolderIcon />, section: 'files' },
     { to: '/passwords', label: 'Пароли', icon: <KeyIcon />, section: 'passwords' },
+    { to: '/notes', label: 'Заметки', icon: <StickyNoteIcon />, section: 'notes' },
     { to: '/boards', label: 'Доски', icon: <ViewKanbanIcon />, section: 'boards' },
     { to: '/trash', label: 'Корзина', icon: <DeleteIcon />, group: 'Система' },
     { to: '/releases', label: 'Релизы', icon: <SystemUpdateAltIcon /> },
@@ -181,7 +202,7 @@ export default function Layout() {
               <ListItemButton
                 component={RouterLink}
                 to={item.to}
-                selected={selected && (item.to !== '/files' || !currentFolderId) && (item.to !== '/boards' || location.pathname === '/boards') && (item.to !== '/passwords' || location.pathname === '/passwords' && !searchParams.get('folder'))}
+                selected={selected && (item.to !== '/files' || !currentFolderId) && (item.to !== '/boards' || location.pathname === '/boards') && (item.to !== '/passwords' || location.pathname === '/passwords' && !searchParams.get('folder')) && (item.to !== '/notes' || location.pathname === '/notes' && !searchParams.get('folder'))}
                 onClick={isMobile ? toggle : undefined}
                 // На пункт «Файлы» можно бросить карточку — перенос в корень.
                 {...(item.to === '/files' ? {
@@ -260,6 +281,26 @@ export default function Layout() {
                       selected={location.pathname === '/passwords' && searchParams.get('folder') === String(f.id)}
                       onClick={() => {
                         navigate(`/passwords?folder=${f.id}`);
+                        if (isMobile) toggle();
+                      }}
+                      sx={subSx}
+                    >
+                      <ListItemText
+                        primary={f.name}
+                        primaryTypographyProps={{ fontSize: '14px', noWrap: true }}
+                      />
+                    </ListItemButton>
+                  ))}
+                </Box>
+              )}
+              {item.to === '/notes' && (open || isMobile) && menuState.notes && noteFolders.length > 0 && (
+                <Box sx={subWrap}>
+                  {noteFolders.map((f) => (
+                    <ListItemButton
+                      key={f.id}
+                      selected={location.pathname === '/notes' && searchParams.get('folder') === String(f.id)}
+                      onClick={() => {
+                        navigate(`/notes?folder=${f.id}`);
                         if (isMobile) toggle();
                       }}
                       sx={subSx}

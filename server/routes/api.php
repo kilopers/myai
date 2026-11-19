@@ -14,6 +14,8 @@ use App\Http\Controllers\DesktopReleaseController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\FolderController;
 use App\Http\Controllers\InviteController;
+use App\Http\Controllers\NoteController;
+use App\Http\Controllers\NoteFolderController;
 use App\Http\Controllers\PasswordEntryController;
 use App\Http\Controllers\PasswordFolderController;
 use App\Http\Controllers\PasswordGeneratorController;
@@ -116,6 +118,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::apiResource('folders', FolderController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('password-folders', PasswordFolderController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('note-folders', NoteFolderController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::apiResource('notes', NoteController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('password-entries', PasswordEntryController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::post('password-entries/{passwordEntry}/share-link', [PasswordEntryController::class, 'shareLink']);
     Route::delete('password-entries/{passwordEntry}/share-link', [PasswordEntryController::class, 'revokeShareLink']);
