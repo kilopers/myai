@@ -170,7 +170,9 @@ export default function NotesPage() {
   return (
     <Box>
       <PageHeader
-        crumbs={[{ label: 'Заметки' }]}
+        crumbs={activeId ? (
+          <Typography color="inherit">Заметки</Typography>
+        ) : null}
         title={activeId ? folders?.find((f) => f.id === activeId)?.name ?? 'Заметки' : 'Заметки'}
         actions={(
           <Button variant="contained" startIcon={<AddIcon />} onClick={createNote}>
