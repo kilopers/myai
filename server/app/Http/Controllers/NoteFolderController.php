@@ -17,7 +17,11 @@ class NoteFolderController extends Controller
             ->orderBy('name')
             ->get();
 
-        return JsonResource::collection($folders);
+        // notes_total — сумма ВСЕХ заметок юзера, включая беспапочные:
+        // счётчик «Все заметки» на фронте суммой по папкам не посчитать.
+        return JsonResource::collection($folders)->additional([
+            'meta' => ['notes_total' => $request->user()->notes()->count()],
+        ]);
     }
 
     public function store(Request $request): JsonResponse

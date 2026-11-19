@@ -59,6 +59,9 @@ export default function NotesPage() {
   const [q, setQ] = useState('');
   const [message, setMessage] = useState('');
   const [folderDlg, setFolderDlg] = useState(null); // {id?, name}
+  // Двукликовое подтверждение удаления: window.confirm в webview/PWA молча возвращает false
+  const [confirmDel, setConfirmDel] = useState(null); // {type:'note'|'folder', id}
+  const [totalNotes, setTotalNotes] = useState(0);
   const [saving, setSaving] = useState(false);
   // Заметка в режиме редактирования: {id, title, text, note_folder_id}
   const [editing, setEditing] = useState(null);
@@ -68,6 +71,7 @@ export default function NotesPage() {
     try {
       const { data } = await client.get('/api/note-folders');
       setFolders(data.data ?? []);
+      if (data.meta?.notes_total !== undefined) setTotalNotes(data.meta.notes_total);
     } catch {
       setFolders([]);
     }
@@ -113,9 +117,9 @@ export default function NotesPage() {
   };
 
   const removeFolder = async (folder) => {
-    if (!window.confirm(`Удалить папку «${folder.name}» вместе с заметками (${folder.notes_count})?`)) return;
     try {
       await client.delete(`/api/note-folders/${folder.id}`);
+      setConfirmDel(null);
       window.dispatchEvent(new Event('note-folders-changed'));
       if (activeId === folder.id) setActiveId(0);
       await Promise.all([loadFolders(), loadNotes()]);
@@ -159,9 +163,9 @@ export default function NotesPage() {
   };
 
   const removeNote = async (note) => {
-    if (!window.confirm(`Удалить заметку «${note.title}»?`)) return;
     try {
       await client.delete(`/api/notes/${note.id}`);
+      setConfirmDel(null);
       if (editing?.id === note.id) setEditing(null);
       await Promise.all([loadNotes(), loadFolders()]);
     } catch {
@@ -208,7 +212,7 @@ export default function NotesPage() {
                   </ListItemIcon>
                   <ListItemText
                     primary="Все заметки"
-                    secondary={`${folders.reduce((s, f) => s + (f.notes_count ?? 0), 0)} замет.`}
+                    secondary={`${totalNotes} замет.`}
                     primaryTypographyProps={{ fontSize: '0.85rem', noWrap: true }}
                   />
                 </ListItemButton>
@@ -233,9 +237,23 @@ export default function NotesPage() {
                     >
                       <EditIcon sx={{ fontSize: 15 }} />
                     </IconButton>
-                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); removeFolder(f); }}>
-                      <DeleteIcon sx={{ fontSize: 15 }} />
-                    </IconButton>
+                    <Tooltip title={confirmDel?.type === 'folder' && confirmDel.id === f.id
+                      ? 'Нажмите ещё раз — папка и её заметки удалятся' : 'Удалить папку'}>
+                      <IconButton
+                        size="small"
+                        color={confirmDel?.type === 'folder' && confirmDel.id === f.id ? 'error' : 'default'}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirmDel?.type === 'folder' && confirmDel.id === f.id) {
+                            removeFolder(f);
+                          } else {
+                            setConfirmDel({ type: 'folder', id: f.id });
+                          }
+                        }}
+                      >
+                        <DeleteIcon sx={{ fontSize: 15 }} />
+                      </IconButton>
+                    </Tooltip>
                   </ListItemButton>
                 ))}
                 {folders.length === 0 && (
@@ -328,8 +346,19 @@ export default function NotesPage() {
                               <EditIcon sx={{ fontSize: 16 }} />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title="Удалить">
-                            <IconButton size="small" onClick={() => removeNote(n)}>
+                          <Tooltip title={confirmDel?.type === 'note' && confirmDel.id === n.id
+                            ? 'Нажмите ещё раз для удаления' : 'Удалить'}>
+                            <IconButton
+                              size="small"
+                              color={confirmDel?.type === 'note' && confirmDel.id === n.id ? 'error' : 'default'}
+                              onClick={() => {
+                                if (confirmDel?.type === 'note' && confirmDel.id === n.id) {
+                                  removeNote(n);
+                                } else {
+                                  setConfirmDel({ type: 'note', id: n.id });
+                                }
+                              }}
+                            >
                               <DeleteIcon sx={{ fontSize: 16 }} />
                             </IconButton>
                           </Tooltip>

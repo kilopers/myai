@@ -42,6 +42,11 @@ class NotesTest extends TestCase
         $found = $this->actingAs($user)->getJson('/api/notes?q=Перв')->assertOk()->json('data');
         $this->assertCount(1, $found);
 
+        // Список папок: notes_count по папке и notes_total по всем заметкам (вкл. беспапочные)
+        $flist = $this->actingAs($user)->getJson('/api/note-folders')->assertOk();
+        $this->assertSame(2, $flist->json('meta.notes_total'));
+        $this->assertSame(1, $flist->json('data.0.notes_count'));
+
         // Правка текста/заголовка
         $upd = $this->actingAs($user)->putJson('/api/notes/'.$note['id'], [
             'title' => 'Первая*', 'text' => '<p>новый</p>',
